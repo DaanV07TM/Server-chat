@@ -30,6 +30,59 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
+// Optional managed TURN credentials. Keep the provider API key in Render, never in browser code.
+// Set TURN_CREDENTIALS_URL to the Metered endpoint shown in its dashboard.
+const TURN_CREDENTIALS_URL = String(process.env.TURN_CREDENTIALS_URL || '').trim();
+let turnCredentialsCache = { iceServers: null, expiresAt: 0, lastAttemptAt: 0 };
+app.get('/api/turn-credentials', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!TURN_CREDENTIALS_URL) return res.status(503).json({ iceServers: [] });
+  const now = Date.now();
+  if (turnCredentialsCache.iceServers && turnCredentialsCache.expiresAt > now) {
+    return res.json({ iceServers: turnCredentialsCache.iceServers });
+  }
+  // Avoid repeated upstream requests if the provider is unavailable or a client refreshes repeatedly.
+  if (turnCredentialsCache.lastAttemptAt && now - turnCredentialsCache.lastAttemptAt < 10000) {
+    return res.status(503).json({ iceServers: [] });
+  }
+  turnCredentialsCache.lastAttemptAt = now;
+  try {
+    const endpoint = new URL(TURN_CREDENTIALS_URL);
+    if (endpoint.protocol !== 'https:' ||
+        !endpoint.hostname.endsWith('.metered.live') ||
+        endpoint.pathname !== '/api/v1/turn/credentials') {
+      return res.status(500).json({ iceServers: [] });
+    }
+    const upstream = await fetch(endpoint, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!upstream.ok) return res.status(502).json({ iceServers: [] });
+    const result = await upstream.json();
+    if (!Array.isArray(result)) return res.status(502).json({ iceServers: [] });
+    const iceServers = result.map(item => {
+      if (!item || typeof item !== 'object') return null;
+      const rawUrls = Array.isArray(item.urls) ? item.urls : [item.urls];
+      const urls = rawUrls.filter(value => typeof value === 'string' && /^(stun|turn|turns):/i.test(value));
+      if (!urls.length) return null;
+      const entry = { urls };
+      if (typeof item.username === 'string') entry.username = item.username;
+      if (typeof item.credential === 'string') entry.credential = item.credential;
+      return entry;
+    }).filter(Boolean);
+    if (!iceServers.length) return res.status(502).json({ iceServers: [] });
+    turnCredentialsCache = {
+      iceServers,
+      expiresAt: now + 5 * 60 * 1000,
+      lastAttemptAt: now
+    };
+    return res.json({ iceServers });
+  } catch (error) {
+    console.warn('[voice] TURN credential lookup failed:', error && error.message ? error.message : 'unknown error');
+    return res.status(502).json({ iceServers: [] });
+  }
+});
+
 app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
