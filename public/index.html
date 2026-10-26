@@ -786,7 +786,7 @@ function start() {
     if (!Array.isArray(tracks) || !tracks.length) {
       const empty = document.createElement('li');
       empty.className = 'music-queue-empty';
-      empty.textContent = 'No tracks found. Try another title or artist.';
+      empty.textContent = 'No original-style tracks found. Remixes, bootlegs, nightcore, sped-up and slowed versions are filtered. Try the exact song title and artist.';
       musicSearchResults.append(empty);
       return;
     }
