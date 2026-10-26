@@ -9,7 +9,9 @@ const io = new Server(server, { maxHttpBufferSize: 2e6 });
 app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
+const ANNOUNCEMENT_TTL = 60 * 1000;
 const rooms = {}, games = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
+let latestAnnouncement = null, latestAnnouncementTimer = null;
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -91,7 +93,30 @@ function bot(room, text) {
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
-const announce = (t) => io.emit('msg', { name: '📢', bot: true, admin: true, announcement: true, text: t, t: Date.now() });
+function announce(t) {
+  // Keep the latest global announcement in server memory so anyone joining
+  // any room during its 60-second lifetime receives it as part of history.
+  const message = {
+    name: '📢',
+    bot: true,
+    admin: true,
+    announcement: true,
+    text: t,
+    t: Date.now()
+  };
+  latestAnnouncement = message;
+  if (latestAnnouncementTimer) clearTimeout(latestAnnouncementTimer);
+  latestAnnouncementTimer = setTimeout(() => {
+    if (latestAnnouncement === message) {
+      latestAnnouncement = null;
+      latestAnnouncementTimer = null;
+    }
+  }, ANNOUNCEMENT_TTL);
+
+  // Socket.IO broadcasts to every connected socket, regardless of room.
+  io.emit('msg', message);
+  console.log('[admin] global announcement broadcast to all rooms');
+}
 const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.admin) s.emit('sys', t); };
 function removeMsg(mid) {
   for (const r in rooms) {
@@ -235,7 +260,13 @@ io.on('connection', (socket) => {
     socket.emit('config', { images: imagesAllowed(room) });
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
-    socket.emit('history', (rooms[room] || []).filter(m => now - m.t < TTL).map(pub));
+    const history = (rooms[room] || []).filter(m => now - m.t < TTL).map(pub);
+    // Announcements are global, not tied to a room's message list. Include
+    // the latest one for new joiners while its one-minute banner is active.
+    if (latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
+      history.push(latestAnnouncement);
+    }
+    socket.emit('history', history);
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 1);
   });
 
