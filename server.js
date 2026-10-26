@@ -140,6 +140,11 @@ function announce(t) {
     text: t,
     t: Date.now()
   };
+  // Keep a durable copy in the official channel while retaining the brief global banner.
+  const archived = { ...message, announcement: false, persistentAnnouncement: true };
+  store('announcements', archived);
+  io.to('announcements').emit('msg', pub(archived));
+
   latestAnnouncement = message;
   if (latestAnnouncementTimer) clearTimeout(latestAnnouncementTimer);
   latestAnnouncementTimer = setTimeout(() => {
@@ -494,7 +499,7 @@ io.on('connection', (socket) => {
       .map(pub);
     // Global banners remain temporary. Moderator posts written directly in
     // #announcements have their own history and do not expire with normal chat.
-    if (latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
+    if (room !== 'announcements' && latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
       history.push(latestAnnouncement);
     }
     if (room === 'announcements') {
