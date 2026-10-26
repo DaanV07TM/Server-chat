@@ -143,9 +143,25 @@ function command(room, name, text) {
   else if (c === 'rules') bot(room, 'Be kind. No harassment, hate, threats, scams or illegal content. Use ⚑ to report a message.');
 }
 
-// CPU samples let the admin panel show recent process usage rather than lifetime averages.
+// Sample CPU continuously so opening the admin panel never reports an average
+// diluted by hours when no moderator was watching the dashboard.
 let cpuUsageSample = process.cpuUsage();
 let cpuUsageSampleAt = process.hrtime.bigint();
+let recentCpuPct = 0;
+let cpuSampleReady = false;
+
+function sampleCpuUsage() {
+  const now = process.hrtime.bigint();
+  const elapsedMicros = Math.max(1, Number(now - cpuUsageSampleAt) / 1000);
+  const delta = process.cpuUsage(cpuUsageSample);
+  cpuUsageSample = process.cpuUsage();
+  cpuUsageSampleAt = now;
+  // 100% means the Node process has used one CPU core fully over the sample interval.
+  recentCpuPct = Math.round(Math.max(0, (delta.user + delta.system) / elapsedMicros * 100));
+  cpuSampleReady = true;
+}
+const cpuSampler = setInterval(sampleCpuUsage, 2000);
+if (typeof cpuSampler.unref === 'function') cpuSampler.unref();
 
 function getContainerMemoryLimit() {
   const files = ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'];
@@ -168,31 +184,24 @@ function getContainerMemoryLimit() {
 }
 
 function getServerLoad() {
-  const now = process.hrtime.bigint();
-  const elapsedMicros = Math.max(1, Number(now - cpuUsageSampleAt) / 1000);
-  const cpuDelta = process.cpuUsage(cpuUsageSample);
-  cpuUsageSample = process.cpuUsage();
-  cpuUsageSampleAt = now;
-
-  // 100% means the Node process has used one CPU core fully over the sample interval.
-  const cpuPct = Math.round(Math.max(0, (cpuDelta.user + cpuDelta.system) / elapsedMicros * 100));
   const memory = process.memoryUsage();
   const heapLimit = v8.getHeapStatistics().heap_size_limit;
   const containerLimit = getContainerMemoryLimit();
   const rssPct = containerLimit ? Math.round(memory.rss / containerLimit * 100) : null;
   const heapPct = heapLimit > 0 ? Math.round(memory.heapUsed / heapLimit * 100) : 0;
 
-  const critical = cpuPct >= 95 || heapPct >= 95 || (rssPct !== null && rssPct >= 95);
-  const high = cpuPct >= 80 || heapPct >= 85 || (rssPct !== null && rssPct >= 85);
+  const critical = (cpuSampleReady && recentCpuPct >= 95) || heapPct >= 95 || (rssPct !== null && rssPct >= 95);
+  const high = (cpuSampleReady && recentCpuPct >= 80) || heapPct >= 85 || (rssPct !== null && rssPct >= 85);
   return {
-    cpuPct,
+    cpuPct: recentCpuPct,
+    cpuReady: cpuSampleReady,
     rssMB: Math.round(memory.rss / 1048576),
     rssPct,
     memoryLimitMB: containerLimit ? Math.round(containerLimit / 1048576) : null,
     heapUsedMB: Math.round(memory.heapUsed / 1048576),
     heapLimitMB: Math.round(heapLimit / 1048576),
     heapPct,
-    level: critical ? 'critical' : high ? 'high' : 'normal'
+    level: !cpuSampleReady ? 'unknown' : critical ? 'critical' : high ? 'high' : 'normal'
   };
 }
 
