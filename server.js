@@ -41,6 +41,10 @@ let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
 const voiceParticipants = new Map(); // 'voice' -> Map(socket ID -> { name, joinedAt })
+const MUSIC_MAX_TRACKS = 50;
+const MUSIC_MAX_PER_USER = 5;
+const musicQueue = [];
+let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0;
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -463,6 +467,42 @@ function broadcastVoiceState() {
   io.to('voice').emit('voice:state', { participants: getVoiceRoster() });
 }
 
+function parseYouTubeVideoId(raw) {
+  try {
+    const url = new URL(String(raw || ''));
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    let videoId = '';
+    if (host === 'youtu.be') {
+      videoId = url.pathname.split('/').filter(Boolean)[0] || '';
+    } else if (['youtube.com', 'm.youtube.com', 'music.youtube.com'].includes(host)) {
+      videoId = url.searchParams.get('v') || '';
+      if (!videoId) {
+        const match = url.pathname.match(/^\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})(?:\/|$)/);
+        if (match) videoId = match[1];
+      }
+    } else {
+      return null;
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+const publicMusicTrack = track => track && ({
+  id: track.id,
+  videoId: track.videoId,
+  title: track.title,
+  addedBy: track.addedBy,
+  addedAt: track.addedAt
+});
+const getMusicState = () => ({
+  current: publicMusicTrack(musicCurrent),
+  queue: musicQueue.map(publicMusicTrack),
+  maxTracks: MUSIC_MAX_TRACKS
+});
+const broadcastMusicState = () => io.to('music').emit('music:state', getMusicState());
+
 function removeVoiceParticipant(socketId) {
   const roster = voiceParticipants.get('voice');
   if (!roster || !roster.has(socketId)) return;
@@ -511,6 +551,7 @@ io.on('connection', (socket) => {
     }
     socket.emit('history', history);
     if (room === 'voice') socket.emit('voice:state', { participants: getVoiceRoster() });
+    if (room === 'music') socket.emit('music:state', getMusicState());
     const activeShare = screenSharers[room];
     socket.emit('screen:state', activeShare
       ? { sharerId: activeShare.socketId, name: activeShare.name }
@@ -764,6 +805,64 @@ io.on('connection', (socket) => {
 
     const target = io.sockets.sockets.get(d.to);
     if (target) target.emit('voice:signal', payload);
+  });
+
+  // Shared YouTube link queue. Playback remains inside YouTube's visible embedded player.
+  socket.on('music:add', (d) => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
+    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot add tracks right now.' });
+    if (!d || typeof d.url !== 'string' || now - (socket.data.musicLastAdd || 0) < 2500) {
+      return socket.emit('music:error', { message: 'Please wait a moment before adding another track.' });
+    }
+
+    const videoId = parseYouTubeVideoId(d.url);
+    if (!videoId) {
+      return socket.emit('music:error', { message: 'Paste a valid YouTube or YouTube Music video link (not a search page or playlist link).' });
+    }
+    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
+    if (sameUserCount >= MUSIC_MAX_PER_USER) {
+      return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.' });
+    }
+    if ((musicCurrent && musicCurrent.videoId === videoId) || musicQueue.some(track => track.videoId === videoId)) {
+      return socket.emit('music:error', { message: 'That video is already in the current track or queue.' });
+    }
+    if ((musicCurrent ? 1 : 0) + musicQueue.length >= MUSIC_MAX_TRACKS) {
+      return socket.emit('music:error', { message: 'The shared list is full (maximum ' + MUSIC_MAX_TRACKS + ' tracks). Wait for a track to be skipped.' });
+    }
+
+    const track = {
+      id: ++musicTrackId,
+      videoId,
+      title: clean(d.title, 100) || 'YouTube video',
+      addedBy: safeName(d.name),
+      addedById: socket.id,
+      addedAt: now
+    };
+    socket.data.musicLastAdd = now;
+    if (!musicCurrent) musicCurrent = track;
+    else musicQueue.push(track);
+    broadcastMusicState();
+    socket.emit('music:added', { id: track.id });
+    console.log('[music] track added by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
+  });
+
+  socket.on('music:next', () => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
+    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot control the music queue.' });
+    if (now - musicLastSkipAt < 3000) {
+      return socket.emit('music:error', { message: 'Please wait a few seconds before changing the current track.' });
+    }
+    if (!musicQueue.length) {
+      return socket.emit('music:error', { message: 'There are no more tracks in the queue yet.' });
+    }
+    musicLastSkipAt = now;
+    musicCurrent = musicQueue.shift();
+    broadcastMusicState();
+    console.log('[music] current track advanced by a channel member');
   });
 
   socket.on('msg', (d) => {
