@@ -252,6 +252,16 @@ button:active:not(:disabled){transform:translateY(0)}
 .music-notice{margin:8px 0 0;color:var(--mute);font-size:10px;line-height:1.45}
 @media(max-width:780px){.music-layout{grid-template-columns:1fr}.music-panel{max-height:55vh}.music-player-shell{max-width:480px;width:100%}.music-player-column{min-width:0}}
 @media(max-width:560px){.music-panel{padding:10px}.music-panel-heading h2{font-size:16px}.music-layout{gap:12px}.music-queue-list{max-height:110px}}
+.music-search-results{margin-top:7px;max-height:170px}
+.music-search-result{align-items:flex-start!important}
+.music-search-result-info{flex:1;min-width:0;overflow-wrap:anywhere}
+.music-search-result-info strong{display:block;font-size:11px;font-weight:800}
+.music-search-result-info span{display:block;margin-top:2px;color:var(--mute);font-size:10px;line-height:1.35}
+.music-search-result button{width:auto;flex:0 0 auto;min-height:30px;margin:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.music-search-result button:disabled{opacity:.55;cursor:default}
+.music-upload-details{margin-top:12px;padding-top:9px;border-top:1px solid var(--line)}
+.music-upload-details summary{color:var(--mute);font-size:11px;font-weight:800;cursor:pointer}
+.music-upload-details .music-add-form{margin-top:10px}
 #siteDialog{z-index:100}
 #siteDialog .box{width:min(440px,100%);max-width:440px;padding:clamp(18px,3vw,26px);border-radius:20px}
 .site-dialog-kicker{display:inline-block;margin-bottom:9px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em}
@@ -345,9 +355,9 @@ button:active:not(:disabled){transform:translateY(0)}
 <section id="musicPanel" class="music-panel" hidden aria-label="Shared music channel">
   <div class="music-panel-heading">
     <div>
-      <div class="music-eyebrow">SERVER-HOSTED AUDIO</div>
+      <div class="music-eyebrow">SERVER-RELAYED AUDIO</div>
       <h2>🎵 Music room</h2>
-      <p class="music-subtitle">Upload a permitted audio file and listen together from the chat server.</p>
+      <p class="music-subtitle">Search tracks and listen together. Search and playback requests run through this chat server.</p>
     </div>
     <span id="musicQueueCount" class="music-count">0 tracks</span>
   </div>
@@ -357,11 +367,11 @@ button:active:not(:disabled){transform:translateY(0)}
         <div id="musicAudioPlaceholder" class="music-audio-placeholder">
           <div class="music-placeholder-icon" aria-hidden="true">♫</div>
           <strong>Waiting for the first audio track</strong>
-          <p>Audio is served from this chat's server. A browser may ask you to click Play or Join before it allows sound.</p>
+          <p>Audio is relayed by this chat server. A browser may ask you to click Play or Join before it allows sound.</p>
         </div>
         <audio id="musicAudio" class="music-audio" controls preload="metadata" playsinline hidden></audio>
       </div>
-      <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Upload the first audio file.</div>
+      <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Search the catalogue or upload an audio file.</div>
       <div class="music-sync-controls">
         <div id="musicSyncStatus" class="music-sync-status" aria-live="polite">Waiting for a track.</div>
         <div class="music-sync-buttons">
@@ -369,21 +379,32 @@ button:active:not(:disabled){transform:translateY(0)}
           <button id="musicPauseAllBtn" type="button" disabled>Ⅱ Pause everyone</button>
           <button id="musicJoinSyncBtn" type="button" disabled>↻ Join / resync here</button>
         </div>
-        <p class="music-sync-help">The server shares one playback clock. Each browser may require a local click to permit sound; when enabled, it follows the shared track and position.</p>
+        <p class="music-sync-help">The server shares one playback clock. A browser may require one local click to permit sound.</p>
       </div>
     </div>
     <div class="music-queue-column">
-      <form id="musicAddForm" class="music-add-form">
-        <label for="musicFileInput">Audio file (max 8 MB)</label>
-        <input id="musicFileInput" type="file" accept=".mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac" required>
-        <label for="musicTitleInput">Track name (optional)</label>
-        <input id="musicTitleInput" type="text" placeholder="e.g. Artist — Song title" maxlength="100" autocomplete="off">
-        <button id="musicAddBtn" type="submit">Upload to shared queue</button>
+      <form id="musicSearchForm" class="music-add-form">
+        <label for="musicSearchInput">Search by track or artist</label>
+        <input id="musicSearchInput" type="search" placeholder="e.g. The Weeknd — Blinding Lights" maxlength="100" autocomplete="off" required>
+        <button id="musicSearchBtn" type="submit">Search music</button>
       </form>
+      <ol id="musicSearchResults" class="music-queue-list music-search-results" aria-live="polite">
+        <li class="music-queue-empty">Search for a song or artist to see results.</li>
+      </ol>
       <div class="music-queue-heading"><strong>Up next</strong><span>Shared with everyone in #music</span></div>
-      <ol id="musicQueueList" class="music-queue-list"><li class="music-queue-empty">Queue is empty. Upload an audio file to get started.</li></ol>
+      <ol id="musicQueueList" class="music-queue-list"><li class="music-queue-empty">Queue is empty. Add a track from the search results.</li></ol>
       <button id="musicNextBtn" class="music-next-btn" type="button" disabled>Next track</button>
-      <p id="musicNotice" class="music-notice">Upload only music you own or have permission to share. Uploaded tracks are stored in server memory and are cleared when the service restarts or a track is skipped.</p>
+      <details class="music-upload-details">
+        <summary>Upload your own audio file instead</summary>
+        <form id="musicAddForm" class="music-add-form">
+          <label for="musicFileInput">Audio file (max 8 MB)</label>
+          <input id="musicFileInput" type="file" accept=".mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac" required>
+          <label for="musicTitleInput">Track name (optional)</label>
+          <input id="musicTitleInput" type="text" placeholder="e.g. Artist — Song title" maxlength="100" autocomplete="off">
+          <button id="musicAddBtn" type="submit">Upload to shared queue</button>
+        </form>
+      </details>
+      <p id="musicNotice" class="music-notice">The browser requests audio only from this chat server. The music addon sees the server's outbound connection, not each listener's IP. Upload only audio you have permission to share.</p>
     </div>
   </div>
 </section>
@@ -609,7 +630,7 @@ function start() {
   });
   const log = $('log'), text = $('text'), socket = io();
 
-  // Shared server-hosted audio queue with an authoritative playback clock.
+  // Shared music queue. Catalogue search and audio playback use same-origin routes only.
   const musicPanel = $('musicPanel');
   const musicAudio = $('musicAudio');
   const musicAudioPlaceholder = $('musicAudioPlaceholder');
@@ -617,6 +638,10 @@ function start() {
   const musicTitleInput = $('musicTitleInput');
   const musicAddForm = $('musicAddForm');
   const musicAddBtn = $('musicAddBtn');
+  const musicSearchForm = $('musicSearchForm');
+  const musicSearchInput = $('musicSearchInput');
+  const musicSearchBtn = $('musicSearchBtn');
+  const musicSearchResults = $('musicSearchResults');
   const musicNextBtn = $('musicNextBtn');
   const musicQueueList = $('musicQueueList');
   const musicQueueCount = $('musicQueueCount');
@@ -634,7 +659,7 @@ function start() {
   let musicLoadedTrackId = null;
   let musicListeningEnabled = false;
   let musicSuppressNativeEventsUntil = 0;
-  let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0;
+  let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0, musicSearchSequence = 0;
   const musicPendingSyncRequests = new Map();
   musicPanel.hidden = room !== 'music';
 
@@ -661,13 +686,13 @@ function start() {
     musicSyncStatus.classList.toggle('live', !!playback.isPlaying);
     musicSyncStatus.classList.toggle('paused', !playback.isPlaying);
     if (!current) {
-      musicSyncStatus.textContent = 'WAITING · Upload the first audio track.';
+      musicSyncStatus.textContent = 'WAITING · Search or upload a track to start.';
     } else if (playback.isPlaying && !musicListeningEnabled) {
       musicSyncStatus.textContent = 'LIVE · The server stream is playing. Click Join / resync here to enable audio in this browser.';
     } else if (playback.isPlaying) {
       musicSyncStatus.textContent = 'LIVE · This browser is following the shared server stream.';
     } else {
-      musicSyncStatus.textContent = 'PAUSED · The selected audio and queue are shared with everyone.';
+      musicSyncStatus.textContent = 'PAUSED · The selected track and queue are shared with everyone.';
     }
   }
 
@@ -686,11 +711,11 @@ function start() {
       musicAudio.src = '/music/stream/' + encodeURIComponent(String(current.id));
       musicAudio.load();
       musicAudioPlaceholder.hidden = true;
-      musicNotice.textContent = 'Loaded from the chat server. Press Play for everyone or Join / resync here to listen.';
+      musicNotice.textContent = 'Track loaded through the chat server. Press Play for everyone or Join / resync here to listen.';
     } else {
       musicAudio.hidden = true;
       musicAudioPlaceholder.hidden = false;
-      musicNotice.textContent = 'Upload only audio that you own or have permission to share. Server memory is limited.';
+      musicNotice.textContent = 'Search and playback are proxied through the chat server. Upload only audio you have permission to share.';
     }
     updateMusicSyncUI();
   }
@@ -729,6 +754,84 @@ function start() {
     updateMusicSyncUI();
   }
 
+  function renderMusicSearchResults(tracks) {
+    musicSearchResults.replaceChildren();
+    if (!Array.isArray(tracks) || !tracks.length) {
+      const empty = document.createElement('li');
+      empty.className = 'music-queue-empty';
+      empty.textContent = 'No tracks found. Try another title or artist.';
+      musicSearchResults.append(empty);
+      return;
+    }
+    tracks.forEach(track => {
+      const row = document.createElement('li');
+      row.className = 'music-search-result';
+      const info = document.createElement('div');
+      info.className = 'music-search-result-info';
+      const title = document.createElement('strong');
+      title.textContent = track.title || 'Unknown track';
+      const details = document.createElement('span');
+      const parts = [track.artist, track.album, track.format];
+      if (Number.isFinite(Number(track.duration)) && Number(track.duration) > 0) {
+        const seconds = Math.floor(Number(track.duration));
+        parts.push(Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0'));
+      }
+      details.textContent = parts.filter(Boolean).join(' · ');
+      info.append(title, details);
+      const addButton = document.createElement('button');
+      addButton.type = 'button';
+      addButton.dataset.trackId = track.id;
+      addButton.textContent = 'Add';
+      addButton.setAttribute('aria-label', 'Add ' + (track.title || 'track') + ' to queue');
+      row.append(info, addButton);
+      musicSearchResults.append(row);
+    });
+  }
+
+  musicSearchForm.onsubmit = async event => {
+    event.preventDefault();
+    if (room !== 'music') return;
+    const query = musicSearchInput.value.trim();
+    if (query.length < 2) return showToast('Enter at least two characters to search.', 'info');
+    const sequence = ++musicSearchSequence;
+    musicSearchBtn.disabled = true;
+    musicSearchBtn.textContent = 'Searching…';
+    const searching = document.createElement('li');
+    searching.className = 'music-queue-empty';
+    searching.textContent = 'Searching the catalogue through the chat server…';
+    musicSearchResults.replaceChildren(searching);
+    try {
+      const response = await fetch('/api/music/search?q=' + encodeURIComponent(query), {
+        headers: { accept: 'application/json' }, cache: 'no-store'
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'The catalogue could not be searched.');
+      if (sequence !== musicSearchSequence) return;
+      renderMusicSearchResults(payload.tracks);
+      musicNotice.textContent = 'Search was made by the chat server. Add a result to put it in the shared queue.';
+    } catch (error) {
+      if (sequence !== musicSearchSequence) return;
+      const row = document.createElement('li');
+      row.className = 'music-queue-empty';
+      row.textContent = error && error.message ? error.message : 'Could not search the catalogue. Try again.';
+      musicSearchResults.replaceChildren(row);
+      musicNotice.textContent = row.textContent;
+    } finally {
+      if (sequence === musicSearchSequence) {
+        musicSearchBtn.disabled = false;
+        musicSearchBtn.textContent = 'Search music';
+      }
+    }
+  };
+
+  musicSearchResults.addEventListener('click', event => {
+    const button = event.target.closest('button[data-track-id]');
+    if (!button || button.disabled) return;
+    button.disabled = true;
+    button.textContent = 'Adding…';
+    socket.emit('music:add-catalog', { catalogId: button.dataset.trackId, name });
+  });
+
   function renderMusicState(state) {
     if (!state || !Array.isArray(state.queue)) return;
     sharedMusicState = {
@@ -743,20 +846,20 @@ function start() {
 
     if (state.current) {
       const label = document.createElement('span');
-      const sizeMb = Math.max(0, Number(state.current.sizeBytes) || 0) / (1024 * 1024);
-      label.textContent = 'Now selected: ' + (state.current.title || 'Uploaded audio') +
-        ' · added by ' + (state.current.addedBy || 'Anon') + ' · ' +
-        (state.current.format || 'AUDIO') + ' · ' + sizeMb.toFixed(1) + ' MB.';
+      const title = state.current.title || 'Shared audio';
+      const details = [state.current.artist, state.current.album, state.current.format].filter(Boolean).join(' · ');
+      label.textContent = 'Selected: ' + title + (details ? ' · ' + details : '') +
+        ' · added by ' + (state.current.addedBy || 'Anon') + '.';
       musicCurrentLabel.append(label);
     } else {
-      musicCurrentLabel.textContent = 'No track selected yet. Upload the first audio file.';
+      musicCurrentLabel.textContent = 'No track selected yet. Search the catalogue or upload audio.';
     }
 
     musicQueueList.replaceChildren();
     if (!state.queue.length) {
       const empty = document.createElement('li');
       empty.className = 'music-queue-empty';
-      empty.textContent = 'Queue is empty. Upload an audio file to get started.';
+      empty.textContent = 'Queue is empty. Add a track from the search results.';
       musicQueueList.append(empty);
     } else {
       state.queue.forEach((track, index) => {
@@ -767,10 +870,13 @@ function start() {
         const info = document.createElement('div');
         info.className = 'music-queue-track';
         const title = document.createElement('strong');
-        title.textContent = track.title || 'Uploaded audio';
+        title.textContent = track.title || 'Shared audio';
         const details = document.createElement('span');
         const sizeMb = Math.max(0, Number(track.sizeBytes) || 0) / (1024 * 1024);
-        details.textContent = (track.format || 'AUDIO') + ' · ' + sizeMb.toFixed(1) + ' MB · added by ' + (track.addedBy || 'Anon');
+        const meta = [track.artist, track.album, track.format].filter(Boolean);
+        if (track.source !== 'addon') meta.push(sizeMb.toFixed(1) + ' MB');
+        meta.push('added by ' + (track.addedBy || 'Anon'));
+        details.textContent = meta.join(' · ');
         info.append(title, details);
         row.append(badge, info);
         musicQueueList.append(row);
@@ -787,6 +893,11 @@ function start() {
   });
   musicAudio.addEventListener('canplay', () => {
     applySharedMusicPlayback();
+  });
+  musicAudio.addEventListener('error', () => {
+    if (sharedMusicState.current && musicLoadedTrackId === sharedMusicState.current.id) {
+      musicNotice.textContent = 'The server could not play this source. It may be unavailable, expired, or use a segmented stream format.';
+    }
   });
   musicAudio.addEventListener('play', () => {
     if (Date.now() < musicSuppressNativeEventsUntil) return;
@@ -823,7 +934,7 @@ function start() {
     if (file.size > 8 * 1024 * 1024) return showToast('Each audio file must be 8 MB or smaller.', 'error');
     musicAddBtn.disabled = true;
     musicAddBtn.textContent = 'Uploading…';
-    musicNotice.textContent = 'Uploading the audio to the server. Keep this page open until it is added.';
+    musicNotice.textContent = 'Uploading your audio to the server. Keep this page open until it is added.';
     try {
       const audio = await file.arrayBuffer();
       socket.emit('music:upload', { fileName: file.name, title: musicTitleInput.value.trim(), audio, name });
@@ -839,7 +950,7 @@ function start() {
 
   musicPlayAllBtn.onclick = () => {
     const current = sharedMusicState.current;
-    if (!current) return showToast('Upload a track first.', 'error');
+    if (!current) return showToast('Search for or upload a track first.', 'error');
     if (musicLoadedTrackId !== current.id || musicAudio.readyState < 1) {
       return showToast('Wait until the server audio is loaded, then try again.', 'info');
     }
@@ -906,7 +1017,18 @@ function start() {
     applySharedMusicPlayback();
     updateMusicSyncUI();
   });
-  socket.on('music:added', () => {
+  socket.on('music:added', data => {
+    if (data && data.source === 'addon') {
+      const button = [...musicSearchResults.querySelectorAll('button[data-track-id]')]
+        .find(element => element.dataset.trackId === data.catalogId);
+      if (button) {
+        button.textContent = 'Added';
+        button.disabled = true;
+      }
+      musicNotice.textContent = 'Added to the shared queue. Press Play for everyone when you are ready.';
+      showToast('Track added to the shared queue.', 'success');
+      return;
+    }
     musicFileInput.value = '';
     musicTitleInput.value = '';
     musicAddBtn.disabled = false;
@@ -915,8 +1037,25 @@ function start() {
     showToast('Audio uploaded to the shared queue.', 'success');
   });
   socket.on('music:error', data => {
-    musicAddBtn.disabled = false;
-    musicAddBtn.textContent = 'Upload to shared queue';
+    if (musicAddBtn.disabled) {
+      musicAddBtn.disabled = false;
+      musicAddBtn.textContent = 'Upload to shared queue';
+    }
+    if (data && data.catalogId) {
+      const button = [...musicSearchResults.querySelectorAll('button[data-track-id]')]
+        .find(element => element.dataset.trackId === data.catalogId);
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Add';
+      }
+    } else {
+      musicSearchResults.querySelectorAll('button[data-track-id][disabled]').forEach(button => {
+        if (button.textContent === 'Adding…') {
+          button.disabled = false;
+          button.textContent = 'Add';
+        }
+      });
+    }
     const message = data && data.message ? data.message : 'The music action could not be completed.';
     musicNotice.textContent = message;
     showToast(message, 'error');
