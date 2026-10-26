@@ -96,8 +96,8 @@ function captureConsole(original, level) {
     const raw = args.map(value => typeof value === 'string' ? value : String(value)).join(' ');
     if (raw.startsWith('[online]')) return;
     const safe = raw
-      .replace(/(password|passwd|token|secret|api[_ -]?key|authorization|webhook)(\\s*[:=]\\s*)[^\\s,;]+/gi, '$1$2[redacted]')
-      .replace(/(Bearer\\s+)[A-Za-z0-9._~+\\/-]+/gi, '$1[redacted]')
+      .replace(/(password|passwd|token|secret|api[_ -]?key|authorization|webhook)(\s*[:=]\s*)[^\s,;]+/gi, '$1$2[redacted]')
+      .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, '$1[redacted]')
       .slice(0, 500);
     events.push(new Date().toISOString() + ' [' + level + '] ' + safe);
     if (events.length > MAX_SERVER_LOGS) events.shift();
