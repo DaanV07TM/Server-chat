@@ -32,13 +32,8 @@ The scheduled workflow runs every five minutes and requests `https://your-servic
 
 ## Controlled admin restart
 
-The Admin panel's **Server Nuker** is a playful name for a controlled restart: it broadcasts a 15-second countdown, then calls Render's authenticated restart API. It does not generate load or intentionally crash the server.
+The Admin panel's **Server Nuker** broadcasts a 15-second countdown, tells clients to stop voice and screen-sharing tracks, then closes the current Node.js process with a failure exit code. No Render API key is required and no artificial CPU or memory load is generated.
 
-To enable it:
+**Important limitation:** Render documents manual service restart as a platform operation. An application exiting unexpectedly is handled as an instance failure, but an app cannot guarantee its own replacement using only local Node.js code. If Render does not recover the instance after this action, use **Render Dashboard → your service → Manual Deploy → Restart service**. For a guaranteed programmatic restart, Render's authenticated API or another authorized platform hook is required.
 
-1. In Render, open **Account Settings → API Keys** and create an API key with only the permissions required to restart the intended service.
-2. Open the chat service's Settings page and copy its service ID (usually starts with `srv-`).
-3. In **Render → your web service → Environment**, add `RENDER_API_KEY` and `RENDER_SERVICE_ID`. Do not add these credentials to GitHub or the browser code.
-4. Save and redeploy. The Admin panel will then show that the restart sequence is configured.
-
-The countdown can be cancelled by a moderator before the API request is submitted. Once Render accepts the restart request, it cannot be cancelled from the chat panel. See [Render's restart API documentation](https://api-docs.render.com/reference/restart-service).
+The countdown can be cancelled before shutdown begins.
