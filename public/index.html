@@ -216,6 +216,7 @@ button:active:not(:disabled){transform:translateY(0)}
 .music-layout{display:grid;grid-template-columns:minmax(250px,380px) minmax(0,1fr);gap:15px;align-items:start}
 .music-player-shell{min-height:115px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg);padding:9px}
 .music-audio-placeholder{min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px;text-align:center}
+.music-audio-placeholder[hidden],.music-audio[hidden]{display:none!important}
 .music-placeholder-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;font-size:17px}
 .music-audio-placeholder strong{font-size:13px}
 .music-audio-placeholder p{max-width:300px;margin:0;color:var(--mute);font-size:11px;line-height:1.5}
@@ -894,9 +895,41 @@ function start() {
   musicAudio.addEventListener('canplay', () => {
     applySharedMusicPlayback();
   });
+  let musicDiagnosticInFlight = false;
+  async function diagnoseCurrentMusicStream() {
+    const current = sharedMusicState.current;
+    if (!current || current.source !== 'addon' || musicDiagnosticInFlight) return;
+    musicDiagnosticInFlight = true;
+    musicNotice.textContent = 'Checking the audio response from the server…';
+    try {
+      const response = await fetch('/api/music/stream-check/' + encodeURIComponent(String(current.id)), {
+        headers: { accept: 'application/json' }, cache: 'no-store'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        const message = result.error || 'The server could not get playable audio from the provider.';
+        musicNotice.textContent = message;
+        showToast(message, 'error', 7000);
+      } else {
+        const message = 'The server received ' + (result.contentType || 'an audio response') +
+          ' (HTTP ' + result.status + '). If the player remains at 0:00, this audio format may not be supported by your browser.';
+        musicNotice.textContent = message;
+        showToast('The server reached the audio source. Check the audio format and browser support.', 'info', 7000);
+      }
+    } catch (_) {
+      const message = 'Could not check the stream from the chat server. Try again or inspect the Render logs.';
+      musicNotice.textContent = message;
+      showToast(message, 'error', 7000);
+    } finally {
+      musicDiagnosticInFlight = false;
+    }
+  }
+
   musicAudio.addEventListener('error', () => {
-    if (sharedMusicState.current && musicLoadedTrackId === sharedMusicState.current.id) {
-      musicNotice.textContent = 'The server could not play this source. It may be unavailable, expired, or use a segmented stream format.';
+    const current = sharedMusicState.current;
+    if (current && musicLoadedTrackId === current.id) {
+      musicNotice.textContent = 'The audio did not load. Checking the source through the server…';
+      diagnoseCurrentMusicStream();
     }
   });
   musicAudio.addEventListener('play', () => {
@@ -951,16 +984,19 @@ function start() {
   musicPlayAllBtn.onclick = () => {
     const current = sharedMusicState.current;
     if (!current) return showToast('Search for or upload a track first.', 'error');
-    if (musicLoadedTrackId !== current.id || musicAudio.readyState < 1) {
-      return showToast('Wait until the server audio is loaded, then try again.', 'info');
-    }
+    if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
     musicListeningEnabled = true;
     const target = musicTargetPosition();
-    suppressNativeMusicEvents(1800);
-    try { musicAudio.currentTime = target; } catch (_) {}
+    suppressNativeMusicEvents(2200);
+    if (musicAudio.readyState >= 1) {
+      try { musicAudio.currentTime = target; } catch (_) {}
+    }
+    // Do not require metadata to be available before starting: HTMLAudioElement
+    // can continue loading after this user gesture.
     musicAudio.play().catch(() => {
       musicListeningEnabled = false;
-      musicNotice.textContent = 'Your browser blocked playback. Click Play in the audio controls or Join / resync here.';
+      musicNotice.textContent = 'Playback could not start. The server will check whether the source is returning playable audio.';
+      diagnoseCurrentMusicStream();
     });
     socket.emit('music:control', { action: 'play', trackId: current.id, position: target });
   };
@@ -976,19 +1012,20 @@ function start() {
   musicJoinSyncBtn.onclick = () => {
     const current = sharedMusicState.current;
     if (!current) return;
-    if (musicLoadedTrackId !== current.id || musicAudio.readyState < 1) {
-      return showToast('Wait until the server audio is loaded, then try again.', 'info');
-    }
+    if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
     const target = musicTargetPosition();
     musicListeningEnabled = true;
-    suppressNativeMusicEvents(1800);
-    try { musicAudio.currentTime = target; } catch (_) {}
+    suppressNativeMusicEvents(2200);
+    if (musicAudio.readyState >= 1) {
+      try { musicAudio.currentTime = target; } catch (_) {}
+    }
     if (sharedMusicState.playback && sharedMusicState.playback.isPlaying) {
       musicAudio.play().then(() => {
         musicNotice.textContent = 'Listening here at the current shared position.';
       }).catch(() => {
         musicListeningEnabled = false;
-        musicNotice.textContent = 'Your browser blocked playback. Click Play in the audio controls to join the shared stream.';
+        musicNotice.textContent = 'Playback could not start. The server will check whether the source is returning playable audio.';
+        diagnoseCurrentMusicStream();
       });
     } else {
       musicAudio.pause();
