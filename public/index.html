@@ -137,6 +137,8 @@ function start() {
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const down = () => { log.scrollTop = log.scrollHeight; };
   let moderator = false, repMid = null;
+  let activeFlashBanner = null, activeFlashTimer = null;
+  const FLASH_BANNER_MS = 60 * 1000;
   [['spam', 'Spam or scam'], ['harassment', 'Harassment or hate'], ['sexual', 'Sexual content'], ['threat', 'Threats or self-harm'], ['illegal', 'Illegal content or child safety']].forEach(([k, l]) => {
     const b = document.createElement('button'); b.textContent = l;
     b.onclick = () => { socket.emit('report', { mid: repMid, reason: k }); $('rep').style.display = 'none'; };
@@ -146,12 +148,26 @@ function start() {
   const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
   function add(m) {
-    const e = $('empty'); if (e) e.remove();
-    const d = document.createElement('div');
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢');
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
+    const isFlashBanner = isAdminMessage || isAnnouncement;
+    const age = Number.isFinite(Number(m.t)) ? Math.max(0, Date.now() - Number(m.t)) : 0;
+
+    // Expired admin banners must not reappear when chat history is loaded.
+    if (isFlashBanner && age >= FLASH_BANNER_MS) return;
+
+    // Only the most recent admin banner stays visible.
+    if (isFlashBanner && activeFlashBanner) {
+      if (activeFlashTimer) clearTimeout(activeFlashTimer);
+      activeFlashBanner.remove();
+      activeFlashBanner = null;
+      activeFlashTimer = null;
+    }
+
+    const e = $('empty'); if (e) e.remove();
+    const d = document.createElement('div');
     d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') + (isAdminMessage ? ' admin-message' : '') + (isAnnouncement ? ' announcement' : '');
-    if (isAdminMessage || isAnnouncement) {
+    if (isFlashBanner) {
       const badge = document.createElement('div');
       badge.className = 'admin-tag';
       badge.textContent = isAnnouncement ? '📢 OFFICIËLE MEDEDELING' : '⚡ ADMINBERICHT';
@@ -168,7 +184,18 @@ function start() {
       const rx = document.createElement('div'); rx.className = 'rx'; d.dataset.mid = m.mid; d.dataset.own = m.id === socket.id ? '1' : '';
       d.append(rx); drawRx(rx, m.mid, m.r || {});
     }
-    log.append(d); down();
+    log.append(d);
+    if (isFlashBanner) {
+      activeFlashBanner = d;
+      activeFlashTimer = setTimeout(() => {
+        if (activeFlashBanner === d) {
+          d.remove();
+          activeFlashBanner = null;
+          activeFlashTimer = null;
+        }
+      }, Math.max(0, FLASH_BANNER_MS - age));
+    }
+    down();
   }
   function drawRx(box, mid, r, open) {
     box.innerHTML = '';
@@ -181,7 +208,13 @@ function start() {
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
   socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
-  socket.on('history', l => { log.innerHTML = l.length ? '' : EMPTY; l.forEach(add); });
+  socket.on('history', l => {
+    if (activeFlashTimer) clearTimeout(activeFlashTimer);
+    activeFlashTimer = null;
+    activeFlashBanner = null;
+    log.innerHTML = l.length ? '' : EMPTY;
+    l.forEach(add);
+  });
   socket.on('msg', m => { add(m); $('typing').textContent = ''; });
   socket.on('online', n => $('online').textContent = n + ' online');
   socket.on('config', c => { $('photo').hidden = !c.images; });
