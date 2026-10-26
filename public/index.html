@@ -335,7 +335,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
-<div id="privacyNotice" class="privacy-notice" role="note"><strong>Text messages are end-to-end encrypted in your browser.</strong> Use <b>Copy link</b> to share the text-encryption key with intended participants. <b>Images are not end-to-end encrypted.</b> Images from regular users are reviewed by moderators before they appear to other room participants. Moderators can review images across public and private rooms, approve or delete posts, and ban uploaders. Review is manual, not automatic detection. See the public README for security limitations.</div>
+<div id="privacyNotice" class="privacy-notice" role="note"><strong>Only text in private rooms is end-to-end encrypted.</strong> Public and official channel text is not end-to-end encrypted and can be read by the server. Use <b>Copy link</b> in a private room to share its key. <b>Images are not end-to-end encrypted</b> and appear in the chat immediately; moderators can review images from public and private rooms, mark them reviewed, delete posts, or ban uploaders. Review is manual and cannot prevent harmful images from being seen before action. See the public README for security limitations.</div>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
     <div class="voice-info">
@@ -444,7 +444,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <ul>
       <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, #voice for optional live voice, and #music for a shared YouTube queue.</li>
       <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
-      <li><b>Privacy:</b> Text messages are encrypted in your browser with a shared invite-link key; use Copy link to share it with intended participants. Images are not end-to-end encrypted. Images uploaded by regular users stay hidden from other room participants until a moderator reviews and approves them. Moderators can review images across public and private rooms, publish or delete posts, and ban uploaders. Manual review is not automatic illegal-image detection; an image still reaches the server for review. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
+      <li><b>Privacy:</b> Text in private rooms is end-to-end encrypted in your browser with the invite-link key; public and official channel text is not end-to-end encrypted and can be read by the server. Images are not end-to-end encrypted and appear immediately in chat. Moderators can review images across public and private rooms, mark them reviewed, delete posts, and ban uploaders. Review is manual and cannot prevent harmful or illegal images from being seen before a moderator acts. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
       <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
@@ -457,7 +457,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="welcomeGuideIntro" class="guide-intro">Here is the quick tour. You can reopen this guide with the Quick guide button in the header.</p>
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has a shared YouTube queue.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
-    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Text messages are encrypted in your browser; use Copy link to share the same key. Images are not end-to-end encrypted. Images from regular users stay hidden from other room participants until a moderator approves them, and moderators can review images across public and private rooms. Review is manual, not automatic detection. The image reaches the server for moderation, so this cannot guarantee that illegal images never reach the server. Do not post passwords or sensitive information.</span></div></div>
+    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Only private-room text is end-to-end encrypted; text in public and official channels can be read by the server. Images are not end-to-end encrypted and appear immediately in chat; moderators can review them across public and private rooms, mark them reviewed, or delete them. Review is manual and cannot guarantee that illegal images will not be seen before a moderator acts. Do not post passwords or sensitive information.</span></div></div>
     <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
@@ -621,6 +621,7 @@ function start() {
   const EMPTY = '<p class="empty" id="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
   const params = new URLSearchParams(location.search);
   const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
+  const isPrivateRoom = room.startsWith('private-');
   const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
   const toBase64Url = bytes => {
     let binary = '';
@@ -636,25 +637,37 @@ function start() {
   let encryptionKeyText = inviteHash.get('k');
   let encryptionKeyBytes = null;
   let createdEncryptionKey = false;
-  try {
-    if (!encryptionKeyText || !/^[A-Za-z0-9_-]{43}$/.test(encryptionKeyText)) throw new Error('Missing invite key');
-    encryptionKeyBytes = fromBase64Url(encryptionKeyText);
-    if (encryptionKeyBytes.length !== 32) throw new Error('Invalid invite key length');
-  } catch (_) {
-    encryptionKeyBytes = crypto.getRandomValues(new Uint8Array(32));
-    encryptionKeyText = toBase64Url(encryptionKeyBytes);
-    inviteHash.set('k', encryptionKeyText);
-    history.replaceState(null, '', location.pathname + location.search + '#' + inviteHash.toString());
-    createdEncryptionKey = true;
+  if (isPrivateRoom) {
+    try {
+      if (!encryptionKeyText || !/^[A-Za-z0-9_-]{43}$/.test(encryptionKeyText)) throw new Error('Missing invite key');
+      encryptionKeyBytes = fromBase64Url(encryptionKeyText);
+      if (encryptionKeyBytes.length !== 32) throw new Error('Invalid invite key length');
+    } catch (_) {
+      encryptionKeyBytes = crypto.getRandomValues(new Uint8Array(32));
+      encryptionKeyText = toBase64Url(encryptionKeyBytes);
+      inviteHash.set('k', encryptionKeyText);
+      history.replaceState(null, '', location.pathname + location.search + '#' + inviteHash.toString());
+      createdEncryptionKey = true;
+    }
+  } else if (encryptionKeyText && /^[A-Za-z0-9_-]{43}$/.test(encryptionKeyText)) {
+    // Support reading legacy encrypted history where an older public-room link included a key.
+    try {
+      const legacyKey = fromBase64Url(encryptionKeyText);
+      if (legacyKey.length === 32) encryptionKeyBytes = legacyKey;
+    } catch (_) {}
   }
-  const encryptionKeyPromise = crypto.subtle.importKey('raw', encryptionKeyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  const encryptionKeyPromise = encryptionKeyBytes
+    ? crypto.subtle.importKey('raw', encryptionKeyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+    : null;
   async function encryptChatText(value) {
+    if (!encryptionKeyPromise) throw new Error('No private-room encryption key is available.');
     const key = await encryptionKeyPromise;
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(String(value)));
     return { iv: toBase64Url(iv), data: toBase64Url(new Uint8Array(encrypted)) };
   }
   async function decryptChatText(payload) {
+    if (!encryptionKeyPromise) throw new Error('No encryption key for this message.');
     const key = await encryptionKeyPromise;
     const iv = fromBase64Url(payload.iv);
     const encryptedBytes = fromBase64Url(payload.data);
@@ -662,9 +675,9 @@ function start() {
     return new TextDecoder().decode(plain);
   }
   if (createdEncryptionKey) {
-    showToast('A new text-encryption key was created in this invite link. Share Copy link with the people who should read these messages.', 'info', 9000);
+    showToast('A new text-encryption key was created for this private room. Share Copy link with the people who should read these messages.', 'info', 9000);
   }
-  let name = null, tok = null;
+    let name = null, tok = null;
   try { name = sessionStorage.getItem('name'); } catch (e) {}
   if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
   try { tok = localStorage.getItem('tok'); if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); } } catch (e) { tok = rnd(16); }
@@ -1340,7 +1353,7 @@ function start() {
         try {
           displayMessage = { ...message, text: await decryptChatText(message.encryptedText) };
         } catch (_) {
-          displayMessage = { ...message, text: '🔒 Could not decrypt this message. Open the invite link that contains the matching key.' };
+          displayMessage = { ...message, text: '🔒 Could not decrypt this message. In a private room, open the invite link with the matching key.' };
         }
       }
       if (generation !== messageRenderGeneration) return;
@@ -2115,15 +2128,17 @@ function start() {
     const payload = { name, img };
     if (t) {
       if (t.startsWith('/')) {
-        // Slash commands are server control actions, not chat messages.
+        // Slash commands are control actions, not stored chat messages.
         payload.text = t;
-      } else {
+      } else if (isPrivateRoom) {
         try {
           payload.encryptedText = await encryptChatText(t);
         } catch (_) {
-          showToast('Could not encrypt this message. Use HTTPS and reload the page.', 'error');
+          showToast('Could not encrypt this private-room message. Use HTTPS and reload the page.', 'error');
           return;
         }
+      } else {
+        payload.text = t;
       }
     }
     socket.emit('msg', payload);
@@ -2140,7 +2155,7 @@ function start() {
   $('photo').onclick = async () => {
     const accepted = await showSiteDialog({
       title: 'Image upload and moderation',
-      message: 'Images are not end-to-end encrypted. When you upload an image, it is sent to this server and can be viewed by moderators, including images posted in private rooms. Images from regular users stay hidden from other room participants until a moderator approves them. Review is manual and cannot guarantee that illegal images will never reach the server. Do not upload illegal, sensitive, or private images.',
+      message: 'Images are not end-to-end encrypted. An upload is sent to this server, appears immediately to room participants, and can also be viewed by moderators in the admin panel, including for private rooms. Moderators can review and delete images, but manual review cannot prevent others from seeing an image before action. Do not upload illegal, sensitive, or private images.',
       confirmText: 'Choose image',
       cancelText: 'Cancel'
     });
@@ -2184,12 +2199,16 @@ function start() {
       showToast('Display name updated.', 'success');
     }
   };
-  $('private').onclick = () => { location.href = '/?room=private-' + rnd(9) + location.hash; };
+  $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
   $('share').onclick = async ev => {
     try {
-      await navigator.clipboard.writeText(location.origin + '/?room=' + room + location.hash);
+      const invite = location.origin + '/?room=' + room + (isPrivateRoom ? location.hash : '');
+      await navigator.clipboard.writeText(invite);
       ev.target.textContent = 'Copied';
-      showToast('Invite link copied. It includes the text-encryption key; share it only with intended participants.', 'success');
+      showToast(isPrivateRoom
+        ? 'Private-room invite copied. It includes the encryption key; share it only with intended participants.'
+        : 'Channel link copied. Text in public and official channels is not end-to-end encrypted.',
+        'success');
     } catch (e) { ev.target.textContent = 'Copy failed'; }
     setTimeout(() => ev.target.textContent = 'Copy link', 2000);
   };
@@ -2220,7 +2239,7 @@ function start() {
       const meta = document.createElement('p');
       meta.textContent = '#' + item.room + ' · ' + item.name + ' · post #' + item.mid + ' · ' + new Date(item.t).toLocaleString();
       const status = document.createElement('p');
-      status.textContent = item.pending ? 'Pending approval — not visible to other room participants.' : 'Approved and visible in the room.';
+      status.textContent = item.pending ? 'Pending approval — not visible to room participants.' : item.reviewed ? 'Reviewed by a moderator and visible in chat.' : 'Visible in chat — awaiting moderator review.';
       card.append(image, meta, status);
       const actions = document.createElement('div');
       actions.className = 'admin-image-actions';
@@ -2229,10 +2248,10 @@ function start() {
       remove.textContent = 'Delete post';
       remove.dataset.imageAction = 'delete';
       remove.dataset.mid = String(item.mid);
-      if (item.pending) {
+      if (item.pending || !item.reviewed) {
         const approve = document.createElement('button');
         approve.type = 'button';
-        approve.textContent = 'Approve and publish';
+        approve.textContent = item.pending ? 'Approve and publish' : 'Mark reviewed';
         approve.dataset.imageAction = 'approve';
         approve.dataset.mid = String(item.mid);
         actions.append(approve);
@@ -2375,7 +2394,7 @@ function start() {
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
   socket.on('image:pending', data => {
-    showToast('Image submitted for moderator review. Other room participants will not see it unless a moderator approves it.', 'info', 8000);
+    showToast('Image submitted for review. New uploads are visible in the room immediately and can be reviewed in the admin panel.', 'info', 8000);
   });
   socket.on('images:admin:list-result', data => {
     if (!moderator) return;
@@ -2427,10 +2446,15 @@ function start() {
       const action = imageAction.dataset.imageAction;
       if (!Number.isSafeInteger(mid)) return;
       if (action === 'approve') {
+        const imageItem = recentAdminImages.find(item => item.mid === mid);
+        const wasPending = !!(imageItem && imageItem.pending);
+        const roomLabel = imageItem?.room || 'the room';
         const approved = await showSiteDialog({
-          title: 'Approve and publish this image?',
-          message: 'The image and any text attached to that post will become visible to participants in #' + (recentAdminImages.find(item => item.mid === mid)?.room || 'the room') + '.',
-          confirmText: 'Approve and publish',
+          title: wasPending ? 'Approve and publish this image?' : 'Mark this image as reviewed?',
+          message: wasPending
+            ? 'This image will become visible to participants in #' + roomLabel + '.'
+            : 'This image is already visible to participants in #' + roomLabel + '. Mark it as reviewed in the admin panel.',
+          confirmText: wasPending ? 'Approve and publish' : 'Mark reviewed',
           cancelText: 'Cancel'
         });
         if (approved) socket.emit('images:admin:approve', { mid });
