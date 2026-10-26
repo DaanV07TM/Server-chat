@@ -857,6 +857,7 @@ function start() {
     if (!button || button.disabled) return;
     button.disabled = true;
     button.textContent = 'Adding…';
+    musicListeningEnabled = true;
     socket.emit('music:add-catalog', { catalogId: button.dataset.trackId, name });
   });
 
@@ -993,6 +994,7 @@ function start() {
     const file = musicFileInput.files && musicFileInput.files[0];
     if (!file) return showToast('Choose an audio file first.', 'error');
     if (file.size > 8 * 1024 * 1024) return showToast('Each audio file must be 8 MB or smaller.', 'error');
+    musicListeningEnabled = true;
     musicAddBtn.disabled = true;
     musicAddBtn.textContent = 'Uploading…';
     musicNotice.textContent = 'Uploading your audio to the server. Keep this page open until it is added.';
@@ -1097,7 +1099,7 @@ function start() {
         button.textContent = 'Added';
         button.disabled = true;
       }
-      musicNotice.textContent = 'Added to the shared queue. The first track starts automatically; only admins can pause or skip.';
+      musicNotice.textContent = 'Added to the shared queue. This browser will try to join playback; if sound is blocked, click Join / resync here. Only admins can pause or skip.';
 
       showToast('Track added to the shared queue.', 'success');
       return;
@@ -1106,7 +1108,7 @@ function start() {
     musicTitleInput.value = '';
     musicAddBtn.disabled = false;
     musicAddBtn.textContent = 'Upload to shared queue';
-    musicNotice.textContent = 'Added to the shared queue. Only admins can pause or skip shared playback.';
+    musicNotice.textContent = 'Added to the shared queue. This browser will try to join playback; if sound is blocked, click Join / resync here. Only admins can pause or skip.';
     showToast('Audio uploaded to the shared queue.', 'success');
   });
   socket.on('music:error', data => {
