@@ -193,7 +193,7 @@ button:active:not(:disabled){transform:translateY(0)}
 /* Retained official channel posts and a compact first-visit guide. */
 .m.official-post{align-self:center;width:min(96%,760px);max-width:100%;border:1px solid rgba(99,102,241,.35);border-left:4px solid var(--accent);background:var(--panel);box-shadow:0 4px 18px rgba(0,0,0,.04)}
 .m.pinned-info{align-self:center;width:min(96%,760px);max-width:100%;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.035)}
-.pinned-info-tag{display:inline-flex;align-items:center;gap:6px;margin:0 0 7px;padding:4px 7px;border-radius:6px;background:rgba(99,102,241,.11);color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.06em}
+.pinned-info-tag,.persistent-announcement-tag{display:inline-flex;align-items:center;gap:6px;margin:0 0 7px;padding:4px 7px;border-radius:6px;background:rgba(99,102,241,.11);color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.06em}
 .welcome-guide .box{width:min(540px,100%);max-width:540px;padding:clamp(18px,3vw,26px)}
 .welcome-guide .guide-intro{margin:0 0 14px;color:var(--mute);font-size:13px;line-height:1.55}
 .guide-item{display:flex;gap:10px;margin:9px 0;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
@@ -531,9 +531,10 @@ function start() {
   const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
   function add(m) {
-    const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢');
+    const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
     const isPinnedInfo = m.pinned === true;
+    const isPersistentAnnouncement = room === 'announcements' && m.persistentAnnouncement === true;
     const isPersistentAdminPost = room === 'announcements' && isAdminMessage && !isAnnouncement;
     const isFlashBanner = !isPinnedInfo && (isAnnouncement || (isAdminMessage && !isPersistentAdminPost));
     const age = Number.isFinite(Number(m.t)) ? Math.max(0, Date.now() - Number(m.t)) : 0;
@@ -556,10 +557,11 @@ function start() {
       (isAnnouncement ? ' announcement' : '') +
       (isPersistentAdminPost ? ' official-post' : '') +
       (isPinnedInfo ? ' pinned-info' : '');
-    if (isFlashBanner || isPinnedInfo) {
+    if (isFlashBanner || isPinnedInfo || isPersistentAnnouncement) {
       const badge = document.createElement('div');
-      badge.className = isPinnedInfo ? 'pinned-info-tag' : 'admin-tag';
+      badge.className = isPinnedInfo ? 'pinned-info-tag' : isPersistentAnnouncement ? 'persistent-announcement-tag' : 'admin-tag';
       badge.textContent = isPinnedInfo ? '📌 PINNED SERVER INFO' :
+        isPersistentAnnouncement ? '📢 OFFICIAL ANNOUNCEMENT · ARCHIVED' :
         isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT' : '⚡ MESSAGE FROM SERVER ADMIN';
       d.append(badge);
     }
@@ -605,7 +607,11 @@ function start() {
     log.innerHTML = l.length ? '' : EMPTY;
     l.forEach(add);
   });
-  socket.on('msg', m => { add(m); $('typing').textContent = ''; });
+  socket.on('msg', m => {
+    // In #announcements use the archived copy, not the duplicate short-lived global banner.
+    if (room === 'announcements' && m && m.announcement) return;
+    add(m); $('typing').textContent = '';
+  });
   socket.on('online', n => $('online').textContent = n + ' online');
   socket.on('config', c => { $('photo').hidden = !c.images; });
   socket.on('sys', t => { if ($('adm').style.display === 'flex') $('admmsg').textContent = t; else add({ bot: true, text: t }); });
