@@ -500,7 +500,7 @@ io.on('connection', (socket) => {
       if (screenViewerRooms.get(d.to) !== shareRoom) return;
     } else if (!target.rooms.has(shareRoom)) return;
 
-    const payload = { from: socket.id };
+    const payload = { from: socket.id, room: shareRoom };
     if (d.description !== undefined) {
       const desc = d.description;
       if (!desc || !['offer', 'answer'].includes(desc.type) || typeof desc.sdp !== 'string' || desc.sdp.length > 100000) return;
