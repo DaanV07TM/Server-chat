@@ -531,6 +531,7 @@ const publicMusicTrack = track => track && ({
   title: track.title,
   artist: track.artist || undefined,
   album: track.album || undefined,
+  duration: Number.isFinite(Number(track.duration)) && Number(track.duration) > 0 ? Number(track.duration) : undefined,
   addedBy: track.addedBy,
   addedAt: track.addedAt,
   source: track.source || 'upload',
@@ -575,6 +576,24 @@ function releaseMusicTrack(track) {
   track.relayCachePath = null;
   track.relayCacheTempPath = null;
   if (cachedPath) fs.promises.unlink(cachedPath).catch(() => {});
+}
+
+function advanceMusicTrack(now = Date.now(), reason = 'ended') {
+  if (!musicCurrent) return;
+  const previous = musicCurrent;
+  musicLastSkipAt = now;
+  if (musicQueue.length) {
+    musicCurrent = musicQueue.shift();
+    releaseMusicTrack(previous);
+    musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
+    console.log('[music] ' + reason + '; advancing shared queue');
+  } else {
+    const duration = Number(previous.duration);
+    const finalPosition = Number.isFinite(duration) && duration > 0 ? duration : getMusicPosition(now);
+    musicPlayback = { isPlaying: false, position: finalPosition, startedAt: null, changedBy: null };
+    console.log('[music] ' + reason + '; shared track ended and playback stopped');
+  }
+  broadcastMusicState();
 }
 
 // All catalogue requests originate on this server. Do not forward visitor headers or IPs.
@@ -1096,10 +1115,16 @@ app.get('/music/stream/:id', async (req, res) => {
 // Send authoritative playback-clock snapshots to listeners while a song is playing.
 // The audio itself is served by this app instead of being loaded from YouTube.
 const musicSyncTimer = setInterval(() => {
+  if (!musicPlayback.isPlaying || !musicCurrent) return;
+  const now = Date.now();
+  const duration = Number(musicCurrent.duration);
+  if (Number.isFinite(duration) && duration > 0 && getMusicPosition(now) >= duration) {
+    advanceMusicTrack(now, 'natural track end');
+  }
   if (musicPlayback.isPlaying && musicCurrent) {
     io.to('music').emit('music:sync', getMusicPlayback());
   }
-}, 3000);
+}, 1000);
 if (typeof musicSyncTimer.unref === 'function') musicSyncTimer.unref();
 
 function removeVoiceParticipant(socketId) {
@@ -1440,6 +1465,7 @@ io.on('connection', (socket) => {
       title: selected.title,
       artist: selected.artist,
       album: selected.album,
+      duration: Number.isFinite(Number(selected.duration)) && Number(selected.duration) > 0 ? Number(selected.duration) : null,
       format: selected.format,
       permalink: selected.permalink || null,
       addedBy: safeName(d && d.name),
@@ -1451,7 +1477,7 @@ io.on('connection', (socket) => {
     socket.data.musicLastAdd = now;
     if (!musicCurrent) {
       musicCurrent = track;
-      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: socket.id };
+      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
     } else {
       musicQueue.push(track);
     }
@@ -1522,7 +1548,7 @@ io.on('connection', (socket) => {
     musicStoredBytes += audio.length;
     if (!musicCurrent) {
       musicCurrent = track;
-      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: socket.id };
+      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
     } else {
       musicQueue.push(track);
     }
@@ -1534,6 +1560,9 @@ io.on('connection', (socket) => {
   socket.on('music:control', (d) => {
     const now = Date.now();
     if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (!socket.data.admin) {
+      return socket.emit('music:error', { message: 'Only admins can control shared playback. You can still add tracks and listen.' });
+    }
     if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
     if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot control playback.' });
     if (!musicCurrent || !d || Number(d.trackId) !== musicCurrent.id) {
@@ -1589,25 +1618,19 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (room !== 'music' || !socket.rooms.has('music') || !musicCurrent || !d ||
         Number(d.trackId) !== musicCurrent.id || blocked() || !musicPlayback.isPlaying) return;
-    musicLastSkipAt = now;
-    if (musicQueue.length) {
-      const previousTrack = musicCurrent;
-      musicCurrent = musicQueue.shift();
-      releaseMusicTrack(previousTrack);
-      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: socket.id };
-      console.log('[music] finished track; advancing shared server audio stream');
-    } else {
-      const rawPosition = Number(d.position);
-      const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : getMusicPosition(now);
-      musicPlayback = { isPlaying: false, position, startedAt: null, changedBy: socket.id };
-      console.log('[music] current server audio track ended');
-    }
-    broadcastMusicState();
+    const duration = Number(musicCurrent.duration);
+    // A client cannot force-skip: only admins may signal early completion.
+    // Non-admin "ended" events are accepted only after the shared clock reaches the known track length.
+    if (!socket.data.admin &&
+        (!Number.isFinite(duration) || duration <= 0 || getMusicPosition(now) < duration - 1.5)) return;
+    if (Number.isFinite(duration) && duration > 0 && getMusicPosition(now) < duration - 1.5 && !socket.data.admin) return;
+    advanceMusicTrack(now, socket.data.admin ? 'admin ended event' : 'natural track end');
   });
 
   socket.on('music:next', () => {
     const now = Date.now();
     if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (!socket.data.admin) return socket.emit('music:error', { message: 'Only admins can skip the current track.' });
     if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
     if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot control the music queue.' });
     if (now - musicLastSkipAt < 3000) {
@@ -1617,13 +1640,12 @@ io.on('connection', (socket) => {
       return socket.emit('music:error', { message: 'There are no more tracks in the queue yet.' });
     }
     musicLastSkipAt = now;
-    const continuePlaying = musicPlayback.isPlaying;
     const previousTrack = musicCurrent;
     musicCurrent = musicQueue.shift();
     releaseMusicTrack(previousTrack);
-    musicPlayback = { isPlaying: continuePlaying, position: 0, startedAt: continuePlaying ? now : null, changedBy: socket.id };
+    musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: socket.id };
     broadcastMusicState();
-    console.log('[music] current server audio track advanced by a channel member');
+    console.log('[music] admin advanced the shared track; playback continues');
   });
 
   socket.on('msg', (d) => {
