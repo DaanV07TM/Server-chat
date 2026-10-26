@@ -380,7 +380,7 @@ button:active:not(:disabled){transform:translateY(0)}
           <button id="musicPauseAllBtn" type="button" disabled>Ⅱ Pause everyone</button>
           <button id="musicJoinSyncBtn" type="button" disabled>↻ Join / resync here</button>
         </div>
-        <p class="music-sync-help">The first track starts automatically. Click Join / resync here to listen in this browser; only admins can pause or skip for everyone.</p>
+        <p class="music-sync-help">The server keeps the shared queue moving even when nobody is in #music. Returning listeners join the current position; click Join / resync if your browser blocks autoplay. Only admins can pause or skip.</p>
       </div>
     </div>
     <div class="music-queue-column">
@@ -727,7 +727,9 @@ function start() {
     musicAudio.removeAttribute('src');
     musicAudio.load();
     musicLoadedTrackId = nextId;
-    musicListeningEnabled = musicListeningEnabled && !!current;
+    if (current && !musicListeningEnabled) {
+      try { musicListeningEnabled = sessionStorage.getItem('serverChatMusicAutoplay') === '1'; } catch (_) {}
+    }
     if (current) {
       musicAudio.hidden = false;
       musicAudio.src = '/music/stream/' + encodeURIComponent(String(current.id));
