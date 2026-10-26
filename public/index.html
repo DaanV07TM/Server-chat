@@ -694,14 +694,16 @@ function start() {
   function updateMusicSyncUI() {
     const playback = sharedMusicState.playback || { isPlaying: false };
     const current = sharedMusicState.current;
-    musicPlayAllBtn.disabled = !current;
+    musicPlayAllBtn.disabled = !current || (current.source === 'addon' && !current.prepared);
     musicPauseAllBtn.disabled = !current || !playback.isPlaying;
-    musicJoinSyncBtn.disabled = !current;
+    musicJoinSyncBtn.disabled = !current || (current.source === 'addon' && !current.prepared);
     musicAudio.controls = !!moderator;
     musicSyncStatus.classList.toggle('live', !!playback.isPlaying);
     musicSyncStatus.classList.toggle('paused', !playback.isPlaying);
     if (!current) {
       musicSyncStatus.textContent = 'WAITING · Search or upload a track to start.';
+    } else if (current.source === 'addon' && !current.prepared) {
+      musicSyncStatus.textContent = 'PREPARING · The server is fetching one shared copy of this track.';
     } else if (playback.isPlaying && !musicListeningEnabled) {
       musicSyncStatus.textContent = 'LIVE · The server stream is playing. Click Join / resync here to enable audio in this browser.';
     } else if (playback.isPlaying) {
@@ -726,7 +728,9 @@ function start() {
       musicAudio.src = '/music/stream/' + encodeURIComponent(String(current.id));
       musicAudio.load();
       musicAudioPlaceholder.hidden = true;
-      musicNotice.textContent = 'Track is being prepared by the chat server. Once cached, everyone can listen from the same server copy.';
+      musicNotice.textContent = current.source === 'addon' && !current.prepared
+        ? 'The server is preparing a single shared audio copy. Playback starts after it is ready.'
+        : 'The track is ready on the server. Click Join / resync here to listen.';
     } else {
       musicAudio.hidden = true;
       musicAudioPlaceholder.hidden = false;
@@ -1060,7 +1064,7 @@ function start() {
       });
     } else {
       musicAudio.pause();
-      musicNotice.textContent = 'This browser is aligned with the shared paused position. Play for everyone starts playback.';
+      musicNotice.textContent = 'Shared playback is paused. An admin must resume it; this button only enables listening in your browser.';
     }
     updateMusicSyncUI();
   };
