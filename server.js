@@ -35,14 +35,14 @@ app.use(express.static('public'));
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
-const ADMIN_IMAGE_LIST_LIMIT = 30;
+const ADMIN_IMAGE_LIST_LIMIT = 6;
 const USER_BAN_MS = 24 * 60 * 60 * 1000;
 const userBans = new Map();
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
   { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for shared music search and playback relayed by the server. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, search the catalogue or upload audio you have permission to share, then use the shared playback controls.' },
-  { name: 'Privacy & retention', bot: true, pinned: true, text: 'Ordinary text messages are encrypted in the browser using a shared key in the invite-link URL fragment. Use Copy link to share that key with intended participants. Images are not end-to-end encrypted and are visible to room members immediately; moderators can also review recent images across rooms and remove posts or ban the uploader. This implementation has not been independently audited, and a compromised server could serve modified browser code. Image moderation is manual, not automated detection. Ordinary room history is held in server memory for up to one hour. Hosting providers may process connection metadata.' },
-  { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Moderators can review and remove images, but manual review cannot guarantee that illegal images will never be posted or briefly seen. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
+  { name: 'Privacy & retention', bot: true, pinned: true, text: 'Ordinary text messages are encrypted in the browser using a shared key in the invite-link URL fragment. Use Copy link to share that key with intended participants. Images are not end-to-end encrypted: uploads from regular users go to a moderator review queue and stay hidden from room participants until approved. Moderators can review images across public and private rooms and publish or delete posts or ban uploaders. This implementation has not been independently audited, and a compromised server could serve modified browser code. Image moderation is manual, not automated detection. Ordinary room history is held in server memory for up to one hour. Hosting providers may process connection metadata.' },
+  { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Images from regular users are held for moderator review before other room participants can see them. Manual review cannot guarantee that illegal images will never reach the server or be exposed to a moderator. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
 const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
 const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
@@ -166,7 +166,7 @@ function store(room, m) {
   const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : MAX_MSGS;
   if (list.length > roomLimit) list.shift();
   const withImg = list.filter(x => x.img);
-  while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; o.text = o.text || '(image removed)'; }
+  while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
 }
 function bot(room, text) {
   const m = { name: 'Bot', bot: true, text, t: Date.now() };
@@ -227,7 +227,7 @@ function getAdminImageList() {
   for (const roomName of Object.keys(rooms)) {
     for (const message of rooms[roomName]) {
       if (!message.img) continue;
-      images.push({ mid: message.mid, room: roomName, name: message.name, t: message.t, img: message.img, admin: !!message.admin });
+      images.push({ mid: message.mid, room: roomName, name: message.name, t: message.t, img: message.img, admin: !!message.admin, pending: message.imageApproved === false });
     }
   }
   return images.sort((a, b) => b.t - a.t).slice(0, ADMIN_IMAGE_LIST_LIMIT);
@@ -1270,7 +1270,7 @@ io.on('connection', (socket) => {
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
     const history = (rooms[room] || [])
-      .filter(m => room === 'announcements' || now - m.t < TTL)
+      .filter(m => m.imageApproved !== false && (room === 'announcements' || now - m.t < TTL))
       .map(pub);
     // Global banners remain temporary. Moderator posts written directly in
     // #announcements have their own history and do not expire with normal chat.
@@ -1814,17 +1814,25 @@ io.on('connection', (socket) => {
     const isAdmin = socket.data.admin === true;
     const message = { id: socket.id, tok: key(), name: isAdmin ? 'Admin' : safeName(d && d.name), admin: isAdmin, text: '', t: now };
     if (encryptedText) message.encryptedText = encryptedText;
-    if (img) message.img = img;
+    if (img) {
+      message.img = img;
+      // Ordinary users' images stay out of room history and the public chat stream until approved.
+      message.imageApproved = isAdmin;
+    }
     store(room, message);
-    io.to(room).emit('msg', pub(message));
+    if (!img || isAdmin) {
+      io.to(room).emit('msg', pub(message));
+    } else {
+      socket.emit('image:pending', { mid: message.mid });
+    }
 
     // Moderators may inspect image posts across rooms, including private-* rooms.
     if (img) {
-      const adminImage = { mid: message.mid, room, name: message.name, t: message.t, img, admin: isAdmin };
+      const adminImage = { mid: message.mid, room, name: message.name, t: message.t, img, admin: isAdmin, pending: !isAdmin };
       for (const [, recipient] of io.sockets.sockets) {
         if (recipient.data.admin) recipient.emit('images:admin:posted', adminImage);
       }
-      console.log('[image-moderation] image posted in #' + room);
+      console.log('[image-moderation] image posted in #' + room + (isAdmin ? ' (admin-approved)' : ' (pending review)'));
     }
   });
 
@@ -1874,6 +1882,26 @@ io.on('connection', (socket) => {
     socket.emit('images:admin:list-result', { images: getAdminImageList() });
   });
 
+  socket.on('images:admin:approve', (d) => {
+    if (!socket.data.admin || !d || !Number.isSafeInteger(Number(d.mid))) return;
+    const found = findStoredMessage(Number(d.mid));
+    if (!found || !found.message.img) {
+      socket.emit('images:admin:action-result', { ok: false, message: 'That image post is no longer available.' });
+      socket.emit('images:admin:list-result', { images: getAdminImageList() });
+      return;
+    }
+    if (found.message.imageApproved !== false) {
+      socket.emit('images:admin:action-result', { ok: false, message: 'That image post has already been approved.' });
+      socket.emit('images:admin:list-result', { images: getAdminImageList() });
+      return;
+    }
+    found.message.imageApproved = true;
+    io.to(found.room).emit('msg', pub(found.message));
+    console.log('[image-moderation] admin approved image post #' + found.message.mid + ' in #' + found.room);
+    socket.emit('images:admin:action-result', { ok: true, message: 'Image approved and published in #' + found.room + '.' });
+    socket.emit('images:admin:list-result', { images: getAdminImageList() });
+  });
+
   socket.on('images:admin:delete', (d) => {
     if (!socket.data.admin || !d || !Number.isSafeInteger(Number(d.mid))) return;
     const found = findStoredMessage(Number(d.mid));
@@ -1900,6 +1928,11 @@ io.on('connection', (socket) => {
     const expiresAt = permanent ? 0 : Date.now() + USER_BAN_MS;
     const reason = 'Banned by moderator after an image post';
     userBans.set(token, { expiresAt, reason });
+    // Remove every stored image from this browser token when a moderator bans its uploader.
+    const uploaderImageIds = Object.values(rooms).flat()
+      .filter(message => message.tok === token && message.img)
+      .map(message => message.mid);
+    for (const imageMid of uploaderImageIds) removeMsg(imageMid);
     let affectedSessions = 0;
     for (const [, recipient] of io.sockets.sockets) {
       if (recipient.data.admin || recipient.data.tok !== token) continue;
