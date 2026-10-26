@@ -21,6 +21,11 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 .m.me{align-self:flex-end;background:var(--mine);color:var(--mine-ink);border-color:transparent}
 .m.me b{color:rgba(255,255,255,.75)}
 .m.bot{align-self:center;background:none;border:1px dashed var(--line);color:var(--mute);font-size:14px}
+.m.bot span{white-space:pre-wrap}
+.rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.rx button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:12px;padding:1px 8px;font:inherit;font-size:13px;cursor:pointer}
+.m.me .rx button{border-color:rgba(255,255,255,.4)}
+.rx .add{opacity:.6}
 .empty{margin:auto;color:var(--mute);text-align:center;max-width:260px}
 #typing{height:20px;padding:0 16px;font-size:13px;color:var(--mute)}
 #game{display:none;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line)}
@@ -89,8 +94,18 @@ function add(m){
   }
   if (m.text) { const p = document.createElement('span'); p.textContent = m.text; d.append(p); }
   if (m.img) { const i = document.createElement('img'); i.alt = 'Afbeelding'; i.onload = down; i.src = m.img; d.append(i); }
+  if (m.mid && !m.bot) { const rx = document.createElement('div'); rx.className = 'rx'; d.dataset.mid = m.mid; d.append(rx); drawRx(rx, m.mid, m.r || {}); }
   log.append(d); down();
 }
+const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+function drawRx(box, mid, r, open) {
+  box.innerHTML = '';
+  const mk = (label, aria, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; box.append(b); };
+  for (const e in r) mk(e + ' ' + r[e], 'Reactie ' + e, () => socket.emit('react', { mid, e }));
+  if (open) EMO.forEach(e => mk(e, 'Reageer met ' + e, () => socket.emit('react', { mid, e })));
+  else mk('☺', 'Reactie toevoegen', () => drawRx(box, mid, r, true), 'add');
+}
+socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
 socket.on('history', l => { log.innerHTML = l.length ? '' : EMPTY; l.forEach(add); });
 socket.on('msg', m => { add(m); $('typing').textContent = ''; });
 socket.on('online', n => $('online').textContent = n + ' online');
