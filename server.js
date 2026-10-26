@@ -19,10 +19,12 @@ app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const ANNOUNCEMENT_TTL = 60 * 1000;
+const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
 const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
 let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
+const voiceParticipants = new Map(); // 'voice' -> Map(socket ID -> { name, joinedAt })
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -363,6 +365,27 @@ function endScreenShare(socketId) {
   }
 }
 
+function getVoiceRoster() {
+  const roster = voiceParticipants.get('voice');
+  return roster ? [...roster.entries()].map(([id, participant]) => ({ id, name: participant.name })) : [];
+}
+
+function broadcastVoiceState() {
+  io.to('voice').emit('voice:state', { participants: getVoiceRoster() });
+}
+
+function removeVoiceParticipant(socketId) {
+  const roster = voiceParticipants.get('voice');
+  if (!roster || !roster.has(socketId)) return;
+  roster.delete(socketId);
+  for (const peerId of roster.keys()) {
+    io.to(peerId).emit('voice:peer-left', { id: socketId });
+  }
+  if (!roster.size) voiceParticipants.delete('voice');
+  broadcastVoiceState();
+  console.log('[voice] participant left; active: ' + getVoiceRoster().length);
+}
+
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
@@ -372,6 +395,7 @@ io.on('connection', (socket) => {
   socket.on('join', (d) => {
     const nextRoom = roomName(d && d.room);
     if (socket.rooms.has(room) && room !== nextRoom) {
+      removeVoiceParticipant(socket.id);
       endScreenShare(socket.id);
       socket.leave(room);
     }
@@ -388,6 +412,7 @@ io.on('connection', (socket) => {
       history.push(latestAnnouncement);
     }
     socket.emit('history', history);
+    if (room === 'voice') socket.emit('voice:state', { participants: getVoiceRoster() });
     const activeShare = screenSharers[room];
     socket.emit('screen:state', activeShare
       ? { sharerId: activeShare.socketId, name: activeShare.name }
@@ -576,6 +601,73 @@ io.on('connection', (socket) => {
     target.emit('screen:signal', payload);
   });
 
+  // Voice chat is limited to the dedicated #voice channel. Audio stays peer-to-peer.
+  socket.on('voice:join', (d) => {
+    if (blocked()) return socket.emit('voice:error', { message: 'The chat is offline.' });
+    if (room !== 'voice' || !socket.rooms.has('voice')) {
+      return socket.emit('voice:error', { message: 'Join the #voice channel before entering voice chat.' });
+    }
+    if (timeouts[key()] > Date.now()) {
+      return socket.emit('voice:error', { message: 'You are timed out and cannot join voice chat yet.' });
+    }
+    let roster = voiceParticipants.get('voice');
+    if (!roster) {
+      roster = new Map();
+      voiceParticipants.set('voice', roster);
+    }
+    if (!roster.has(socket.id) && roster.size >= MAX_VOICE_USERS) {
+      return socket.emit('voice:error', { message: 'Voice chat is full (maximum ' + MAX_VOICE_USERS + ' people). Please try again later.' });
+    }
+    const userName = safeName(d && d.name);
+    const alreadyJoined = roster.has(socket.id);
+    roster.set(socket.id, { name: userName, joinedAt: Date.now() });
+    socket.emit('voice:joined', {
+      room: 'voice',
+      participants: [...roster.entries()]
+        .filter(([id]) => id !== socket.id)
+        .map(([id, participant]) => ({ id, name: participant.name }))
+    });
+    if (!alreadyJoined) {
+      for (const peerId of roster.keys()) {
+        if (peerId !== socket.id) io.to(peerId).emit('voice:peer-joined', { id: socket.id, name: userName });
+      }
+      broadcastVoiceState();
+      console.log('[voice] participant joined; active: ' + roster.size);
+    }
+  });
+
+  socket.on('voice:leave', () => {
+    removeVoiceParticipant(socket.id);
+  });
+
+  socket.on('voice:signal', (d) => {
+    const roster = voiceParticipants.get('voice');
+    if (room !== 'voice' || !roster || !roster.has(socket.id) ||
+        !d || typeof d.to !== 'string' || d.to === socket.id || !roster.has(d.to)) return;
+    const payload = { from: socket.id, name: roster.get(socket.id).name };
+
+    if (d.description) {
+      const type = d.description.type;
+      const sdp = d.description.sdp;
+      if (!['offer', 'answer'].includes(type) || typeof sdp !== 'string' || sdp.length > 100000) return;
+      payload.description = { type, sdp };
+    } else if (d.candidate) {
+      const candidate = d.candidate;
+      if (typeof candidate.candidate !== 'string' || candidate.candidate.length > 2048) return;
+      payload.candidate = {
+        candidate: candidate.candidate,
+        sdpMid: typeof candidate.sdpMid === 'string' ? candidate.sdpMid.slice(0, 128) : null,
+        sdpMLineIndex: Number.isInteger(candidate.sdpMLineIndex) ? candidate.sdpMLineIndex : null,
+        usernameFragment: typeof candidate.usernameFragment === 'string' ? candidate.usernameFragment.slice(0, 256) : undefined
+      };
+    } else {
+      return;
+    }
+
+    const target = io.sockets.sockets.get(d.to);
+    if (target) target.emit('voice:signal', payload);
+  });
+
   socket.on('msg', (d) => {
     const now = Date.now();
     const gap = socket.data.admin ? 500 : Math.max(500, slow * 1000);
@@ -591,6 +683,9 @@ io.on('connection', (socket) => {
     }
     const [cmd, ...rest] = text.split(' ');
     if (socket.data.admin && ADMIN_CMDS.includes(cmd)) { last = now; return adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room); }
+    if (room === 'announcements' && !socket.data.admin) {
+      return socket.emit('sys', 'The #announcements channel is read-only. Only moderators can post there.');
+    }
 
     if (offline) return;
     if (silenced && !socket.data.admin) return socket.emit('sys', 'Only moderators can send messages right now.');
@@ -669,6 +764,7 @@ io.on('connection', (socket) => {
   socket.on('typing', (n) => { if (!blocked()) socket.to(room).emit('typing', safeName(n)); });
 
   socket.on('disconnect', () => {
+    removeVoiceParticipant(socket.id);
     endScreenShare(socket.id);
     console.log('[online] ' + io.engine.clientsCount);
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 0);
