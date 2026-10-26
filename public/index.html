@@ -348,6 +348,46 @@ button:active:not(:disabled){transform:translateY(0)}
 #admbody .server-log-empty{padding:14px;color:#b9c5d6;font-size:12px}
 @media(max-width:600px){.ov#adm{padding:8px}.ov#adm .box{padding:14px;max-height:96dvh}#admbody .server-log-entry{grid-template-columns:44px minmax(0,1fr);font-size:11px}}
 
+
+/* Admin dashboard refinement: clearer hierarchy, consistent controls and responsive spacing. */
+#adm .box{width:min(1040px,calc(100vw - 28px));max-width:1040px;padding:clamp(16px,2.5vw,28px);border-radius:20px}
+#admT{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-2px 0 14px;padding:4px 0 14px;font-size:22px;font-weight:800;letter-spacing:-.035em}
+#admbody{min-width:0}
+#admbody>p{color:var(--mute);font-size:13px;line-height:1.55}
+#admbody>.sec{display:flex;align-items:center;gap:9px;margin:23px 0 10px;padding:0 0 8px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+#admbody>.sec:first-child{margin-top:4px}
+#admbody .admin-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 20px}
+#admbody .admin-stats .stat{min-height:78px;padding:13px 14px;border-radius:14px;background:linear-gradient(145deg,var(--panel),var(--bg));font-size:12px;color:var(--mute);box-shadow:0 3px 12px rgba(0,0,0,.035)}
+#admbody .admin-stats .stat b{margin-bottom:5px;font-size:25px;line-height:1.1;font-weight:800;letter-spacing:-.04em}
+#admbody button.ab,#admbody button[data-cmd]{min-height:36px;width:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:4px 5px 4px 0;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-size:12px;font-weight:650;box-shadow:0 2px 5px rgba(0,0,0,.025)}
+#admbody button.ab:hover:not(:disabled),#admbody button[data-cmd]:hover:not(:disabled){border-color:var(--accent);background:var(--bg)}
+#admbody button.ab.red,#admbody button[data-cmd].red{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.08);color:var(--bad)}
+#admbody button.ab.plain,#admbody button[data-cmd].plain{background:var(--bg)}
+#admbody input,#admbody select{min-height:38px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);padding:8px 11px;font-size:13px}
+#admbody input:focus-visible,#admbody select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#admbody .rep{padding:13px;margin:9px 0;border-radius:13px;background:var(--bg);line-height:1.6}
+#admbody .admin-image-card{padding:11px;border-radius:14px;background:var(--panel)}
+#admbody .load-grid,#admbody .connection-grid{gap:10px}
+#admbody .load-card,#admbody .connection-card{padding:13px;border-radius:14px}
+#admbody .server-log-list{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:13px;background:#0b1020;padding:8px}
+#admbody .server-log-entry{display:grid;grid-template-columns:54px minmax(0,1fr);gap:9px;align-items:start;padding:7px 8px;border-bottom:1px solid rgba(148,163,184,.12)}
+#admbody .server-log-entry:last-child{border-bottom:0}
+#admbody .server-log-entry code{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#d8e1ef;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+#admbody .server-log-level{font-size:10px;font-weight:850;letter-spacing:.06em;color:#93c5fd}
+#admbody .server-log-entry.warn .server-log-level{color:#facc15}
+#admbody .server-log-entry.error .server-log-level{color:#fca5a5}
+#admbody .server-log-empty{padding:18px;color:#aab4c5;text-align:center;font-size:12px}
+#admbody .server-log-toolbar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;color:var(--mute);font-size:11px}
+#admbody .nuker-card{border-color:rgba(220,38,38,.22);background:linear-gradient(135deg,rgba(220,38,38,.045),rgba(99,102,241,.04));box-shadow:none}
+@media(max-width:600px){
+ #adm .box{width:calc(100vw - 16px);max-height:96vh;padding:15px;border-radius:16px}
+ #admT{font-size:19px}
+ #admbody .admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #admbody .admin-stats .stat{min-height:68px;padding:11px}
+ #admbody button.ab,#admbody button[data-cmd]{min-height:35px;padding:8px 10px}
+ #admbody .server-log-entry{grid-template-columns:46px minmax(0,1fr);gap:6px}
+}
+
 </style>
 </head>
 <body>
@@ -367,7 +407,6 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
-<div id="privacyNotice" class="privacy-notice" role="note"><strong>Only text in private rooms is end-to-end encrypted.</strong> Public and official channel text is not end-to-end encrypted and can be read by the server. Use <b>Copy link</b> in a private room to share its key. <b>Images are not end-to-end encrypted</b> and appear in the chat immediately; moderators can review images from public and private rooms, mark them reviewed, delete posts, or ban uploaders. Review is manual and cannot prevent harmful images from being seen before action. See the public README for security limitations.</div>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
     <div class="voice-info">
