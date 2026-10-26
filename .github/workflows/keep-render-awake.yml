@@ -1,0 +1,27 @@
+name: Keep Render chat awake
+
+on:
+  # Render sleeps after 15 minutes without inbound traffic.
+  # Offset the schedule a few minutes from the hour to reduce queue delays.
+  schedule:
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+  workflow_dispatch:
+
+jobs:
+  keep-awake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping the Render health endpoint
+        env:
+          RENDER_URL: ${{ vars.RENDER_URL }}
+        run: |
+          if [ -z "$RENDER_URL" ]; then
+            echo "::error::Add a repository variable named RENDER_URL with your public Render service URL."
+            exit 1
+          fi
+
+          URL="${RENDER_URL%/}/healthz"
+          echo "Checking Render service: $URL"
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 90 "$URL"
+          echo
