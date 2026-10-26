@@ -14,14 +14,27 @@ const TTL = 60 * 60 * 1000;   // berichten verdwijnen na 1 uur
 const rooms = {};             // alles alleen in het geheugen, geen IP's
 const games = {};
 
+// logboek in het geheugen (zodat je het ook in de chat kunt lezen met /logboek)
+const events = [];
+const _log = console.log;
+console.log = (...a) => {
+  _log(...a);
+  const line = a.join(' ');
+  if (!line.startsWith('[online]')) { events.push(new Date().toISOString().slice(11, 19) + ' ' + line); if (events.length > 30) events.shift(); }
+};
+
 // beheer: wachtwoord staat in Render (ADMIN_PASSWORD), niet in de code
 const ADMIN = process.env.ADMIN_PASSWORD || '';
 let offline = process.env.MAINTENANCE === '1';
 let fails = [];
+let muted = false;          // stil-modus: alleen de beheerder praat
+let banned = [];            // geblokkeerde woorden
+const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const mask = (t) => banned.reduce((x, w) => x.replace(new RegExp(esc(w), 'gi'), '***'), t);
 let slow = 0;               // slowmode in seconden (0 = uit)
 let maintTimers = [];
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wis', '/omroep', '/onderhoud', '/slow', '/herstart', '/uit'];
-const ADMIN_HELP = "Commando's: /status /offline /online /wis /omroep tekst /onderhoud minuten /slow seconden /herstart /uit";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wis', '/omroep', '/onderhoud', '/slow', '/herstart', '/leeg', '/stil', '/blokkeer', '/deblokkeer', '/logboek', '/uit'];
+const ADMIN_HELP = "Commando's: /status /offline /online /wis /omroep tekst /onderhoud minuten /slow seconden /herstart /leeg /stil /blokkeer woord /deblokkeer woord /logboek /uit";
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 function login(pw) {
   if (!ADMIN) return 'nopw';
@@ -43,7 +56,12 @@ const clean = (s, n) => String(s || '').replace(/[\u0000-\u001f]/g, '').trim().s
 const roomName = (s) => clean(s, 30).toLowerCase().replace(/[^a-z0-9-_]/g, '') || 'algemeen';
 const IMG = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+\/=]+$/;
 
+let midCount = 0;
+const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const pub = (m) => { const { v, ...rest } = m; return rest; };   // zonder wie-heeft-gereageerd
+
 function store(room, m) {
+  if (!m.mid) { m.mid = ++midCount; m.v = {}; m.r = {}; }
   if (!rooms[room]) console.log('[kamer] nieuwe kamer actief');
   const list = (rooms[room] ||= []);
   list.push(m);
@@ -59,7 +77,7 @@ function store(room, m) {
 function bot(room, text) {
   const m = { name: 'Bot', bot: true, text, t: Date.now() };
   store(room, m);
-  io.to(room).emit('msg', m);
+  io.to(room).emit('msg', pub(m));
 }
 
 const BALL = ['Ja', 'Nee', 'Misschien', 'Zeker weten', 'Zeker niet', 'Vraag het later nog eens', 'Ziet er goed uit', 'Ik betwijfel het'];
@@ -82,7 +100,7 @@ function command(room, name, text) {
 const statsLine = () =>
   'online: ' + io.engine.clientsCount + ' | kamers: ' + Object.keys(rooms).length +
   ' | berichten: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
-  ' | chat: ' + (offline ? 'OFFLINE' : 'online') + (slow ? ' | slowmode: ' + slow + 's' : '') + (maintTimers.length ? ' | onderhoud gepland' : '');
+  ' | chat: ' + (offline ? 'OFFLINE' : 'online') + (slow ? ' | slowmode: ' + slow + 's' : '') + (muted ? ' | STIL-modus' : '') + ' | geheugen: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB' + (maintTimers.length ? ' | onderhoud gepland' : '');
 
 const announce = (t) => io.emit('msg', { name: '📢', bot: true, text: t, t: Date.now() });
 const cancelMaint = () => { maintTimers.forEach(clearTimeout); maintTimers = []; };
@@ -92,7 +110,7 @@ function goOffline() {
   for (const [, s] of io.sockets.sockets) if (!s.data.admin) s.emit('closed', true);
 }
 
-function adminCommand(socket, c, arg) {
+function adminCommand(socket, c, arg, room) {
   const say = (t) => socket.emit('sys', t);
   if (c === 'status') say(statsLine());
   else if (c === 'offline') {
@@ -133,6 +151,25 @@ function adminCommand(socket, c, arg) {
     say('Server herstart nu. Render start hem automatisch weer op (duurt ongeveer een minuut).');
     console.log('[admin] herstart aangevraagd');
     setTimeout(() => process.exit(0), 500);
+  } else if (c === 'leeg') {
+    delete rooms[room];
+    console.log('[admin] een kamer geleegd');
+    io.to(room).emit('history', []);
+    say('Deze kamer is leeggemaakt.');
+  } else if (c === 'stil') {
+    muted = !muted;
+    console.log('[admin] stil-modus ' + (muted ? 'aan' : 'uit'));
+    announce(muted ? '🔇 Alleen de beheerder kan nu berichten sturen.' : '🔊 Iedereen kan weer praten.');
+  } else if (c === 'blokkeer') {
+    const w = clean(arg, 30).toLowerCase();
+    if (!w) return say('Geblokkeerde woorden: ' + (banned.join(', ') || 'geen') + ' | Gebruik: /blokkeer woord');
+    if (!banned.includes(w)) banned.push(w);
+    say('Geblokkeerd: ' + w + ' (wordt ***)');
+  } else if (c === 'deblokkeer') {
+    banned = banned.filter(x => x !== clean(arg, 30).toLowerCase());
+    say('Geblokkeerde woorden: ' + (banned.join(', ') || 'geen'));
+  } else if (c === 'logboek') {
+    say(events.slice(-12).join('\n') || 'Nog niets gelogd.');
   } else if (c === 'uit') {
     socket.data.admin = false;
     say('Uitgelogd als beheerder.');
@@ -158,6 +195,7 @@ io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
   let room = 'algemeen';
   let last = 0;
+  let lastReact = 0;
   const blocked = () => offline && !socket.data.admin;
 
   socket.on('join', (name) => {
@@ -165,7 +203,7 @@ io.on('connection', (socket) => {
     socket.join(room);
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
-    socket.emit('history', (rooms[room] || []).filter(m => now - m.t < TTL));
+    socket.emit('history', (rooms[room] || []).filter(m => now - m.t < TTL).map(pub));
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 1);
   });
 
@@ -189,18 +227,32 @@ io.on('connection', (socket) => {
     const [cmd, ...rest] = text.split(' ');
     if (socket.data.admin && ADMIN_CMDS.includes(cmd)) {
       last = now;
-      return adminCommand(socket, cmd.slice(1), rest.join(' ').trim());
+      return adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room);
     }
 
+    if (muted && !socket.data.admin) return socket.emit('sys', 'Alleen de beheerder mag nu praten.');
     if (offline) return;   // tijdens offline wordt er niets doorgestuurd, ook niet van de beheerder
     const img = d && typeof d.img === 'string' && d.img.length < 1.4e6 && IMG.test(d.img) ? d.img : null;
     if (!text && !img) return;
     last = now;
-    const m = { id: socket.id, name, text, t: now };
+    const m = { id: socket.id, name, text: mask(text), t: now };
     if (img) m.img = img;
     store(room, m);
-    io.to(room).emit('msg', m);
+    io.to(room).emit('msg', pub(m));
     if (text[0] === '/') command(room, name, text);
+  });
+
+  socket.on('react', (d) => {
+    const now = Date.now();
+    if (blocked() || now - lastReact < 200 || !d || !EMOJIS.includes(d.e)) return;
+    lastReact = now;
+    const m = (rooms[room] || []).find(x => x.mid === d.mid);
+    if (!m) return;
+    const who = (m.v[d.e] ||= []);
+    const i = who.indexOf(socket.id);
+    if (i >= 0) who.splice(i, 1); else who.push(socket.id);
+    if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
+    io.to(room).emit('react', { mid: m.mid, r: m.r });
   });
 
   socket.on('typing', (n) => { if (!blocked()) socket.to(room).emit('typing', clean(n, 20)); });
