@@ -37,13 +37,18 @@ console.log = (...a) => {
 
 // admin: password lives in Render (ADMIN_PASSWORD), never in the code
 const ADMIN = process.env.ADMIN_PASSWORD || '';
+// Used only by the moderator-controlled restart sequence; never sent to browsers.
+const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
+const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || '';
+let restartInProgress = false, restartRequestInFlight = false, restartSubmitted = false;
+let restartTimer = null, restartCountdownTimers = [];
 // Render does not expose a documented built-in region variable; set SERVER_LOCATION in the Render dashboard.
 const SERVER_LOCATION = String(process.env.SERVER_LOCATION || '').trim();
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'private';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /log /restart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/help', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /log /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -227,6 +232,8 @@ const statsLine = () =>
   ' | memory: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB';
 const adminState = () => ({
   offline, silenced, slow, links, images, banned,
+  renderRestartConfigured: !!(RENDER_API_KEY && RENDER_SERVICE_ID),
+  restartInProgress, restartRequestInFlight, restartSubmitted,
   online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
   memory: Math.round(process.memoryUsage().rss / 1048576),
@@ -307,7 +314,83 @@ function adminCommand(socket, c, arg, room) {
   }
   else if (c === 'pardon') { for (const k in timeouts) delete timeouts[k]; for (const k in strikes) delete strikes[k]; say('All timeouts and strikes cleared.'); }
   else if (c === 'log') say(events.slice(-12).join('\n') || 'Nothing logged yet.');
-  else if (c === 'restart') { say('Restarting. Render starts the server again automatically (about a minute).'); console.log('[admin] restart requested'); setTimeout(() => process.exit(0), 500); }
+  else if (c === 'restart') {
+    if (!RENDER_API_KEY || !RENDER_SERVICE_ID) {
+      return say('Restart button is not configured. Add RENDER_API_KEY and RENDER_SERVICE_ID in Render → Environment, then redeploy. No restart was attempted.');
+    }
+    if (restartInProgress) return say(restartSubmitted
+      ? 'A restart request has already been submitted to Render.'
+      : 'A restart countdown is already running. Use /cancelrestart to cancel it.');
+    restartInProgress = true;
+    restartRequestInFlight = false;
+    restartSubmitted = false;
+    announce('☢️ SERVER RESTART SEQUENCE INITIATED — Render will restart the chat in 15 seconds. Please finish your messages.');
+    say('Restart sequence started. Everyone has been notified. Use /cancelrestart within the countdown to abort.');
+    console.log('[admin] controlled Render restart countdown started');
+
+    const countdown = [
+      [5000, '10 seconds'],
+      [10000, '5 seconds'],
+      [12000, '3 seconds'],
+      [13000, '2 seconds'],
+      [14000, '1 second']
+    ];
+    restartCountdownTimers = countdown.map(([delay, remaining]) => setTimeout(() => {
+      if (restartInProgress && !restartSubmitted) {
+        announce('☢️ SERVER RESTART IN ' + remaining.toUpperCase() + ' — reconnect shortly.');
+      }
+    }, delay));
+
+    restartTimer = setTimeout(async () => {
+      restartTimer = null;
+      restartCountdownTimers = [];
+      if (!restartInProgress || restartSubmitted) return;
+      restartRequestInFlight = true;
+      restartSubmitted = true;
+      try {
+        const response = await fetch(
+          'https://api.render.com/v1/services/' + encodeURIComponent(RENDER_SERVICE_ID) + '/restart',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + RENDER_API_KEY,
+              'Accept': 'application/json'
+            },
+            signal: AbortSignal.timeout(10000)
+          }
+        );
+        if (!response.ok) throw new Error('Render API returned HTTP ' + response.status);
+        restartRequestInFlight = false;
+        announce('✅ RENDER ACCEPTED THE RESTART REQUEST — The chat may briefly reconnect. Thank you for your patience.');
+        adminSay('Render accepted the restart request. The service is replacing its running instance.');
+        console.log('[admin] Render restart API accepted the request');
+      } catch (error) {
+        restartInProgress = false;
+        restartRequestInFlight = false;
+        restartSubmitted = false;
+        announce('⚠️ SERVER RESTART CANCELLED — Render could not accept the request. The chat remains online; an admin should check the configuration.');
+        adminSay('Restart request failed. Check the Render API key, service ID, permissions, and Render service logs. No automatic load or crash was triggered.');
+        console.log('[admin] Render restart request failed: ' + String(error && error.message || 'unknown error'));
+      }
+    }, 15000);
+  }
+  else if (c === 'cancelrestart') {
+    if (!restartInProgress || restartSubmitted) {
+      return say(restartSubmitted
+        ? 'The restart request has already been sent to Render and can no longer be cancelled here.'
+        : 'There is no active restart countdown.');
+    }
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = null;
+    restartCountdownTimers.forEach(clearTimeout);
+    restartCountdownTimers = [];
+    restartInProgress = false;
+    restartRequestInFlight = false;
+    restartSubmitted = false;
+    announce('✅ SERVER RESTART CANCELLED BY A MODERATOR — The chat will remain online.');
+    adminSay('Restart countdown cancelled. The chat will remain online.');
+    console.log('[admin] restart countdown cancelled');
+  }
   else if (c === 'clearreports') { const n = reportLog.size; reportLog.clear(); for (const r in rooms) for (const m of rooms[r]) if (m.rep) m.rep = []; say(n + ' report(s) cleared.'); }
   else if (c === 'logout') { removeScreenViewer(socket.id); socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
   else say(ADMIN_HELP);
