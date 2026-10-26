@@ -61,9 +61,9 @@ const MUSIC_TYPES = Object.freeze({
   '.webm': 'audio/webm',
   '.flac': 'audio/flac'
 });
-const MUSIC_ADDON_BASE_URL = String(process.env.MUSIC_ADDON_BASE_URL || 'https://bppcaf.bot-keep.xyz').trim().replace(/\/+$/, '');
-const requestedMusicQuality = String(process.env.MUSIC_ADDON_QUALITY || 'HIGH').toUpperCase();
-const MUSIC_ADDON_QUALITY = ['LOW', 'HIGH', 'LOSSLESS'].includes(requestedMusicQuality) ? requestedMusicQuality : 'HIGH';
+const AUDIUS_API_BASE_URL = String(process.env.AUDIUS_API_BASE_URL || 'https://api.audius.co/v1').trim().replace(/\/+$/, '');
+const AUDIUS_API_KEY = String(process.env.AUDIUS_API_KEY || '').trim();
+const AUDIUS_APP_NAME = String(process.env.AUDIUS_APP_NAME || 'ServerChat').trim().replace(/[^A-Za-z0-9_-]/g, '') || 'ServerChat';
 const MUSIC_ADDON_TIMEOUT_MS = 12000;
 const MUSIC_CACHE_DOWNLOAD_TIMEOUT_MS = 180000;
 const MUSIC_MAX_RELAY_CACHE_BYTES = 120 * 1024 * 1024;
@@ -579,7 +579,7 @@ function releaseMusicTrack(track) {
 
 // All catalogue requests originate on this server. Do not forward visitor headers or IPs.
 function musicAddonEndpoint(path) {
-  const base = new URL(MUSIC_ADDON_BASE_URL);
+  const base = new URL(AUDIUS_API_BASE_URL);
   if (base.protocol !== 'https:' || base.username || base.password) {
     throw new Error('Music addon must be configured as a public HTTPS URL.');
   }
@@ -640,7 +640,11 @@ async function requestMusicAddonJson(url) {
     signal: AbortSignal.timeout(MUSIC_ADDON_TIMEOUT_MS),
     redirect: 'follow'
   });
-  if (!response.ok) throw new Error('Music catalogue returned HTTP ' + response.status);
+  if (!response.ok) {
+    const error = new Error('Audius API returned HTTP ' + response.status);
+    error.statusCode = response.status;
+    throw error;
+  }
   return response.json();
 }
 
@@ -662,26 +666,35 @@ app.get('/api/music/search', async (req, res) => {
   let cached = musicSearchCache.get(cacheKey);
   if (!cached || cached.expiresAt <= Date.now()) {
     try {
-      const url = musicAddonEndpoint('search');
-      url.searchParams.set('q', query);
-      url.searchParams.set('quality', MUSIC_ADDON_QUALITY);
-      url.searchParams.set('atmos', 'auto');
+      const url = musicAddonEndpoint('tracks/search');
+      url.searchParams.set('query', query);
+      url.searchParams.set('limit', '20');
+      url.searchParams.set('sort_method', 'relevant');
+      if (AUDIUS_API_KEY) url.searchParams.set('api_key', AUDIUS_API_KEY);
+      else url.searchParams.set('app_name', AUDIUS_APP_NAME);
+
       const body = await requestMusicAddonJson(url);
-      const rawTracks = Array.isArray(body) ? body : (body && Array.isArray(body.tracks) ? body.tracks : []);
+      const rawTracks = body && Array.isArray(body.data) ? body.data : [];
       const tracks = [];
       for (const raw of rawTracks.slice(0, 20)) {
         if (!raw || typeof raw !== 'object') continue;
-        const sourceId = typeof raw.id === 'string' ? raw.id : '';
+        const sourceId = (typeof raw.id === 'string' || typeof raw.id === 'number') ? String(raw.id) : '';
         const title = clean(raw.title, 120);
-        if (!/^qobuz_[A-Za-z0-9_-]{10,120}$/.test(sourceId) || !title) continue;
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(sourceId) || !title ||
+            raw.is_available === false || raw.is_streamable === false ||
+            raw.is_stream_gated === true || raw.is_unlisted === true) continue;
+
+        const user = raw.user && typeof raw.user === 'object' ? raw.user : {};
+        const album = raw.album && typeof raw.album === 'object' ? raw.album : {};
         const catalogId = crypto.randomBytes(16).toString('hex');
         const track = {
           sourceId,
           title,
-          artist: clean(raw.artist, 120),
-          album: clean(raw.album, 120),
+          artist: clean(user.name || user.handle || raw.artist, 120),
+          album: clean(album.title || raw.album_name || raw.playlist_name, 120),
           duration: Number.isFinite(Number(raw.duration)) && Number(raw.duration) >= 0 ? Number(raw.duration) : null,
-          format: clean(raw.format || raw.codec || raw.container, 20).toUpperCase() || 'AUDIO'
+          format: 'MP3',
+          permalink: typeof raw.permalink === 'string' ? raw.permalink : null
         };
         musicCatalogCache.set(catalogId, { track, expiresAt: Date.now() + MUSIC_CATALOG_TTL });
         tracks.push({
@@ -690,14 +703,19 @@ app.get('/api/music/search', async (req, res) => {
           artist: track.artist || '',
           album: track.album || '',
           duration: track.duration,
-          format: track.format
+          format: track.format,
+          permalink: track.permalink
         });
       }
       pruneMusicCaches();
       cached = { tracks, expiresAt: Date.now() + MUSIC_SEARCH_CACHE_TTL };
       musicSearchCache.set(cacheKey, cached);
-    } catch (_) {
-      return res.status(502).json({ error: 'The music catalogue could not be reached. Try again in a moment.' });
+    } catch (error) {
+      const status = error && Number.isInteger(error.statusCode) ? error.statusCode : 502;
+      const message = status === 429
+        ? 'Audius is temporarily rate-limiting searches. Wait a little and try again.'
+        : 'Audius search is temporarily unavailable. Try again in a moment.';
+      return res.status(status === 429 ? 429 : 502).json({ error: message });
     }
   }
   return res.json({ tracks: cached.tracks });
@@ -707,24 +725,14 @@ async function resolveMusicAddonStream(track, forceRefresh = false) {
   if (!forceRefresh && track.streamUrl && track.streamUrlExpiresAt > Date.now() + 2000) {
     return { url: track.streamUrl, format: track.streamFormat || track.format };
   }
-  const url = musicAddonEndpoint('stream/' + encodeURIComponent(track.sourceTrackId));
-  url.searchParams.set('quality', MUSIC_ADDON_QUALITY);
-  url.searchParams.set('atmos', 'auto');
-  const response = await fetch(url, {
-    headers: { accept: 'application/json' },
-    signal: AbortSignal.timeout(MUSIC_ADDON_TIMEOUT_MS),
-    redirect: 'follow'
-  });
-  if (!response.ok) throw new Error('Music provider could not resolve this track.');
-  const info = await response.json();
-  if (!info || typeof info.url !== 'string') throw new Error('The music provider did not return a playable stream.');
-  if (info.encrypted === true) throw new Error('This source reports that the stream is encrypted.');
-  const manifest = String(info.manifest || 'none').toLowerCase();
-  if (manifest !== 'none') throw new Error('This track uses a segmented stream format that is not supported by the privacy relay yet.');
-  const streamUrl = await validatePublicAudioUrl(info.url);
+  // Official Audius stream endpoint redirects to an audio host. It is called server-side only.
+  const url = musicAddonEndpoint('tracks/' + encodeURIComponent(track.sourceTrackId) + '/stream');
+  if (AUDIUS_API_KEY) url.searchParams.set('api_key', AUDIUS_API_KEY);
+  else url.searchParams.set('app_name', AUDIUS_APP_NAME);
+  const streamUrl = await validatePublicAudioUrl(url.toString());
   track.streamUrl = streamUrl.toString();
   track.streamUrlExpiresAt = Date.now() + 45 * 1000;
-  track.streamFormat = clean(info.format || info.codec || track.format, 20).toUpperCase() || 'AUDIO';
+  track.streamFormat = 'MP3';
   return { url: track.streamUrl, format: track.streamFormat };
 }
 
@@ -1433,6 +1441,7 @@ io.on('connection', (socket) => {
       artist: selected.artist,
       album: selected.album,
       format: selected.format,
+      permalink: selected.permalink || null,
       addedBy: safeName(d && d.name),
       addedById: socket.id,
       addedAt: now,
