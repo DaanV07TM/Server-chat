@@ -6,8 +6,8 @@
 <meta name="description" content="Anonymous chat. No accounts, no tracking, messages disappear after 1 hour.">
 <title>Anonymous Chat</title>
 <style>
-:root{--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
-@media (prefers-color-scheme:dark){:root{--bg:#10151d;--panel:#171d28;--ink:#e8edf5;--mute:#8d99ab;--accent:#7b93ff;--mine:#4b63e0;--other:#1e2633;--line:#27303f;--l:72%}}
+:root{--bad:#b3261e;--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
+@media (prefers-color-scheme:dark){:root{--bg:#10151d;--panel:#171d28;--ink:#e8edf5;--mute:#8d99ab;--accent:#7b93ff;--mine:#4b63e0;--other:#1e2633;--line:#27303f;--l:72%;--bad:#ff8a80}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
@@ -47,6 +47,13 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   .ov button{display:block;width:100%;margin-top:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;padding:12px;font:inherit;font-weight:600}
 @media (prefers-color-scheme:dark){.ov button{color:#10151d}}
 .ov .plain{background:none;border:1px solid var(--line);color:var(--ink)}
+#adm .box{max-width:560px;width:100%}
+.ov .ab{display:inline-block;width:auto;margin:6px 6px 0 0;padding:8px 12px;font-size:14px}
+.ov .ab.red{background:var(--bad)}
+.ov input,.ov select{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:6px 6px 0 0;max-width:100%}
+.sec{margin:16px 0 2px;font-weight:700;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.rep{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px;overflow-wrap:anywhere}
+.stat{display:inline-block;margin-right:14px}
 </style>
 </head>
 <body>
@@ -56,6 +63,7 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <button id="share" type="button">Copy link</button>
   <button id="private" type="button">New private room</button>
   <button id="rename" type="button">Name</button>
+  <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <div id="log"></div>
 <div id="typing" aria-live="polite"></div>
@@ -90,6 +98,14 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
     <h2 id="repT">Report this message</h2>
     <div id="reasons"></div>
     <button id="repX" type="button" class="plain">Cancel</button>
+  </div>
+</div>
+<div id="adm" class="ov" role="dialog" aria-modal="true" aria-labelledby="admT">
+  <div class="box">
+    <h2 id="admT">Admin</h2>
+    <div id="admbody"></div>
+    <p id="admmsg" aria-live="polite" style="color:var(--mute);min-height:20px"></p>
+    <button id="admX" type="button" class="plain">Close</button>
   </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
@@ -153,7 +169,7 @@ function start() {
   socket.on('msg', m => { add(m); $('typing').textContent = ''; });
   socket.on('online', n => $('online').textContent = n + ' online');
   socket.on('config', c => { $('photo').hidden = !c.images; });
-  socket.on('sys', t => add({ bot: true, text: t }));
+  socket.on('sys', t => { if ($('adm').style.display === 'flex') $('admmsg').textContent = t; else add({ bot: true, text: t }); });
   socket.on('closed', c => {
     if (c) { log.innerHTML = '<p class="empty" id="empty">The chat is temporarily offline.</p>'; $('online').textContent = 'offline'; }
     else join();
@@ -227,6 +243,51 @@ function start() {
     catch (e) { ev.target.textContent = 'Copy failed'; }
     setTimeout(() => ev.target.textContent = 'Copy link', 2000);
   };
+  // admin panel (the ⚙ button appears after typing /admin <password>)
+  const h = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const B = (label, cmd, cls, ask, inp) => '<button class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
+  const SEL = (cmd, opts, cur) => '<select data-cmd="' + cmd + '" aria-label="' + cmd.trim().slice(1) + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+  let admOpen = false, admTimer;
+  function renderAdmin(st) {
+    $('admbody').innerHTML =
+      '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="sec">Chat</div>' +
+      B(st.offline ? 'Bring chat online' : 'Take chat offline', st.offline ? '/online' : '/offline', st.offline ? '' : 'red', st.offline ? '' : 'Disconnect everyone?') +
+      B(st.silenced ? 'Silence is ON (tap to end)' : 'Silence everyone', '/silence') +
+      B(st.links ? 'Links: allowed' : 'Links: blocked', '/links ' + (st.links ? 'off' : 'on'), 'plain') +
+      B('Clear timeouts', '/pardon', 'plain') +
+      '<div>Slow mode ' + SEL('/slow ', [[0, 'Off'], [3, '3 s'], [5, '5 s'], [10, '10 s'], [30, '30 s']], st.slow) + ' Images ' + SEL('/images ', [['off', 'Off'], ['private', 'Private rooms'], ['on', 'Everywhere']], st.images) + '</div>' +
+      '<div class="sec">Announce</div><input id="annIn" maxlength="300" placeholder="Message to everyone" aria-label="Announcement"> ' + B('Send', '/announce ', '', '', '#annIn') +
+      '<div>Maintenance in <select id="mSel" aria-label="Minutes"><option>5</option><option>10</option><option>30</option><option>60</option></select> min ' + B('Start countdown', '/maintenance ', '', '', '#mSel') + '</div>' +
+      '<div class="sec">Reports (' + st.reports.length + ')</div>' +
+      (st.reports.length ? st.reports.map(r => '<div class="rep">' + (r.urgent ? '🚨 ' : '') + '<b>#' + r.mid + '</b> ' + h(r.name) + ' · ' + h(r.reasons.join(', ')) + ' (' + r.n + '×) <i>[' + h(r.status) + ']</i><br>“' + h(r.text) + '”<br>' +
+        B('Delete', '/delete ' + r.mid, 'red') + B('Timeout 1 h', '/timeout ' + r.mid + ' 60') + B('Dismiss', '/dismiss ' + r.mid, 'plain') + '</div>').join('') : '<p>No open reports.</p>') +
+      (st.reports.length ? B('Clear all reports', '/clearreports', 'red', 'Remove all reports from the list?') : '') +
+      '<div class="sec">Blocked words</div>' + (st.banned.map(w => '<span class="stat">' + h(w) + ' ' + B('×', '/unblock ' + w, 'plain') + '</span>').join('') || '<p>None.</p>') +
+      '<input id="blkIn" maxlength="30" placeholder="Word to block" aria-label="Word to block"> ' + B('Add', '/block ', '', '', '#blkIn') +
+      '<div class="sec">Alerts</div><p>' + (st.channels.length ? 'Active: ' + h(st.channels.join(', ')) : 'Not set up yet (see the Render environment settings).') + '</p>' + B('Send test alert', '/notifytest', 'plain') +
+      '<div class="sec">Danger zone</div>' +
+      B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
+      B('Restart server', '/restart', 'red', 'Restart the server now?') + B('Log out', '/logout', 'plain');
+  }
+  const closeAdm = () => { admOpen = false; clearInterval(admTimer); $('adm').style.display = 'none'; };
+  socket.on('admin', on => { $('admbtn').hidden = !on; if (!on) closeAdm(); });
+  socket.on('adm:state', st => {
+    if (!admOpen) return;
+    const a = document.activeElement;
+    if (!(a && a.tagName === 'INPUT' && $('adm').contains(a))) renderAdmin(st);   // don't interrupt typing
+  });
+  $('admbtn').onclick = () => { admOpen = true; $('adm').style.display = 'flex'; $('admmsg').textContent = ''; socket.emit('adm', ''); admTimer = setInterval(() => socket.emit('adm', ''), 5000); };
+  $('admX').onclick = closeAdm;
+  $('admbody').onclick = e => {
+    const b = e.target.closest('button[data-cmd]'); if (!b) return;
+    if (b.dataset.ask && !confirm(b.dataset.ask)) return;
+    let c = b.dataset.cmd;
+    if (b.dataset.input) { const i = document.querySelector(b.dataset.input); c += i.value.trim(); if (i.tagName === 'INPUT') i.value = ''; }
+    socket.emit('adm', c);
+  };
+  $('admbody').onchange = e => { const s = e.target.closest('select[data-cmd]'); if (s) socket.emit('adm', s.dataset.cmd + s.value); };
+
   if (room !== 'general') $('online').insertAdjacentHTML('afterend', '<a href="/" style="color:var(--accent);font-size:14px">Back to general</a>');
 }
 
