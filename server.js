@@ -748,7 +748,7 @@ app.get('/api/music/search', async (req, res) => {
     try {
       const url = musicAddonEndpoint('tracks/search');
       url.searchParams.set('query', query);
-      url.searchParams.set('limit', '50');
+      url.searchParams.set('limit', '20');
       url.searchParams.set('sort_method', 'relevant');
       if (AUDIUS_API_KEY) url.searchParams.set('api_key', AUDIUS_API_KEY);
       else url.searchParams.set('app_name', AUDIUS_APP_NAME);
@@ -756,19 +756,15 @@ app.get('/api/music/search', async (req, res) => {
       const body = await requestMusicAddonJson(url);
       const rawTracks = body && Array.isArray(body.data) ? body.data : [];
       const tracks = [];
-      const remixMarkers = /\b(?:remixes?|re[-\s]?mix(?:ed)?|bootleg|mash[-\s]?up|nightcore|sped[-\s]?up|speed[-\s]?up|slowed(?:\s*(?:\+|and)\s*reverb)?|8d(?:\s+audio)?|bass[-\s]?boosted|rework|pitch[-\s]?(?:up|down)|flip\s+edit)\b/i;
-      for (const raw of rawTracks.slice(0, 50)) {
+      for (const raw of rawTracks.slice(0, 20)) {
         if (!raw || typeof raw !== 'object') continue;
         const sourceId = (typeof raw.id === 'string' || typeof raw.id === 'number') ? String(raw.id) : '';
         const title = clean(raw.title, 120);
         const duration = Number(raw.duration);
-        const tags = Array.isArray(raw.tags) ? raw.tags.join(' ') : (typeof raw.tags === 'string' ? raw.tags : '');
-        const hasRemixParent = raw.remix_of !== null && raw.remix_of !== undefined && raw.remix_of !== false && raw.remix_of !== '';
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(sourceId) || !title ||
             !Number.isFinite(duration) || duration <= 0 || duration > 86400 ||
             raw.is_available === false || raw.is_streamable === false ||
-            raw.is_stream_gated === true || raw.is_unlisted === true ||
-            hasRemixParent || remixMarkers.test(title + ' ' + tags)) continue;
+            raw.is_stream_gated === true || raw.is_unlisted === true) continue;
 
         const user = raw.user && typeof raw.user === 'object' ? raw.user : {};
         const album = raw.album && typeof raw.album === 'object' ? raw.album : {};
@@ -783,11 +779,6 @@ app.get('/api/music/search', async (req, res) => {
           permalink: typeof raw.permalink === 'string' ? raw.permalink : null
         };
         musicCatalogCache.set(catalogId, { track, expiresAt: Date.now() + MUSIC_CATALOG_TTL });
-        const plays = Math.max(0, Number(raw.play_count) || 0);
-        const favorites = Math.max(0, Number(raw.favorite_count) || 0);
-        const reposts = Math.max(0, Number(raw.repost_count) || 0);
-        const qualityScore = (user.is_verified === true ? 1000000 : 0) +
-          Math.log1p(plays) * 100 + Math.log1p(favorites) * 60 + Math.log1p(reposts) * 30;
         tracks.push({
           id: catalogId,
           title: track.title,
@@ -795,14 +786,11 @@ app.get('/api/music/search', async (req, res) => {
           album: track.album || '',
           duration: track.duration,
           format: track.format,
-          permalink: track.permalink,
-          qualityScore
+          permalink: track.permalink
         });
       }
-      tracks.sort((a, b) => b.qualityScore - a.qualityScore);
-      const rankedTracks = tracks.slice(0, 20).map(({ qualityScore, ...track }) => track);
       pruneMusicCaches();
-      cached = { tracks: rankedTracks, expiresAt: Date.now() + MUSIC_SEARCH_CACHE_TTL };
+      cached = { tracks, expiresAt: Date.now() + MUSIC_SEARCH_CACHE_TTL };
       musicSearchCache.set(cacheKey, cached);
     } catch (error) {
       const status = error && Number.isInteger(error.statusCode) ? error.statusCode : 502;
