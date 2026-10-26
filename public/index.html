@@ -317,6 +317,15 @@ button:active:not(:disabled){transform:translateY(0)}
 .voice-audio-container audio{display:none}
 @media(max-width:560px){#channelNav{padding:7px 9px;gap:5px}.channel-link{padding:7px 9px;font-size:12px} .voice-panel{padding:10px}.voice-panel-top{align-items:flex-start}.voice-actions{width:100%}.voice-actions button{flex:1}.voice-count{margin-right:auto}}
 
+
+/* Keep destructive controls clearly labelled without a gimmicky appearance. */
+#admbody .nuker-card{border:1px solid var(--line);border-radius:14px;background:var(--bg);padding:16px;box-shadow:none}
+#admbody .nuker-card-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--panel);color:var(--accent);font-size:24px}
+#admbody .nuker-card-title{font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--ink)}
+#admbody .nuker-card-subtitle{font-size:12px;color:var(--mute);letter-spacing:0}
+#admbody .nuker-card p{color:var(--mute);line-height:1.6;font-size:13px}
+#admbody .nuker-card .ab.nuker{background:var(--accent);color:#fff;border-radius:10px}
+
 /* Moderator dashboard polish */
 #adm .box{border-radius:20px;background:var(--panel);box-shadow:0 28px 90px rgba(9,18,36,.28)}
 #admT{font-size:24px;line-height:1.2;font-weight:750;padding-bottom:16px}
@@ -2413,10 +2422,10 @@ function start() {
       '<div class="server-log-list" id="serverLogList" aria-label="Recent server logs" aria-live="polite">' + serverLogHtml + '</div>' +
       '<div class="sec">Server reboot</div>' +
       '<div class="nuker-card">' +
-        '<div class="nuker-card-head"><span class="nuker-card-icon" aria-hidden="true">☢</span><div><div class="nuker-card-title">SERVER NUKER</div><div class="nuker-card-subtitle">Controlled reboot · no artificial load</div></div></div>' +
+        '<div class="nuker-card-head"><span class="nuker-card-icon" aria-hidden="true">↻</span><div><div class="nuker-card-title">SERVER RESTART</div><div class="nuker-card-subtitle">Controlled reboot · no artificial load</div></div></div>' +
         '<p>Sends a global announcement and a 15-second countdown, then gracefully closes the current process with a failure exit code so the hosting platform can attempt recovery. No API key or artificial load is used. Render does not guarantee an automatic restart for every application exit.</p>' +
         '<div class="nuker-status ' + (st.restartInProgress ? 'warning' : 'ready') + '">' + (st.restartSubmitted ? 'Server shutdown has started.' : st.restartInProgress ? 'Countdown active · can still be cancelled.' : 'Ready · no API key required.') + '</div>' +
-        (!st.restartInProgress ? B('☢ Initiate restart sequence', '/restart', 'nuker', 'Start a 15-second global countdown, then close the server process so Render can attempt to recover it? Everyone will briefly disconnect.') : '') +
+        (!st.restartInProgress ? B('↻ Restart server', '/restart', 'nuker', 'Start a 15-second global countdown, then close the server process so Render can attempt to recover it? Everyone will briefly disconnect.') : '') +
         (st.restartInProgress && !st.restartSubmitted ? B('Cancel countdown', '/cancelrestart', 'plain', 'Cancel the scheduled restart?') : '') +
       '</div>' +
       '<div class="sec">Danger zone</div>' +
