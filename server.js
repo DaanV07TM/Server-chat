@@ -45,6 +45,7 @@ const MUSIC_MAX_TRACKS = 50;
 const MUSIC_MAX_PER_USER = 5;
 const musicQueue = [];
 let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0;
+let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -497,12 +498,36 @@ const publicMusicTrack = track => track && ({
   addedBy: track.addedBy,
   addedAt: track.addedAt
 });
+function getMusicPosition(now = Date.now()) {
+  if (!musicPlayback.isPlaying || !Number.isFinite(musicPlayback.startedAt)) {
+    return Math.max(0, Number(musicPlayback.position) || 0);
+  }
+  return Math.max(0, (Number(musicPlayback.position) || 0) + Math.max(0, now - musicPlayback.startedAt) / 1000);
+}
+function getMusicPlayback(now = Date.now()) {
+  return {
+    isPlaying: musicPlayback.isPlaying,
+    position: Number(getMusicPosition(now).toFixed(3)),
+    serverTime: now,
+    changedBy: musicPlayback.changedBy
+  };
+}
 const getMusicState = () => ({
   current: publicMusicTrack(musicCurrent),
   queue: musicQueue.map(publicMusicTrack),
-  maxTracks: MUSIC_MAX_TRACKS
+  maxTracks: MUSIC_MAX_TRACKS,
+  playback: getMusicPlayback()
 });
 const broadcastMusicState = () => io.to('music').emit('music:state', getMusicState());
+
+// Send a fresh server-clock snapshot to every listening client every 4 seconds.
+// This keeps the players close to the same position without streaming audio through this server.
+const musicSyncTimer = setInterval(() => {
+  if (musicPlayback.isPlaying && musicCurrent) {
+    io.to('music').emit('music:sync', getMusicPlayback());
+  }
+}, 4000);
+if (typeof musicSyncTimer.unref === 'function') musicSyncTimer.unref();
 
 function removeVoiceParticipant(socketId) {
   const roster = voiceParticipants.get('voice');
@@ -842,11 +867,89 @@ io.on('connection', (socket) => {
       addedAt: now
     };
     socket.data.musicLastAdd = now;
-    if (!musicCurrent) musicCurrent = track;
-    else musicQueue.push(track);
+    if (!musicCurrent) {
+      musicCurrent = track;
+      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: socket.id };
+    } else {
+      musicQueue.push(track);
+    }
     broadcastMusicState();
     socket.emit('music:added', { id: track.id });
     console.log('[music] track added by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
+  });
+
+  socket.on('music:control', (d) => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
+    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot control playback.' });
+    if (!musicCurrent || !d || Number(d.trackId) !== musicCurrent.id) {
+      return socket.emit('music:state', getMusicState());
+    }
+    if (now - (socket.data.musicLastControl || 0) < 200) return;
+    socket.data.musicLastControl = now;
+
+    const action = d.action;
+    const rawPosition = Number(d.position);
+    const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : null;
+
+    if (action === 'play') {
+      // A late listener must not reset the shared clock to their local player's start.
+      if (musicPlayback.isPlaying) return socket.emit('music:state', getMusicState());
+      musicPlayback = {
+        isPlaying: true,
+        position: position === null ? getMusicPosition(now) : position,
+        startedAt: now,
+        changedBy: socket.id
+      };
+    } else if (action === 'pause') {
+      if (!musicPlayback.isPlaying) return socket.emit('music:state', getMusicState());
+      musicPlayback = {
+        isPlaying: false,
+        position: getMusicPosition(now),
+        startedAt: null,
+        changedBy: socket.id
+      };
+    } else if (action === 'seek') {
+      if (position === null) return socket.emit('music:error', { message: 'Could not synchronize the requested position.' });
+      musicPlayback = {
+        isPlaying: musicPlayback.isPlaying,
+        position,
+        startedAt: musicPlayback.isPlaying ? now : null,
+        changedBy: socket.id
+      };
+    } else {
+      return;
+    }
+    broadcastMusicState();
+  });
+
+  socket.on('music:sync-request', (d) => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music') || blocked()) return;
+    if (now - (socket.data.musicLastSyncRequest || 0) < 1500) return;
+    socket.data.musicLastSyncRequest = now;
+    const requestId = Number.isSafeInteger(d && d.requestId) ? d.requestId : null;
+    socket.emit('music:sync', { ...getMusicPlayback(), requestId });
+  });
+
+  socket.on('music:ended', (d) => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music') || !musicCurrent || !d ||
+        Number(d.trackId) !== musicCurrent.id || blocked()) return;
+    // Ignore duplicate "ended" events from viewers who are just a little behind.
+    musicLastSkipAt = now;
+    if (musicQueue.length) {
+      musicCurrent = musicQueue.shift();
+      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: socket.id };
+      console.log('[music] ended track; advancing shared playback');
+    } else {
+      const rawPosition = Number(d.position);
+      const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : getMusicPosition(now);
+      musicPlayback = { isPlaying: false, position, startedAt: null, changedBy: socket.id };
+      console.log('[music] current track ended; shared playback paused');
+    }
+    broadcastMusicState();
   });
 
   socket.on('music:next', () => {
@@ -861,7 +964,9 @@ io.on('connection', (socket) => {
       return socket.emit('music:error', { message: 'There are no more tracks in the queue yet.' });
     }
     musicLastSkipAt = now;
+    const continuePlaying = musicPlayback.isPlaying;
     musicCurrent = musicQueue.shift();
+    musicPlayback = { isPlaying: continuePlaying, position: 0, startedAt: continuePlaying ? now : null, changedBy: socket.id };
     broadcastMusicState();
     console.log('[music] current track advanced by a channel member');
   });
