@@ -320,7 +320,26 @@ setInterval(() => { for (const k in strikes) delete strikes[k]; }, 60 * 60 * 100
 setInterval(() => console.log('[stats] ' + statsLine()), 10 * 60 * 1000);
 
 
-function removeScreenViewer(socketId) {
+function addScreenViewer(socketId, screenRoom) {
+  let viewingRooms = screenViewerRooms.get(socketId);
+  if (!viewingRooms) {
+    viewingRooms = new Set();
+    screenViewerRooms.set(socketId, viewingRooms);
+  }
+  viewingRooms.add(screenRoom);
+}
+
+function removeScreenViewer(socketId, screenRoom) {
+  if (screenRoom) {
+    const share = screenSharers[screenRoom];
+    if (share && share.viewers) share.viewers.delete(socketId);
+    const viewingRooms = screenViewerRooms.get(socketId);
+    if (viewingRooms) {
+      viewingRooms.delete(screenRoom);
+      if (!viewingRooms.size) screenViewerRooms.delete(socketId);
+    }
+    return;
+  }
   for (const share of Object.values(screenSharers)) {
     if (share.viewers) share.viewers.delete(socketId);
   }
@@ -333,7 +352,8 @@ function endScreenShare(socketId) {
     if (share.socketId !== socketId) continue;
     delete screenSharers[screenRoom];
     for (const viewerId of (share.viewers || [])) {
-      if (screenViewerRooms.get(viewerId) === screenRoom) screenViewerRooms.delete(viewerId);
+      share.viewers.delete(viewerId);
+      removeScreenViewer(viewerId, screenRoom);
       io.to(viewerId).emit('screen:stopped', { sharerId: socketId, room: screenRoom });
     }
     io.to(screenRoom).emit('screen:stopped', { sharerId: socketId, room: screenRoom });
@@ -415,9 +435,9 @@ io.on('connection', (socket) => {
       io.to(room).emit('screen:stopped', { sharerId: share.socketId });
       return;
     }
-    removeScreenViewer(socket.id);
+    removeScreenViewer(socket.id, room);
     share.viewers.add(socket.id);
-    screenViewerRooms.set(socket.id, room);
+    addScreenViewer(socket.id, room);
     sharer.emit('screen:viewer', { viewerId: socket.id });
   });
 
@@ -428,9 +448,9 @@ io.on('connection', (socket) => {
     const found = Object.entries(screenSharers).find(([, share]) => share.socketId === requestedId);
     if (!found) return socket.emit('screen:admin:error', { message: 'That screen share is no longer active.' });
     const [shareRoom, share] = found;
-    removeScreenViewer(socket.id);
+    removeScreenViewer(socket.id, shareRoom);
     share.viewers.add(socket.id);
-    screenViewerRooms.set(socket.id, shareRoom);
+    addScreenViewer(socket.id, shareRoom);
     socket.emit('screen:admin:monitor-ready', {
       room: shareRoom,
       sharerId: share.socketId,
@@ -440,9 +460,20 @@ io.on('connection', (socket) => {
     if (sharer) sharer.emit('screen:viewer', { viewerId: socket.id });
   });
 
-  socket.on('screen:admin:unwatch', () => {
-    // Safe for any socket to unregister its own viewer entry, including during logout.
-    removeScreenViewer(socket.id);
+  socket.on('screen:admin:unwatch', (d) => {
+    // A socket may unregister only its own viewer entry, including during logout.
+    const screenRoom = d && typeof d.room === 'string' ? roomName(d.room) : '';
+    const sharerId = d && typeof d.sharerId === 'string' ? d.sharerId : '';
+    const share = screenRoom ? screenSharers[screenRoom] : null;
+    if (screenRoom) {
+      removeScreenViewer(socket.id, screenRoom);
+      if (share && sharerId === share.socketId) {
+        const sharer = io.sockets.sockets.get(share.socketId);
+        if (sharer) sharer.emit('screen:viewer-stopped', { viewerId: socket.id });
+      }
+    } else {
+      removeScreenViewer(socket.id);
+    }
     socket.emit('screen:admin:monitor-ended', {});
   });
 
@@ -483,24 +514,30 @@ io.on('connection', (socket) => {
     let share = null, shareRoom = null, senderIsSharer = false;
     // Match by destination first so an admin can share in one room and monitor another.
     for (const [candidateRoom, candidateShare] of Object.entries(screenSharers)) {
+      const viewerRooms = screenViewerRooms.get(d.to);
       if (candidateShare.socketId === socket.id &&
           candidateShare.viewers && candidateShare.viewers.has(d.to) &&
-          screenViewerRooms.get(d.to) === candidateRoom) {
+          viewerRooms && viewerRooms.has(candidateRoom)) {
         share = candidateShare; shareRoom = candidateRoom; senderIsSharer = true; break;
       }
     }
     if (senderIsSharer) {
       if (!share.viewers || !share.viewers.has(d.to) || screenViewerRooms.get(d.to) !== shareRoom) return;
     } else {
-      shareRoom = screenViewerRooms.get(socket.id);
-      share = shareRoom ? screenSharers[shareRoom] : null;
-      if (!share || !share.viewers || !share.viewers.has(socket.id) || d.to !== share.socketId) return;
+      const viewerRooms = screenViewerRooms.get(socket.id);
+      const viewerEntry = Object.entries(screenSharers).find(([candidateRoom, candidateShare]) =>
+        candidateShare.socketId === d.to && candidateShare.viewers &&
+        candidateShare.viewers.has(socket.id) && viewerRooms && viewerRooms.has(candidateRoom));
+      if (!viewerEntry) return;
+      shareRoom = viewerEntry[0];
+      share = viewerEntry[1];
     }
     const target = io.sockets.sockets.get(d.to);
     if (!target) return;
     // Admin monitors can be outside the room, but only while explicitly registered as a viewer.
     if (senderIsSharer) {
-      if (screenViewerRooms.get(d.to) !== shareRoom) return;
+      const viewerRooms = screenViewerRooms.get(d.to);
+      if (!viewerRooms || !viewerRooms.has(shareRoom)) return;
     } else if (!target.rooms.has(shareRoom)) return;
 
     const payload = { from: socket.id, room: shareRoom };
