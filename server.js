@@ -607,7 +607,7 @@ function queueMusicTrack(track, now = Date.now()) {
 function advanceMusicTrack(now = Date.now(), reason = 'ended') {
   if (!musicCurrent) return;
   const previous = musicCurrent;
-  musicLastSkipAt = now;
+  if (reason === 'admin skip') musicLastSkipAt = now;
   if (musicQueue.length) {
     musicCurrent = musicQueue.shift();
     releaseMusicTrack(previous);
@@ -629,6 +629,33 @@ function advanceMusicTrack(now = Date.now(), reason = 'ended') {
   }
   broadcastMusicState();
 }
+
+// Keep the playlist moving from the authoritative server clock, even when no
+// browser is connected to #music to report an audio "ended" event.
+function maintainMusicPlayback(now = Date.now()) {
+  const current = musicCurrent;
+  if (!current || musicPausedByAdmin) return;
+  const duration = Number(current.duration);
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  if (getMusicPosition(now) < duration - 0.35) return;
+
+  if (musicQueue.length) {
+    advanceMusicTrack(now, 'server playback clock reached track end');
+    return;
+  }
+
+  if (musicPlayback.isPlaying) {
+    musicPlayback = { isPlaying: false, position: duration, startedAt: null, changedBy: null };
+    console.log('[music] server playback clock reached track end; waiting for the next queued track');
+    broadcastMusicState();
+  }
+}
+
+const musicPlaybackTicker = setInterval(() => {
+  try { maintainMusicPlayback(Date.now()); }
+  catch (error) { console.log('[music] playback ticker error: ' + safeMusicDiagnosticMessage(error)); }
+}, 1000);
+if (typeof musicPlaybackTicker.unref === 'function') musicPlaybackTicker.unref();
 
 // All catalogue requests originate on this server. Do not forward visitor headers or IPs.
 function musicAddonEndpoint(path) {
