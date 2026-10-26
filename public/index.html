@@ -855,6 +855,12 @@ function start() {
   });
 
   socket.on('voice:signal', handleVoiceSignal);
+  socket.on('server:restarting', data => {
+    // Stop microphone and display-capture tracks before the server disconnects.
+    resetScreenShare();
+    if (voiceActive || voiceJoining) resetVoiceLocal();
+    showToast((data && data.message) || 'The server is restarting. Your chat should reconnect in a moment.', 'info', 10000);
+  });
   socket.on('voice:error', data => {
     leaveVoice(false);
     showToast((data && data.message) || 'Voice chat could not be started.', 'error');
@@ -1466,12 +1472,10 @@ function start() {
       '<div class="sec">Server reboot</div>' +
       '<div class="nuker-card">' +
         '<div class="nuker-card-head"><span class="nuker-card-icon" aria-hidden="true">☢</span><div><div class="nuker-card-title">SERVER NUKER</div><div class="nuker-card-subtitle">Controlled reboot · no artificial load</div></div></div>' +
-        '<p>Sends a global announcement and a 15-second countdown, then asks Render to restart this service. Everyone will be disconnected briefly; this does not generate artificial traffic or overload the server.</p>' +
-        (st.renderRestartConfigured
-          ? '<div class="nuker-status ready">' + (st.restartSubmitted ? 'Restart accepted or submitted to Render.' : st.restartInProgress ? 'Countdown active · restart request has not been sent yet.' : 'Ready · Render API credentials are configured.') + '</div>' +
-            (!st.restartInProgress ? B('☢ Initiate restart sequence', '/restart', 'nuker', 'Start a 15-second global countdown, then ask Render to restart the chat? This will briefly disconnect everyone.') : '') +
-            (st.restartInProgress && !st.restartSubmitted ? B('Cancel countdown', '/cancelrestart', 'plain', 'Cancel the scheduled restart?') : '')
-          : '<div class="nuker-status warning"><b>Setup required.</b><br>Add <code>RENDER_API_KEY</code> and <code>RENDER_SERVICE_ID</code> under Render → Environment, then redeploy. The API key stays on the server and is never sent to the browser.</div>') +
+        '<p>Sends a global announcement and a 15-second countdown, then gracefully closes the current process with a failure exit code so the hosting platform can attempt recovery. No API key or artificial load is used. Render does not guarantee an automatic restart for every application exit.</p>' +
+        '<div class="nuker-status ' + (st.restartInProgress ? 'warning' : 'ready') + '">' + (st.restartSubmitted ? 'Server shutdown has started.' : st.restartInProgress ? 'Countdown active · can still be cancelled.' : 'Ready · no API key required.') + '</div>' +
+        (!st.restartInProgress ? B('☢ Initiate restart sequence', '/restart', 'nuker', 'Start a 15-second global countdown, then close the server process so Render can attempt to recover it? Everyone will briefly disconnect.') : '') +
+        (st.restartInProgress && !st.restartSubmitted ? B('Cancel countdown', '/cancelrestart', 'plain', 'Cancel the scheduled restart?') : '') +
       '</div>' +
       '<div class="sec">Danger zone</div>' +
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
