@@ -25,8 +25,33 @@ const ADMIN = process.env.ADMIN_PASSWORD || '';
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'private';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /log /restart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/notifytest', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /notifytest /log /restart /logout";
+
+// alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
+const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
+const NTFY = process.env.NTFY_TOPIC || '', NTFY_URL = process.env.NTFY_URL || 'https://ntfy.sh';
+const RESEND_KEY = process.env.RESEND_API_KEY || '', MAIL_TO = process.env.NOTIFY_EMAIL || '';
+const RESEND_URL = process.env.RESEND_URL || 'https://api.resend.com/emails';
+const MAIL_FROM = process.env.MAIL_FROM || 'Chat Moderation <onboarding@resend.dev>';
+const channels = () => [WEBHOOK && 'discord', NTFY && 'ntfy', RESEND_KEY && MAIL_TO && 'email'].filter(Boolean);
+let notifTimes = [];
+function notify(title, body, urgent, force) {            // title must be plain ASCII (used in an HTTP header)
+  const now = Date.now();
+  notifTimes = notifTimes.filter(t => now - t < 3600000);
+  if (!force && notifTimes.length >= 20) return console.log('[notify] hourly limit reached');
+  notifTimes.push(now);
+  const post = (url, opt) => fetch(url, { ...opt, signal: AbortSignal.timeout(8000) })
+    .then(r => { if (!r.ok) console.log('[notify] failed: HTTP ' + r.status); })
+    .catch(e => console.log('[notify] error: ' + e.message));
+  const json = { 'Content-Type': 'application/json' };
+  if (WEBHOOK) post(WEBHOOK, { method: 'POST', headers: json, body: JSON.stringify({ content: (urgent ? '🚨 ' : '⚑ ') + '**' + title + '**\n' + body.slice(0, 1500), allowed_mentions: { parse: [] } }) });
+  if (NTFY) post(NTFY_URL + '/' + encodeURIComponent(NTFY), { method: 'POST', headers: { Title: title, Priority: urgent ? 'urgent' : 'high', Tags: urgent ? 'rotating_light' : 'warning' }, body });
+  if (RESEND_KEY && MAIL_TO) post(RESEND_URL, { method: 'POST', headers: { ...json, Authorization: 'Bearer ' + RESEND_KEY }, body: JSON.stringify({ from: MAIL_FROM, to: [MAIL_TO], subject: title, text: body }) });
+}
+const REASONS = { spam: 'Spam or scam', harassment: 'Harassment or hate', sexual: 'Sexual content', threat: 'Threats or self-harm', illegal: 'Illegal content or child safety' };
+const reportLog = new Map();   // kept 24h in memory, so you can review reports after the message is gone
+const reportTimes = {};
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 function login(pw) {
@@ -96,7 +121,7 @@ const statsLine = () =>
   ' | messages: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
   ' | chat: ' + (offline ? 'OFFLINE' : 'online') + ' | images: ' + images + ' | links: ' + (links ? 'on' : 'blocked') +
   (slow ? ' | slow: ' + slow + 's' : '') + (silenced ? ' | SILENCED' : '') + (maintTimers.length ? ' | maintenance planned' : '') +
-  ' | timeouts: ' + Object.values(timeouts).filter(t => t > Date.now()).length +
+  ' | alerts: ' + (channels().join(',') || 'none') + ' | timeouts: ' + Object.values(timeouts).filter(t => t > Date.now()).length +
   ' | memory: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB';
 const cancelMaint = () => { maintTimers.forEach(clearTimeout); maintTimers = []; };
 function goOffline() {
@@ -142,18 +167,27 @@ function adminCommand(socket, c, arg, room) {
     images = arg; io.emit('closed', false); say('Images: ' + images + (images === 'on' ? ' (public rooms are NOT scanned, be careful)' : ''));
   }
   else if (c === 'reports') {
-    const out = [];
-    for (const r in rooms) for (const m of rooms[r]) if (m.rep && m.rep.length) out.push('#' + m.mid + ' ' + m.name + ': "' + (m.text || '[image]').slice(0, 60) + '" (' + m.rep.length + ' reports)');
-    say(out.slice(-8).join('\n') || 'No reported messages.');
+    const out = [...reportLog.values()].filter(e => e.status !== 'dismissed').slice(-8)
+      .map(e => '#' + e.mid + ' [' + e.status + '] ' + e.name + ': "' + e.text.slice(0, 50) + '" (' + e.reasons.length + 'x ' + [...new Set(e.reasons)].join(',') + ')');
+    say(out.join('\n') || 'No open reports.');
   }
-  else if (c === 'delete') { const m = removeMsg(num); say(m ? 'Message #' + num + ' deleted.' : 'Message not found.'); }
+  else if (c === 'delete') { const m = removeMsg(num); const e = reportLog.get(num); if (e) e.status = 'deleted'; say(m || e ? 'Message #' + num + ' deleted.' : 'Message not found.'); }
   else if (c === 'timeout') {
     const [id, min] = arg.split(' ').map(x => parseInt(x));
-    const m = removeMsg(id);
-    if (!m || !m.tok) return say('Usage: /timeout id minutes (message not found or has no author).');
-    timeouts[m.tok] = Date.now() + Math.min(Math.max(min || 10, 1), 1440) * 60000;
+    const m = removeMsg(id), e = reportLog.get(id), tok = (m && m.tok) || (e && e.tok);
+    if (!tok) return say('Usage: /timeout id minutes (message not found or has no author).');
+    const mins = Math.min(Math.max(min || 10, 1), 1440);
+    timeouts[tok] = Date.now() + mins * 60000;
+    if (e) e.status = 'timed-out';
     console.log('[mod] timeout set by admin');
-    say('Author of #' + id + ' timed out for ' + Math.min(Math.max(min || 10, 1), 1440) + ' min. Message removed.');
+    say('Author of #' + id + ' timed out for ' + mins + ' min. Message removed.');
+  }
+  else if (c === 'dismiss') { const e = reportLog.get(num); if (!e) return say('Report not found.'); e.status = 'dismissed'; say('Report #' + num + ' dismissed.'); }
+  else if (c === 'notifytest') {
+    const ch = channels();
+    if (!ch.length) return say('No alert channel set up. Add DISCORD_WEBHOOK_URL, NTFY_TOPIC or RESEND_API_KEY + NOTIFY_EMAIL on Render.');
+    notify('Test notification', 'Alerts work. You will get a message like this when someone reports content.', false, true);
+    say('Test sent via: ' + ch.join(', ') + '. Check your phone or inbox.');
   }
   else if (c === 'pardon') { for (const k in timeouts) delete timeouts[k]; for (const k in strikes) delete strikes[k]; say('All timeouts and strikes cleared.'); }
   else if (c === 'log') say(events.slice(-12).join('\n') || 'Nothing logged yet.');
@@ -171,13 +205,15 @@ setInterval(() => {
   const now = Date.now();
   for (const r in rooms) { rooms[r] = rooms[r].filter(m => now - m.t < TTL); if (!rooms[r].length) delete rooms[r]; }
   for (const k in timeouts) if (timeouts[k] < now) delete timeouts[k];
+  for (const [k, e] of reportLog) if (now - e.t > 86400000) reportLog.delete(k);
+  for (const k in reportTimes) if (!reportTimes[k].some(t => now - t < 600000)) delete reportTimes[k];
 }, 60 * 1000);
 setInterval(() => { for (const k in strikes) delete strikes[k]; }, 60 * 60 * 1000);
 setInterval(() => console.log('[stats] ' + statsLine()), 10 * 60 * 1000);
 
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
-  let room = 'general', last = 0, lastReact = 0, lastText = '', lastTextAt = 0, recent = [];
+  let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
   const blocked = () => offline && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
 
@@ -229,14 +265,30 @@ io.on('connection', (socket) => {
 
   socket.on('report', (d) => {
     const now = Date.now();
-    if (blocked() || now - lastReact < 500 || !d) return;
-    lastReact = now;
+    if (blocked() || !d || now - lastReport < 1000 || !REASONS[d.reason]) return;
+    lastReport = now;
+    const k = key();
+    reportTimes[k] = (reportTimes[k] || []).filter(t => now - t < 600000);
+    if (reportTimes[k].length >= 5) return socket.emit('sys', 'You sent too many reports. Please wait a few minutes.');
     const m = (rooms[room] || []).find(x => x.mid === d.mid);
-    if (!m || m.bot || m.id === socket.id || m.rep.includes(key())) return;
-    m.rep.push(key());
-    socket.emit('sys', 'Thanks, your report was received.');
-    if (m.rep.length === 1) adminSay('⚑ Report #' + m.mid + ' ' + m.name + ': "' + (m.text || '[image]').slice(0, 80) + '" | /delete ' + m.mid + ' or /timeout ' + m.mid + ' 10');
-    if (m.rep.length >= REPORT_LIMIT) { removeMsg(m.mid); if (m.tok) strike(m.tok); console.log('[mod] message removed after reports'); }
+    if (!m || m.bot || m.id === socket.id || m.rep.includes(k)) return;
+    reportTimes[k].push(now);
+    m.rep.push(k);
+    let e = reportLog.get(m.mid);
+    if (!e) { e = { mid: m.mid, name: m.name, text: m.text || '[image]', tok: m.tok, reasons: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
+    e.reasons.push(d.reason);
+    const urgent = d.reason === 'illegal' || d.reason === 'threat';
+    const remove = d.reason === 'illegal' || m.rep.length >= REPORT_LIMIT;
+    const notifyNow = m.rep.length === 1 || remove || (urgent && !e.urgent);
+    if (urgent) e.urgent = true;
+    socket.emit('sys', 'Thank you. Your report was sent to the moderators.');
+    if (remove) { removeMsg(m.mid); e.status = 'removed'; if (m.tok) strike(m.tok); console.log('[mod] message removed after report'); }
+    if (notifyNow) {
+      const body = 'Report #' + m.mid + ' (' + e.reasons.length + ' so far): ' + REASONS[d.reason] + '\nAuthor: ' + m.name + '\nMessage: "' + (m.text || '[image]').slice(0, 300) + '"\nStatus: ' + (remove ? 'removed' : 'still visible, waiting for your review') +
+        '\nTo act: open the chat, type /admin followed by your password, then /delete ' + m.mid + ' or /timeout ' + m.mid + ' 60 or /dismiss ' + m.mid;
+      adminSay('⚑ ' + body.split('\nTo act')[0].replace(/\n/g, ' | '));
+      notify(urgent ? 'URGENT chat report' : 'Chat report', body, urgent);
+    }
   });
 
   socket.on('react', (d) => {
