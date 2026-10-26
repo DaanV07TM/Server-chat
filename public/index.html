@@ -335,7 +335,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
-<div id="privacyNotice" class="privacy-notice" role="note"><strong>Text messages are end-to-end encrypted in your browser.</strong> Use <b>Copy link</b> to share the text-encryption key with intended participants. <b>Images are not end-to-end encrypted</b> and are immediately visible in the room; moderators can review recent images across rooms, remove image posts, and ban uploaders. Image review is manual, not automatic detection. See the public README for security limitations.</div>
+<div id="privacyNotice" class="privacy-notice" role="note"><strong>Text messages are end-to-end encrypted in your browser.</strong> Use <b>Copy link</b> to share the text-encryption key with intended participants. <b>Images are not end-to-end encrypted.</b> Images from regular users are reviewed by moderators before they appear to other room participants. Moderators can review images across public and private rooms, approve or delete posts, and ban uploaders. Review is manual, not automatic detection. See the public README for security limitations.</div>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
     <div class="voice-info">
@@ -444,7 +444,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <ul>
       <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, #voice for optional live voice, and #music for a shared YouTube queue.</li>
       <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
-      <li><b>Privacy:</b> Text messages are encrypted in your browser with a shared invite-link key; use Copy link to share it with intended participants. Images are not end-to-end encrypted and are immediately visible in the room. Moderators can see recent images across all rooms, remove posts, and ban the uploader's browser token. Manual review is not automatic illegal-image detection. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
+      <li><b>Privacy:</b> Text messages are encrypted in your browser with a shared invite-link key; use Copy link to share it with intended participants. Images are not end-to-end encrypted. Images uploaded by regular users stay hidden from other room participants until a moderator reviews and approves them. Moderators can review images across public and private rooms, publish or delete posts, and ban uploaders. Manual review is not automatic illegal-image detection; an image still reaches the server for review. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
       <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
@@ -457,7 +457,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="welcomeGuideIntro" class="guide-intro">Here is the quick tour. You can reopen this guide with the Quick guide button in the header.</p>
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has a shared YouTube queue.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
-    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Text messages are encrypted in your browser; use Copy link to share the same key. Images are not end-to-end encrypted and are immediately visible in the room. Moderators can monitor recent images across rooms and remove posts or ban uploaders. This is manual review, not automatic detection. Do not post passwords or sensitive information.</span></div></div>
+    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Text messages are encrypted in your browser; use Copy link to share the same key. Images are not end-to-end encrypted. Images from regular users stay hidden from other room participants until a moderator approves them, and moderators can review images across public and private rooms. Review is manual, not automatic detection. The image reaches the server for moderation, so this cannot guarantee that illegal images never reach the server. Do not post passwords or sensitive information.</span></div></div>
     <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
@@ -2211,7 +2211,9 @@ function start() {
       image.alt = 'Image posted in chat';
       const meta = document.createElement('p');
       meta.textContent = '#' + item.room + ' · ' + item.name + ' · post #' + item.mid + ' · ' + new Date(item.t).toLocaleString();
-      card.append(image, meta);
+      const status = document.createElement('p');
+      status.textContent = item.pending ? 'Pending approval — not visible to other room participants.' : 'Approved and visible in the room.';
+      card.append(image, meta, status);
       const actions = document.createElement('div');
       actions.className = 'admin-image-actions';
       const remove = document.createElement('button');
@@ -2219,6 +2221,14 @@ function start() {
       remove.textContent = 'Delete post';
       remove.dataset.imageAction = 'delete';
       remove.dataset.mid = String(item.mid);
+      if (item.pending) {
+        const approve = document.createElement('button');
+        approve.type = 'button';
+        approve.textContent = 'Approve and publish';
+        approve.dataset.imageAction = 'approve';
+        approve.dataset.mid = String(item.mid);
+        actions.append(approve);
+      }
       actions.append(remove);
       if (!item.admin) {
         const banDay = document.createElement('button');
@@ -2324,7 +2334,7 @@ function start() {
       '<div class="sec">Active screen shares (' + screenShares.length + ')</div>' +
       '<p>Moderators can monitor a live share, stop it, or apply a temporary timeout.</p>' + screenShareRows +
       '<div class="sec">Image activity</div>' +
-      '<p class="admin-image-note">Recent images across all rooms, including private rooms. Images are shown immediately in chat; delete a post or ban the uploader here. Bans are tied to this browser token, so they are not account-level identity bans.</p>' +
+      '<p class="admin-image-note">Recent images across all rooms, including private rooms. Regular users’ images stay hidden from room participants until approved. Approve a safe image to publish it, delete an image post, or ban the uploader. Bans are tied to this browser token, not a verified identity.</p>' +
       '<button type="button" id="refreshImageReview" class="ab plain">Refresh images</button>' +
       '<div id="adminImageReview" class="admin-image-grid"><p>Loading recent images…</p></div>' +
       '<div class="sec">Chat</div>' +
@@ -2356,6 +2366,9 @@ function start() {
     renderAdminImageReview();
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
+  socket.on('image:pending', data => {
+    showToast('Image submitted for moderator review. Other room participants will not see it unless a moderator approves it.', 'info', 8000);
+  });
   socket.on('images:admin:list-result', data => {
     if (!moderator) return;
     recentAdminImages = Array.isArray(data && data.images) ? data.images : [];
@@ -2405,6 +2418,16 @@ function start() {
       const mid = Number(imageAction.dataset.mid);
       const action = imageAction.dataset.imageAction;
       if (!Number.isSafeInteger(mid)) return;
+      if (action === 'approve') {
+        const approved = await showSiteDialog({
+          title: 'Approve and publish this image?',
+          message: 'The image and any text attached to that post will become visible to participants in #' + (recentAdminImages.find(item => item.mid === mid)?.room || 'the room') + '.',
+          confirmText: 'Approve and publish',
+          cancelText: 'Cancel'
+        });
+        if (approved) socket.emit('images:admin:approve', { mid });
+        return;
+      }
       if (action === 'delete') {
         const approved = await showSiteDialog({
           title: 'Delete this image post?',
@@ -2421,8 +2444,8 @@ function start() {
         const approved = await showSiteDialog({
           title: permanent ? 'Ban user until restart?' : 'Ban user for 24 hours?',
           message: permanent
-            ? 'The uploader’s browser token will be banned until this server restarts. This does not identify the person across devices.'
-            : 'The uploader’s browser token will be banned for 24 hours. This does not identify the person across devices.',
+            ? 'The uploader’s browser token will be banned until this server restarts, and their stored image posts will be removed. This does not identify the person across devices.'
+            : 'The uploader’s browser token will be banned for 24 hours, and their stored image posts will be removed. This does not identify the person across devices.',
           confirmText: permanent ? 'Ban until restart' : 'Ban 24 h',
           cancelText: 'Cancel',
           danger: true
