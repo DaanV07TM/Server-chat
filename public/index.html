@@ -203,7 +203,7 @@ button:active:not(:disabled){transform:translateY(0)}
 .welcome-guide .guide-actions{display:flex;gap:8px;margin-top:15px}
 .welcome-guide .guide-actions button{margin:0}
 @media(max-width:560px){.welcome-guide .box{padding:16px}.guide-item{padding:9px}.m.pinned-info{width:100%}}
-/* Shared YouTube queue */
+/* Shared server-hosted audio room */
 #channelNav .channel-link[data-channel="music"]{color:var(--ink)}
 #channelNav .channel-link[data-channel="music"][aria-current="page"]{color:var(--accent)}
 .music-panel{padding:13px 16px 15px;background:var(--panel);border-bottom:1px solid var(--line);max-height:48vh;overflow-y:auto}
@@ -214,14 +214,12 @@ button:active:not(:disabled){transform:translateY(0)}
 .music-subtitle{margin:0;color:var(--mute);font-size:12px;line-height:1.45}
 .music-count{flex:0 0 auto;padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--mute);font-size:11px;font-weight:750}
 .music-layout{display:grid;grid-template-columns:minmax(250px,380px) minmax(0,1fr);gap:15px;align-items:start}
-.music-player-shell{min-height:225px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg)}
-.music-player-placeholder{min-height:225px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center}
+.music-player-shell{min-height:115px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg);padding:9px}
+.music-audio-placeholder{min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px;text-align:center}
 .music-placeholder-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;font-size:17px}
-.music-player-placeholder strong{font-size:13px}
-.music-player-placeholder p{max-width:300px;margin:0;color:var(--mute);font-size:11px;line-height:1.5}
-.music-player-placeholder button,.music-add-form button,.music-next-btn{width:auto;margin:0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
-#musicPlayerMount{width:100%;height:225px;min-height:200px}
-#musicPlayerMount iframe{display:block;width:100%!important;height:225px!important;min-height:200px;border:0}
+.music-audio-placeholder strong{font-size:13px}
+.music-audio-placeholder p{max-width:300px;margin:0;color:var(--mute);font-size:11px;line-height:1.5}
+.music-audio{display:block;width:100%;min-height:42px}
 .music-current-label{margin-top:8px;color:var(--mute);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 .music-current-label strong{color:var(--ink)}
 .music-sync-controls{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
@@ -229,15 +227,16 @@ button:active:not(:disabled){transform:translateY(0)}
 .music-sync-status.live{color:#16a34a}
 .music-sync-status.paused{color:var(--mute)}
 .music-sync-buttons{display:flex;gap:6px;flex-wrap:wrap}
-.music-sync-buttons button{width:auto;flex:1 1 110px;min-height:36px;margin:0;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;font-weight:800;cursor:pointer}
-.music-sync-buttons #musicPlayAllBtn{background:var(--accent);border-color:transparent;color:#fff}
-.music-sync-buttons button:disabled{opacity:.4;cursor:not-allowed}
+.music-sync-buttons button,.music-add-form button,.music-next-btn{width:auto;flex:1 1 110px;min-height:36px;margin:0;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.music-sync-buttons #musicPlayAllBtn,.music-add-form button{background:var(--accent);border-color:transparent;color:#fff}
+.music-sync-buttons button:disabled,.music-next-btn:disabled{opacity:.4;cursor:not-allowed}
 .music-sync-help{margin:7px 0 0;color:var(--mute);font-size:10px;line-height:1.45}
 @media(max-width:560px){.music-sync-buttons button{flex:1 1 100px;padding:8px 7px}}
 .music-add-form{display:grid;grid-template-columns:1fr;gap:6px}
 .music-add-form label{margin-top:2px;color:var(--mute);font-size:10px;font-weight:800;letter-spacing:.04em}
 .music-add-form input{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
 .music-add-form input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.13)}
+.music-add-form input[type=file]{padding:8px}
 .music-add-form button{justify-self:start;margin-top:2px}
 .music-queue-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:12px 0 6px}
 .music-queue-heading strong{font-size:12px}
@@ -248,10 +247,8 @@ button:active:not(:disabled){transform:translateY(0)}
 .music-queue-track{flex:1;min-width:0;overflow-wrap:anywhere}
 .music-queue-track strong{display:block;font-size:11px;font-weight:750}
 .music-queue-track span{display:block;margin-top:1px;color:var(--mute);font-size:10px}
-.music-queue-track a{color:var(--accent);text-decoration:none}
 .music-queue-empty{color:var(--mute);font-size:11px}
-.music-next-btn{margin-top:8px;background:transparent;color:var(--ink)}
-.music-next-btn:disabled{opacity:.45;cursor:not-allowed}
+.music-next-btn{margin-top:8px;background:transparent}
 .music-notice{margin:8px 0 0;color:var(--mute);font-size:10px;line-height:1.45}
 @media(max-width:780px){.music-layout{grid-template-columns:1fr}.music-panel{max-height:55vh}.music-player-shell{max-width:480px;width:100%}.music-player-column{min-width:0}}
 @media(max-width:560px){.music-panel{padding:10px}.music-panel-heading h2{font-size:16px}.music-layout{gap:12px}.music-queue-list{max-height:110px}}
@@ -348,46 +345,45 @@ button:active:not(:disabled){transform:translateY(0)}
 <section id="musicPanel" class="music-panel" hidden aria-label="Shared music channel">
   <div class="music-panel-heading">
     <div>
-      <div class="music-eyebrow">COMMUNITY PLAYLIST</div>
+      <div class="music-eyebrow">SERVER-HOSTED AUDIO</div>
       <h2>🎵 Music room</h2>
-      <p class="music-subtitle">Share a YouTube or YouTube Music video link and build a queue together.</p>
+      <p class="music-subtitle">Upload a permitted audio file and listen together from the chat server.</p>
     </div>
     <span id="musicQueueCount" class="music-count">0 tracks</span>
   </div>
   <div class="music-layout">
     <div class="music-player-column">
       <div class="music-player-shell">
-        <div id="musicPlayerPlaceholder" class="music-player-placeholder">
-          <div class="music-placeholder-icon" aria-hidden="true">▶</div>
-          <strong>Load the YouTube player</strong>
-          <p>The embedded player connects to YouTube only after you press this button. Playback will be synchronized after a local Play/Join click.</p>
-          <button id="musicLoadPlayer" type="button">Load YouTube player</button>
+        <div id="musicAudioPlaceholder" class="music-audio-placeholder">
+          <div class="music-placeholder-icon" aria-hidden="true">♫</div>
+          <strong>Waiting for the first audio track</strong>
+          <p>Audio is served from this chat's server. A browser may ask you to click Play or Join before it allows sound.</p>
         </div>
-        <div id="musicPlayerMount" hidden></div>
+        <audio id="musicAudio" class="music-audio" controls preload="metadata" playsinline hidden></audio>
       </div>
-      <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Add the first song to the queue.</div>
+      <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Upload the first audio file.</div>
       <div class="music-sync-controls">
         <div id="musicSyncStatus" class="music-sync-status" aria-live="polite">Waiting for a track.</div>
         <div class="music-sync-buttons">
           <button id="musicPlayAllBtn" type="button" disabled>▶ Play for everyone</button>
           <button id="musicPauseAllBtn" type="button" disabled>Ⅱ Pause everyone</button>
-          <button id="musicJoinSyncBtn" type="button" disabled>↻ Join / resync</button>
+          <button id="musicJoinSyncBtn" type="button" disabled>↻ Join / resync here</button>
         </div>
-        <p class="music-sync-help">One shared playback clock keeps listeners aligned. Each browser may require one Play/Join click because YouTube and browsers can block remote autoplay.</p>
+        <p class="music-sync-help">The server shares one playback clock. Each browser may require a local click to permit sound; when enabled, it follows the shared track and position.</p>
       </div>
     </div>
     <div class="music-queue-column">
       <form id="musicAddForm" class="music-add-form">
-        <label for="musicUrlInput">YouTube video link</label>
-        <input id="musicUrlInput" type="url" placeholder="Paste a YouTube / YouTube Music link" autocomplete="url" maxlength="500" required>
+        <label for="musicFileInput">Audio file (max 8 MB)</label>
+        <input id="musicFileInput" type="file" accept=".mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac" required>
         <label for="musicTitleInput">Track name (optional)</label>
         <input id="musicTitleInput" type="text" placeholder="e.g. Artist — Song title" maxlength="100" autocomplete="off">
-        <button id="musicAddBtn" type="submit">Add to shared queue</button>
+        <button id="musicAddBtn" type="submit">Upload to shared queue</button>
       </form>
       <div class="music-queue-heading"><strong>Up next</strong><span>Shared with everyone in #music</span></div>
-      <ol id="musicQueueList" class="music-queue-list"><li class="music-queue-empty">Queue is empty. Add a YouTube video to get started.</li></ol>
+      <ol id="musicQueueList" class="music-queue-list"><li class="music-queue-empty">Queue is empty. Upload an audio file to get started.</li></ol>
       <button id="musicNextBtn" class="music-next-btn" type="button" disabled>Next track</button>
-      <p id="musicNotice" class="music-notice">YouTube’s own player and controls stay visible. Each person presses Play locally; browser autoplay restrictions mean playback is not forced across devices.</p>
+      <p id="musicNotice" class="music-notice">Upload only music you own or have permission to share. Uploaded tracks are stored in server memory and are cleared when the service restarts or a track is skipped.</p>
     </div>
   </div>
 </section>
@@ -613,12 +609,11 @@ function start() {
   });
   const log = $('log'), text = $('text'), socket = io();
 
-  // Shared #music queue with an authoritative server playback clock.
+  // Shared server-hosted audio queue with an authoritative playback clock.
   const musicPanel = $('musicPanel');
-  const musicLoadPlayerBtn = $('musicLoadPlayer');
-  const musicPlayerPlaceholder = $('musicPlayerPlaceholder');
-  const musicPlayerMount = $('musicPlayerMount');
-  const musicUrlInput = $('musicUrlInput');
+  const musicAudio = $('musicAudio');
+  const musicAudioPlaceholder = $('musicAudioPlaceholder');
+  const musicFileInput = $('musicFileInput');
   const musicTitleInput = $('musicTitleInput');
   const musicAddForm = $('musicAddForm');
   const musicAddBtn = $('musicAddBtn');
@@ -633,12 +628,12 @@ function start() {
   const musicJoinSyncBtn = $('musicJoinSyncBtn');
 
   let sharedMusicState = {
-    current: null, queue: [], maxTracks: 50,
+    current: null, queue: [], maxTracks: 20,
     playback: { isPlaying: false, position: 0, serverTime: Date.now(), changedBy: null }
   };
-  let musicPlayer = null, musicPlayerReady = false, musicApiLoading = false;
-  let lastCuedMusicId = null, musicLoadedTrackId = null;
-  let musicSuppressPlayerEventsUntil = 0, musicIgnoreNativePauseUntil = 0, musicLastAutoplayNotice = 0;
+  let musicLoadedTrackId = null;
+  let musicListeningEnabled = false;
+  let musicSuppressNativeEventsUntil = 0;
   let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0;
   const musicPendingSyncRequests = new Map();
   musicPanel.hidden = room !== 'music';
@@ -646,91 +641,90 @@ function start() {
   function musicTargetPosition() {
     const playback = sharedMusicState.playback || { isPlaying: false, position: 0 };
     const elapsed = playback.isPlaying ? Math.max(0, (performance.now() - musicStateReceivedAt) / 1000) : 0;
-    return Math.max(0, (Number(playback.position) || 0) + elapsed);
+    const position = Math.max(0, (Number(playback.position) || 0) + elapsed);
+    if (Number.isFinite(musicAudio.duration) && musicAudio.duration > 0) {
+      return Math.min(position, Math.max(0, musicAudio.duration - 0.15));
+    }
+    return position;
   }
 
-  function suppressMusicPlayerEvents(ms = 1400) {
-    musicSuppressPlayerEventsUntil = Math.max(musicSuppressPlayerEventsUntil, Date.now() + ms);
+  function suppressNativeMusicEvents(ms = 1400) {
+    musicSuppressNativeEventsUntil = Math.max(musicSuppressNativeEventsUntil, Date.now() + ms);
   }
 
   function updateMusicSyncUI() {
     const playback = sharedMusicState.playback || { isPlaying: false };
     const current = sharedMusicState.current;
-    musicPlayAllBtn.disabled = !current || !musicPlayerReady || musicLoadedTrackId !== current.id;
+    musicPlayAllBtn.disabled = !current;
     musicPauseAllBtn.disabled = !current || !playback.isPlaying;
-    musicJoinSyncBtn.disabled = !current || !musicPlayerReady || musicLoadedTrackId !== current.id;
+    musicJoinSyncBtn.disabled = !current;
     musicSyncStatus.classList.toggle('live', !!playback.isPlaying);
     musicSyncStatus.classList.toggle('paused', !playback.isPlaying);
     if (!current) {
-      musicSyncStatus.textContent = 'WAITING · Add the first track to start the room.';
+      musicSyncStatus.textContent = 'WAITING · Upload the first audio track.';
+    } else if (playback.isPlaying && !musicListeningEnabled) {
+      musicSyncStatus.textContent = 'LIVE · The server stream is playing. Click Join / resync here to enable audio in this browser.';
     } else if (playback.isPlaying) {
-      musicSyncStatus.textContent = musicPlayerReady && musicLoadedTrackId === current.id
-        ? 'LIVE · Shared playback is running. This player will keep synchronizing.'
-        : 'LIVE · Music is playing for the room. Load the player here to join.';
+      musicSyncStatus.textContent = 'LIVE · This browser is following the shared server stream.';
     } else {
-      musicSyncStatus.textContent = 'PAUSED · The selected track and queue are shared with everyone.';
+      musicSyncStatus.textContent = 'PAUSED · The selected audio and queue are shared with everyone.';
     }
   }
 
-  function applyAuthoritativeMusicPlayback(force = false) {
-    if (!musicPlayerReady || !musicPlayer || !sharedMusicState.current ||
-        musicLoadedTrackId !== sharedMusicState.current.id) return;
-    const playback = sharedMusicState.playback || { isPlaying: false, position: 0 };
-    const target = musicTargetPosition();
-    let localTime = 0, playerState = -1;
-    try {
-      localTime = Number(musicPlayer.getCurrentTime()) || 0;
-      playerState = musicPlayer.getPlayerState();
-    } catch (_) { return; }
-
-    if (playback.isPlaying) {
-      if (playerState === YT.PlayerState.PLAYING || playerState === YT.PlayerState.BUFFERING) {
-        if (Math.abs(localTime - target) > (force ? 1.2 : 2.4)) {
-          suppressMusicPlayerEvents(1300);
-          try { musicPlayer.seekTo(target, true); } catch (_) {}
-        }
-        if (playerState === YT.PlayerState.PLAYING) {
-          musicNotice.textContent = 'Live sync active. The player is being corrected to the shared position periodically.';
-        }
-      } else {
-        // A remote play can be blocked by the browser; the local Join / resync button is the user gesture.
-        suppressMusicPlayerEvents(1600);
-        // A blocked remote-play attempt may report PAUSED after the suppression window.
-        // Keep that local browser event from pausing the shared room; the explicit global button remains available.
-        musicIgnoreNativePauseUntil = Math.max(musicIgnoreNativePauseUntil, Date.now() + 5000);
-        try {
-          if (Math.abs(localTime - target) > 1.2) musicPlayer.seekTo(target, true);
-          musicPlayer.playVideo();
-        } catch (_) {}
-      }
+  function loadCurrentMusicTrack() {
+    const current = sharedMusicState.current;
+    const nextId = current ? current.id : null;
+    if (nextId === musicLoadedTrackId) return;
+    suppressNativeMusicEvents(2200);
+    musicAudio.pause();
+    musicAudio.removeAttribute('src');
+    musicAudio.load();
+    musicLoadedTrackId = nextId;
+    musicListeningEnabled = musicListeningEnabled && !!current;
+    if (current) {
+      musicAudio.hidden = false;
+      musicAudio.src = '/music/stream/' + encodeURIComponent(String(current.id));
+      musicAudio.load();
+      musicAudioPlaceholder.hidden = true;
+      musicNotice.textContent = 'Loaded from the chat server. Press Play for everyone or Join / resync here to listen.';
     } else {
-      if (playerState === YT.PlayerState.PLAYING || playerState === YT.PlayerState.BUFFERING) {
-        suppressMusicPlayerEvents(1600);
-        try { musicPlayer.pauseVideo(); } catch (_) {}
-      }
-      if (Math.abs(localTime - target) > (force ? 1.2 : 2.4) && playerState === YT.PlayerState.PAUSED) {
-        suppressMusicPlayerEvents(1300);
-        try { musicPlayer.seekTo(target, true); } catch (_) {}
-      }
+      musicAudio.hidden = true;
+      musicAudioPlaceholder.hidden = false;
+      musicNotice.textContent = 'Upload only audio that you own or have permission to share. Server memory is limited.';
     }
     updateMusicSyncUI();
   }
 
-  function cueCurrentMusic() {
-    if (!musicPlayerReady || !musicPlayer) return;
+  async function applySharedMusicPlayback(force = false) {
     const current = sharedMusicState.current;
-    if (current && current.videoId && current.id !== lastCuedMusicId) {
-      lastCuedMusicId = current.id;
-      musicLoadedTrackId = null;
-      suppressMusicPlayerEvents(1800);
-      try { musicPlayer.cueVideoById(current.videoId); } catch (_) {}
-      musicNotice.textContent = 'The shared track is selected. When the player is ready, press Play for everyone or Join / resync.';
-    } else if (!current && lastCuedMusicId !== null) {
-      lastCuedMusicId = null;
-      musicLoadedTrackId = null;
-      suppressMusicPlayerEvents(1800);
-      try { musicPlayer.stopVideo(); } catch (_) {}
-      musicNotice.textContent = 'The queue is empty. Add a YouTube video to start the music room.';
+    if (!current || musicLoadedTrackId !== current.id || musicAudio.readyState < 1) return;
+    const playback = sharedMusicState.playback || { isPlaying: false, position: 0 };
+    const target = musicTargetPosition();
+    const localPosition = Number(musicAudio.currentTime) || 0;
+    const threshold = force ? 0.65 : 1.6;
+
+    if (Math.abs(localPosition - target) > threshold) {
+      suppressNativeMusicEvents(1700);
+      try { musicAudio.currentTime = target; } catch (_) {}
+    }
+
+    if (playback.isPlaying && musicListeningEnabled) {
+      if (musicAudio.paused) {
+        suppressNativeMusicEvents(1700);
+        try {
+          await musicAudio.play();
+        } catch (_) {
+          musicListeningEnabled = false;
+          musicSyncStatus.textContent = 'CLICK REQUIRED · Use Join / resync here or Play in the audio controls.';
+          musicNotice.textContent = 'Your browser blocked playback. Click Join / resync here or the audio player’s Play control.';
+        }
+      }
+    } else if (!playback.isPlaying && !musicAudio.paused) {
+      suppressNativeMusicEvents(1700);
+      musicAudio.pause();
+    } else if (playback.isPlaying && !musicListeningEnabled && !musicAudio.paused) {
+      suppressNativeMusicEvents(1700);
+      musicAudio.pause();
     }
     updateMusicSyncUI();
   }
@@ -749,18 +743,20 @@ function start() {
 
     if (state.current) {
       const label = document.createElement('span');
-      label.textContent = 'Selected: ' + (state.current.title || 'YouTube video') +
-        ' · added by ' + (state.current.addedBy || 'Anon') + '. Playback position is shared with everyone.';
+      const sizeMb = Math.max(0, Number(state.current.sizeBytes) || 0) / (1024 * 1024);
+      label.textContent = 'Now selected: ' + (state.current.title || 'Uploaded audio') +
+        ' · added by ' + (state.current.addedBy || 'Anon') + ' · ' +
+        (state.current.format || 'AUDIO') + ' · ' + sizeMb.toFixed(1) + ' MB.';
       musicCurrentLabel.append(label);
     } else {
-      musicCurrentLabel.textContent = 'No track selected yet. Add the first song to the queue.';
+      musicCurrentLabel.textContent = 'No track selected yet. Upload the first audio file.';
     }
 
     musicQueueList.replaceChildren();
     if (!state.queue.length) {
       const empty = document.createElement('li');
       empty.className = 'music-queue-empty';
-      empty.textContent = 'Queue is empty. Add a YouTube video to get started.';
+      empty.textContent = 'Queue is empty. Upload an audio file to get started.';
       musicQueueList.append(empty);
     } else {
       state.queue.forEach((track, index) => {
@@ -771,179 +767,129 @@ function start() {
         const info = document.createElement('div');
         info.className = 'music-queue-track';
         const title = document.createElement('strong');
-        title.textContent = track.title || 'YouTube video';
+        title.textContent = track.title || 'Uploaded audio';
         const details = document.createElement('span');
-        details.textContent = 'Added by ' + (track.addedBy || 'Anon') + ' · ';
-        const link = document.createElement('a');
-        link.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(track.videoId);
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = 'Open on YouTube';
-        details.append(link);
+        const sizeMb = Math.max(0, Number(track.sizeBytes) || 0) / (1024 * 1024);
+        details.textContent = (track.format || 'AUDIO') + ' · ' + sizeMb.toFixed(1) + ' MB · added by ' + (track.addedBy || 'Anon');
         info.append(title, details);
         row.append(badge, info);
         musicQueueList.append(row);
       });
     }
-    cueCurrentMusic();
-    applyAuthoritativeMusicPlayback();
+
+    loadCurrentMusicTrack();
+    applySharedMusicPlayback();
     updateMusicSyncUI();
   }
 
-  function createMusicPlayer() {
-    if (musicPlayer || !window.YT || !window.YT.Player) return;
-    musicPlayerPlaceholder.hidden = true;
-    musicPlayerMount.hidden = false;
-    musicPlayer = new YT.Player('musicPlayerMount', {
-      width: '400',
-      height: '225',
-      playerVars: {
-        autoplay: 0,
-        controls: 1,
-        playsinline: 1,
-        rel: 0,
-        enablejsapi: 1,
-        origin: window.location.origin
-      },
-      events: {
-        onReady: () => {
-          musicPlayerReady = true;
-          cueCurrentMusic();
-          updateMusicSyncUI();
-          musicNotice.textContent = 'YouTube player ready. Play for everyone starts the shared clock; each browser may still need one local Play/Join click.';
-        },
-        onStateChange: event => {
-          const current = sharedMusicState.current;
-          if (!current || !musicPlayer) return;
-          if (event.data === YT.PlayerState.CUED) {
-            let videoId = '';
-            try { videoId = musicPlayer.getVideoData().video_id || ''; } catch (_) {}
-            if (videoId === current.videoId) {
-              musicLoadedTrackId = current.id;
-              updateMusicSyncUI();
-              applyAuthoritativeMusicPlayback(true);
-            }
-            return;
-          }
-          if (Date.now() < musicSuppressPlayerEventsUntil || musicLoadedTrackId !== current.id) return;
-          if (event.data === YT.PlayerState.PLAYING) {
-            socket.emit('music:control', { action: 'play', trackId: current.id, position: musicPlayer.getCurrentTime() });
-          } else if (event.data === YT.PlayerState.PAUSED) {
-            if (Date.now() < musicIgnoreNativePauseUntil) return;
-            socket.emit('music:control', { action: 'pause', trackId: current.id });
-          } else if (event.data === YT.PlayerState.ENDED) {
-            socket.emit('music:ended', { trackId: current.id, position: musicPlayer.getCurrentTime() });
-          }
-        },
-        onAutoplayBlocked: () => {
-          const now = Date.now();
-          musicSyncStatus.textContent = 'PLAYBACK NEEDS A CLICK · Use Join / resync or Play inside the YouTube player.';
-          musicNotice.textContent = 'Your browser blocked remote autoplay. Click Join / resync or press Play in the visible YouTube player to join the shared music.';
-          musicIgnoreNativePauseUntil = Math.max(musicIgnoreNativePauseUntil, now + 8000);
-          if (now - musicLastAutoplayNotice > 15000) {
-            musicLastAutoplayNotice = now;
-            showToast('Your browser requires a local click before it will play the shared track.', 'info', 6000);
-          }
-        },
-        onError: event => {
-          const reason = [101, 150].includes(event.data)
-            ? 'This video does not allow embedded playback. Try another track or open it on YouTube.'
-            : event.data === 153
-              ? 'YouTube could not verify the embed context. Try reloading the player.'
-              : 'This video is unavailable or cannot be embedded. Try another link.';
-          musicNotice.textContent = reason;
-          showToast(reason, 'error', 6000);
-        }
-      }
-    });
-  }
-
-  function loadMusicPlayer() {
-    if (room !== 'music') return;
-    if (window.YT && window.YT.Player) {
-      createMusicPlayer();
-      return;
+  musicAudio.addEventListener('loadedmetadata', () => {
+    applySharedMusicPlayback(true);
+  });
+  musicAudio.addEventListener('canplay', () => {
+    applySharedMusicPlayback();
+  });
+  musicAudio.addEventListener('play', () => {
+    if (Date.now() < musicSuppressNativeEventsUntil) return;
+    const current = sharedMusicState.current;
+    if (!current) return musicAudio.pause();
+    musicListeningEnabled = true;
+    socket.emit('music:control', { action: 'play', trackId: current.id, position: musicAudio.currentTime || 0 });
+    updateMusicSyncUI();
+  });
+  musicAudio.addEventListener('pause', () => {
+    if (Date.now() < musicSuppressNativeEventsUntil) return;
+    const current = sharedMusicState.current;
+    if (!current || !sharedMusicState.playback.isPlaying) return;
+    socket.emit('music:control', { action: 'pause', trackId: current.id });
+  });
+  musicAudio.addEventListener('seeked', () => {
+    if (Date.now() < musicSuppressNativeEventsUntil) return;
+    const current = sharedMusicState.current;
+    if (!current) return;
+    socket.emit('music:control', { action: 'seek', trackId: current.id, position: musicAudio.currentTime || 0 });
+  });
+  musicAudio.addEventListener('ended', () => {
+    const current = sharedMusicState.current;
+    if (current && sharedMusicState.playback.isPlaying) {
+      socket.emit('music:ended', { trackId: current.id, position: musicAudio.currentTime || 0 });
     }
-    if (musicApiLoading) return;
-    musicApiLoading = true;
-    musicNotice.textContent = 'Connecting to YouTube…';
-    window.onYouTubeIframeAPIReady = () => {
-      musicApiLoading = false;
-      createMusicPlayer();
-    };
-    let script = document.querySelector('script[data-youtube-iframe-api]');
-    if (!script) {
-      script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      script.async = true;
-      script.dataset.youtubeIframeApi = '1';
-      script.onerror = () => {
-        musicApiLoading = false;
-        musicNotice.textContent = 'Could not load YouTube. Check your connection or browser content blocker, then try again.';
-        showToast('The YouTube player could not be loaded.', 'error');
-      };
-      document.head.appendChild(script);
-    }
-  }
+  });
 
-  musicLoadPlayerBtn.onclick = loadMusicPlayer;
-  musicAddForm.onsubmit = event => {
+  musicAddForm.onsubmit = async event => {
     event.preventDefault();
     if (room !== 'music') return;
-    const url = musicUrlInput.value.trim();
-    if (!url) return;
+    const file = musicFileInput.files && musicFileInput.files[0];
+    if (!file) return showToast('Choose an audio file first.', 'error');
+    if (file.size > 8 * 1024 * 1024) return showToast('Each audio file must be 8 MB or smaller.', 'error');
     musicAddBtn.disabled = true;
-    socket.emit('music:add', { url, title: musicTitleInput.value.trim(), name });
+    musicAddBtn.textContent = 'Uploading…';
+    musicNotice.textContent = 'Uploading the audio to the server. Keep this page open until it is added.';
+    try {
+      const audio = await file.arrayBuffer();
+      socket.emit('music:upload', { fileName: file.name, title: musicTitleInput.value.trim(), audio, name });
+    } catch (_) {
+      musicAddBtn.disabled = false;
+      musicAddBtn.textContent = 'Upload to shared queue';
+      musicNotice.textContent = 'The browser could not read this file. Try another audio file.';
+      showToast('Could not read the selected audio file.', 'error');
+    }
   };
+
   musicNextBtn.onclick = () => socket.emit('music:next');
 
   musicPlayAllBtn.onclick = () => {
     const current = sharedMusicState.current;
-    if (!current) return showToast('Add a track first.', 'error');
-    if (!musicPlayerReady || musicLoadedTrackId !== current.id) {
-      return showToast('Load the YouTube player and wait for the selected track to be ready first.', 'info');
+    if (!current) return showToast('Upload a track first.', 'error');
+    if (musicLoadedTrackId !== current.id || musicAudio.readyState < 1) {
+      return showToast('Wait until the server audio is loaded, then try again.', 'info');
     }
+    musicListeningEnabled = true;
     const target = musicTargetPosition();
-    suppressMusicPlayerEvents(1600);
-    try {
-      if (Math.abs((Number(musicPlayer.getCurrentTime()) || 0) - target) > 1.2) musicPlayer.seekTo(target, true);
-      // Call play from the user's click so this browser is allowed to start playback.
-      musicPlayer.playVideo();
-    } catch (_) {}
+    suppressNativeMusicEvents(1800);
+    try { musicAudio.currentTime = target; } catch (_) {}
+    musicAudio.play().catch(() => {
+      musicListeningEnabled = false;
+      musicNotice.textContent = 'Your browser blocked playback. Click Play in the audio controls or Join / resync here.';
+    });
     socket.emit('music:control', { action: 'play', trackId: current.id, position: target });
   };
 
   musicPauseAllBtn.onclick = () => {
     const current = sharedMusicState.current;
     if (!current) return;
-    suppressMusicPlayerEvents(1600);
-    if (musicPlayerReady) {
-      try { musicPlayer.pauseVideo(); } catch (_) {}
-    }
+    suppressNativeMusicEvents(1800);
+    musicAudio.pause();
     socket.emit('music:control', { action: 'pause', trackId: current.id });
   };
 
   musicJoinSyncBtn.onclick = () => {
     const current = sharedMusicState.current;
-    if (!current || !musicPlayerReady || musicLoadedTrackId !== current.id) {
-      return showToast('Load the YouTube player and wait for the selected track to be ready first.', 'info');
+    if (!current) return;
+    if (musicLoadedTrackId !== current.id || musicAudio.readyState < 1) {
+      return showToast('Wait until the server audio is loaded, then try again.', 'info');
     }
     const target = musicTargetPosition();
-    suppressMusicPlayerEvents(1800);
-    try {
-      if (Math.abs((Number(musicPlayer.getCurrentTime()) || 0) - target) > 0.8) musicPlayer.seekTo(target, true);
-      if (sharedMusicState.playback && sharedMusicState.playback.isPlaying) musicPlayer.playVideo();
-      else musicPlayer.pauseVideo();
-    } catch (_) {}
-    musicNotice.textContent = sharedMusicState.playback && sharedMusicState.playback.isPlaying
-      ? 'Joining the shared track at the current live position.'
-      : 'Your player is aligned with the shared paused position.';
+    musicListeningEnabled = true;
+    suppressNativeMusicEvents(1800);
+    try { musicAudio.currentTime = target; } catch (_) {}
+    if (sharedMusicState.playback && sharedMusicState.playback.isPlaying) {
+      musicAudio.play().then(() => {
+        musicNotice.textContent = 'Listening here at the current shared position.';
+      }).catch(() => {
+        musicListeningEnabled = false;
+        musicNotice.textContent = 'Your browser blocked playback. Click Play in the audio controls to join the shared stream.';
+      });
+    } else {
+      musicAudio.pause();
+      musicNotice.textContent = 'This browser is aligned with the shared paused position. Play for everyone starts playback.';
+    }
+    updateMusicSyncUI();
   };
 
   socket.on('music:state', renderMusicState);
   socket.on('music:sync', data => {
     if (!data) return;
-    let playback = data.playback || data;
+    const playback = data.playback || data;
     if (Number.isSafeInteger(data.requestId)) {
       const sentAt = musicPendingSyncRequests.get(data.requestId);
       if (Number.isFinite(sentAt)) {
@@ -957,17 +903,20 @@ function start() {
       musicStateReceivedAt = performance.now();
     }
     sharedMusicState.playback = playback;
-    applyAuthoritativeMusicPlayback();
+    applySharedMusicPlayback();
     updateMusicSyncUI();
   });
   socket.on('music:added', () => {
-    musicUrlInput.value = '';
+    musicFileInput.value = '';
     musicTitleInput.value = '';
     musicAddBtn.disabled = false;
-    showToast('Track added to the shared queue.', 'success');
+    musicAddBtn.textContent = 'Upload to shared queue';
+    musicNotice.textContent = 'Added to the shared queue. Press Play for everyone when you are ready.';
+    showToast('Audio uploaded to the shared queue.', 'success');
   });
   socket.on('music:error', data => {
     musicAddBtn.disabled = false;
+    musicAddBtn.textContent = 'Upload to shared queue';
     const message = data && data.message ? data.message : 'The music action could not be completed.';
     musicNotice.textContent = message;
     showToast(message, 'error');
@@ -978,7 +927,6 @@ function start() {
     const requestId = ++musicSyncRequestId;
     musicPendingSyncRequests.set(requestId, performance.now());
     socket.emit('music:sync-request', { requestId });
-    // Bound this map if a reconnect or unusually slow network drops responses.
     if (musicPendingSyncRequests.size > 10) {
       const oldest = musicPendingSyncRequests.keys().next().value;
       musicPendingSyncRequests.delete(oldest);
