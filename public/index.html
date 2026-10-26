@@ -303,6 +303,7 @@ function start() {
   // WebRTC screen sharing: one room-scoped sharer; media is peer-to-peer.
   let localScreenStream = null;
   let activeSharerId = null;
+  let adminMonitoringSharerId = null, adminMonitoringRoom = null;
   let screenStartPending = false;
   let requestedSharerId = null;
   const screenPeers = new Map();
@@ -313,6 +314,10 @@ function start() {
   const screenTitle = $('screenTitle');
   const screenStatus = $('screenStatus');
   const screenPlaceholder = $('screenPlaceholder');
+  const adminScreenMonitor = $('adminScreenMonitor');
+  const adminMonitorTitle = $('adminMonitorTitle');
+  const adminMonitorStatus = $('adminMonitorStatus');
+  const adminMonitorVideo = $('adminMonitorVideo');
   const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
   function showScreenPanel(title, status) {
@@ -327,6 +332,29 @@ function start() {
     }
     screenPeers.clear();
     requestedSharerId = null;
+  }
+
+  function closeAdminMonitorPeer() {
+    if (adminMonitoringSharerId) {
+      const entry = screenPeers.get(adminMonitoringSharerId);
+      if (entry) {
+        try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
+        screenPeers.delete(adminMonitoringSharerId);
+      }
+    }
+    adminMonitoringSharerId = null;
+    adminMonitoringRoom = null;
+    adminMonitorVideo.pause();
+    adminMonitorVideo.srcObject = null;
+    adminMonitorVideo.hidden = true;
+    adminMonitorStatus.textContent = 'Choose an active screen share below to monitor it.';
+    adminScreenMonitor.hidden = true;
+  }
+
+  function clearAdminMonitor(notifyServer = true) {
+    const hadMonitor = !!adminMonitoringSharerId;
+    closeAdminMonitorPeer();
+    if (notifyServer && hadMonitor && socket.connected) socket.emit('screen:admin:unwatch');
   }
 
   function resetScreenShare() {
@@ -369,9 +397,17 @@ function start() {
       }
     };
     pc.ontrack = event => {
-      if (socket.id === activeSharerId) return;
       const stream = event.streams && event.streams[0];
       if (!stream) return;
+      if (adminMonitoringSharerId === remoteId) {
+        adminMonitorVideo.srcObject = stream;
+        adminMonitorVideo.muted = false;
+        adminMonitorVideo.hidden = false;
+        adminMonitorStatus.textContent = 'Monitoring live screen from #' + adminMonitoringRoom + '.';
+        adminMonitorVideo.play().catch(() => {});
+        return;
+      }
+      if (socket.id === activeSharerId) return;
       screenVideo.srcObject = stream;
       screenVideo.muted = false;
       screenVideo.hidden = false;
@@ -379,7 +415,11 @@ function start() {
       screenVideo.play().catch(() => {});
     };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
+      if (adminMonitoringSharerId === remoteId) {
+        if (pc.connectionState === 'connected') adminMonitorStatus.textContent = 'Live monitoring · room #' + adminMonitoringRoom;
+        else if (pc.connectionState === 'failed') adminMonitorStatus.textContent = 'Could not connect. This network may require a TURN server.';
+        else if (pc.connectionState === 'connecting') adminMonitorStatus.textContent = 'Connecting to the live screen…';
+      } else if (pc.connectionState === 'connected') {
         screenStatus.textContent = socket.id === activeSharerId
           ? 'Your screen is being shared with ' + screenPeers.size + ' viewer(s).'
           : 'Connected — watching the live screen.';
@@ -453,6 +493,8 @@ function start() {
       add({ bot: true, text: 'Screen sharing is not supported by this browser or connection. Open the chat over HTTPS in a supported browser.' });
       return;
     }
+    const privacyAccepted = confirm('Privacy notice: Screen sharing is not 100% private. Server administrators may monitor active screen shares, stop your stream, or apply a temporary timeout. Continue only if you are comfortable sharing your screen.');
+    if (!privacyAccepted) return;
     try {
       screenStartPending = true;
       screenShareBtn.disabled = true;
@@ -496,8 +538,20 @@ function start() {
   socket.on('screen:state', handleScreenStarted);
   socket.on('screen:started', handleScreenStarted);
   socket.on('screen:stopped', data => {
+    if (data && adminMonitoringSharerId && data.sharerId === adminMonitoringSharerId) {
+      clearAdminMonitor(false);
+      if (admOpen && moderator) socket.emit('adm', '');
+    }
     if (data && activeSharerId && data.sharerId !== activeSharerId) return;
     resetScreenShare();
+  });
+  socket.on('screen:moderated-stop', data => {
+    if (localScreenStream) resetScreenShare();
+    add({ bot: true, text: (data && data.message) || 'A server moderator stopped your screen share.' });
+  });
+  socket.on('screen:moderated-timeout', data => {
+    if (localScreenStream) resetScreenShare();
+    add({ bot: true, text: 'Your screen share was stopped by a moderator. You are timed out for ' + ((data && data.minutes) || 10) + ' minutes.' });
   });
   socket.on('screen:error', data => {
     resetScreenShare();
@@ -521,7 +575,8 @@ function start() {
     if (!data || !data.from || data.from === socket.id) return;
     try {
       if (data.description && data.description.type === 'offer') {
-        if (data.from !== activeSharerId || localScreenStream) return;
+        const isAdminMonitorOffer = data.from === adminMonitoringSharerId;
+        if (data.from !== activeSharerId && !isAdminMonitorOffer) return;
         const entry = await startScreenPeer(data.from);
         await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
         await flushScreenCandidates(entry);
@@ -537,7 +592,7 @@ function start() {
       }
       if (data.candidate) {
         let entry = screenPeers.get(data.from);
-        if (!entry && (data.from === activeSharerId || localScreenStream)) entry = await startScreenPeer(data.from);
+        if (!entry && (data.from === activeSharerId || data.from === adminMonitoringSharerId || localScreenStream)) entry = await startScreenPeer(data.from);
         if (!entry) return;
         if (entry.pc.remoteDescription) {
           try { await entry.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
