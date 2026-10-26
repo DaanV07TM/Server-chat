@@ -659,6 +659,7 @@ function start() {
   };
   let musicLoadedTrackId = null;
   let musicListeningEnabled = false;
+  let musicAutoJoinAttemptedTrackId = null;
   try { musicListeningEnabled = sessionStorage.getItem('serverChatMusicAutoplay') === '1'; } catch (_) {}
   function enableMusicListening() {
     musicListeningEnabled = true;
@@ -737,7 +738,7 @@ function start() {
       musicAudioPlaceholder.hidden = true;
       musicNotice.textContent = current.source === 'addon' && !current.prepared
         ? 'The server is preparing a single shared audio copy. Playback starts after it is ready.'
-        : 'The track is ready on the server. Click Join / resync here to listen.';
+        : 'Trying to resume the current server stream. If your browser blocks autoplay, click Join / resync here.';
     } else {
       musicAudio.hidden = true;
       musicAudioPlaceholder.hidden = false;
@@ -875,6 +876,17 @@ function start() {
       playback: state.playback || { isPlaying: false, position: 0, serverTime: Date.now(), changedBy: null }
     };
     musicStateReceivedAt = performance.now();
+
+    // A fresh visit to #music should attempt to join an already-running track.
+    // Browser autoplay policies may reject this; in that case the user can tap
+    // Join / resync here, which is an explicit browser-approved sound gesture.
+    const activeTrack = sharedMusicState.current;
+    if (room === 'music' && activeTrack && sharedMusicState.playback.isPlaying &&
+        activeTrack.prepared !== false && musicAutoJoinAttemptedTrackId !== activeTrack.id) {
+      musicAutoJoinAttemptedTrackId = activeTrack.id;
+      enableMusicListening();
+    }
+
     const total = state.queue.length + (state.current ? 1 : 0);
     musicQueueCount.textContent = total + (total === 1 ? ' track' : ' tracks');
     musicNextBtn.disabled = state.queue.length === 0;
