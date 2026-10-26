@@ -22,6 +22,13 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 .m.me{align-self:flex-end;background:var(--mine);color:var(--mine-ink);border-color:transparent}
 .m.me b{color:rgba(255,255,255,.75)}
 .m.bot{align-self:center;background:none;border:1px dashed var(--line);color:var(--mute);font-size:14px}
+.m.admin-message,.m.announcement{align-self:flex-start;max-width:min(88%,620px);position:relative;border:2px solid #c084fc;color:#fff;background:linear-gradient(125deg,#261044 0%,#171b45 58%,#102b49 100%);border-radius:14px;box-shadow:0 0 0 1px rgba(192,132,252,.2),0 0 16px rgba(168,85,247,.4),inset 0 0 18px rgba(99,102,241,.14);animation:adminFlash 1.7s ease-in-out 3}
+.m.announcement{border-color:#fb65e8;background:linear-gradient(125deg,#471044 0%,#25134f 55%,#102b49 100%);box-shadow:0 0 0 1px rgba(251,101,232,.3),0 0 20px rgba(217,70,239,.45),inset 0 0 20px rgba(99,102,241,.18)}
+.admin-tag{display:inline-flex;align-items:center;gap:5px;margin-bottom:6px;padding:3px 8px;border:1px solid rgba(255,255,255,.6);border-radius:999px;background:linear-gradient(90deg,#a21caf,#4f46e5);color:#fff;font-size:11px;font-weight:900;letter-spacing:.09em;line-height:1.5}
+.m.admin-message b{color:#f5d0fe}
+.m.announcement .admin-tag{background:linear-gradient(90deg,#db2777,#7c3aed);border-color:#f9a8d4}
+@keyframes adminFlash{0%,100%{filter:saturate(1);box-shadow:0 0 0 1px rgba(192,132,252,.2),0 0 16px rgba(168,85,247,.4),inset 0 0 18px rgba(99,102,241,.14)}50%{filter:saturate(1.5);box-shadow:0 0 0 3px rgba(232,121,249,.28),0 0 30px rgba(217,70,239,.8),0 0 48px rgba(99,102,241,.45),inset 0 0 24px rgba(192,132,252,.24)}}
+@media(prefers-reduced-motion:reduce){.m.admin-message,.m.announcement{animation:none}}
 .m.bot span{white-space:pre-wrap}
 .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .rx button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:12px;padding:1px 8px;font:inherit;font-size:13px;cursor:pointer}
@@ -140,7 +147,13 @@ function start() {
   function add(m) {
     const e = $('empty'); if (e) e.remove();
     const d = document.createElement('div');
-    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '');
+    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') + (m.admin ? ' admin-message' : '') + (m.announcement ? ' announcement' : '');
+    if (m.admin || m.announcement) {
+      const badge = document.createElement('div');
+      badge.className = 'admin-tag';
+      badge.textContent = m.announcement ? '📢 OFFICIAL ANNOUNCEMENT' : '⚡ ADMIN MESSAGE';
+      d.append(badge);
+    }
     if (!m.bot) {
       const b = document.createElement('b'); b.textContent = m.name;
       if (m.id !== socket.id) b.style.color = 'hsl(' + hue(m.name) + ' 60% var(--l))';
