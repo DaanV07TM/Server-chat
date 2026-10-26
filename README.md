@@ -1,39 +1,46 @@
 # Server-chat
 
-A lightweight anonymous room-based chat built with Node.js, Express and Socket.IO.
+An anonymous, real-time chat with separate channels, optional voice chat, and peer-to-peer screen sharing.
 
-## Official channels
+## Live chat
 
-- `#general`: the main public chat.
-- `#announcements`: official, moderator-posted updates. Ordinary users cannot post here.
-- `#help`: a public channel for questions and troubleshooting.
-- `#voice`: public text chat with optional voice chat and screen sharing. Voice is off until a user chooses **Join voice**; the browser then asks for microphone access. A user can mute or leave voice at any time.
+**Public website URL:** The actual Render URL is not recorded in this repository. Copy the exact `https://…onrender.com` address from the web service page in your Render dashboard before sharing this README. I have intentionally not guessed the URL.
 
-Voice uses peer-to-peer WebRTC audio and server-routed signaling. It is intended for small groups (up to 8 people in the voice room). This setup uses a STUN server; some NAT/firewall combinations may require a TURN relay server for reliable connectivity.
+## What users can do
 
-Screen sharing remains separate from voice transport and is scoped to the current chat room.
+- **`#general`** — casual public conversation.
+- **`#help`** — ask questions and help other users.
+- **`#announcements`** — official updates from moderators. Moderator posts do not expire while the server is running. Four pinned guide posts are built into the app and reappear after restarts.
+- **`#voice`** — chat by text, optionally join live voice, mute/unmute, leave voice, and share your screen.
 
-## Render free-service keep-alive
+To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
-This repository includes a GitHub Actions workflow that requests `/healthz` every five minutes. This can prevent the normal 15-minute idle sleep on Render's free web-service plan while the workflow is running.
+## Privacy and safety
 
-### One-time setup
+- No user account is required. Display names are not identity verification.
+- Ordinary chat messages are held in server memory and expire after about one hour.
+- Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
+- The application does not maintain an account database or intentionally save IP addresses in chat history. However, the hosting provider may process connection metadata under its own policies.
+- Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
+- Be respectful. No harassment, hate, threats, scams, or illegal content. Use the ⚑ report control for messages that break the rules.
 
-1. Deploy the latest `main` branch to Render so the `/healthz` endpoint is available.
-2. Open this repository on GitHub and go to **Settings → Secrets and variables → Actions → Variables**.
-3. Select **New repository variable** and create:
-   - **Name:** `RENDER_URL`
-   - **Value:** the public base URL for your Render web service, for example `https://your-service.onrender.com`. Do not include `/healthz`.
-4. Open the **Actions** tab and confirm workflows are enabled. Choose **Keep Render chat awake** and use **Run workflow** to test it.
+## Public repository and secrets
 
-The scheduled workflow runs every five minutes and requests `https://your-service.onrender.com/healthz`. A successful response is a small JSON object confirming the server is responding.
+The source code is public by design. Do not commit secrets here. Set `ADMIN_PASSWORD`, Discord webhook URLs, ntfy topics, Resend API keys, and any other credentials only in your host's environment-variable settings. Never put them in `public/index.html`, the README, workflow files, or screenshots. The keep-alive workflow uses the non-secret repository variable `RENDER_URL` for the public service address.
 
-**Limitations:** This prevents the usual idle sleep only while the scheduled workflow keeps running. GitHub may delay scheduled jobs, Render may restart a free service for other reasons, and a running free service consumes its monthly instance hours. Render currently provides 750 free instance hours per workspace per calendar month, shared across free web services.
+A quick review of the currently tracked files did not find hardcoded API tokens, private keys, or webhook credentials, and no `.env` file is tracked in the current tree. This is a source-code review, not a guarantee against every historical commit, dependency vulnerability, or live deployment issue. Public Git commits also expose their author metadata; use GitHub's noreply email for future commits if you don't want your personal email shown.
 
-## Controlled admin restart
+## Hosting and maintenance
 
-The Admin panel's **Server Nuker** broadcasts a 15-second countdown, tells clients to stop voice and screen-sharing tracks, then closes the current Node.js process with a failure exit code. No Render API key is required and no artificial CPU or memory load is generated.
+This project uses Node.js, Express, and Socket.IO, and is intended to run as a Render web service. The `/healthz` endpoint is used by the keep-alive workflow.
 
-**Important limitation:** Render documents manual service restart as a platform operation. An application exiting unexpectedly is handled as an instance failure, but an app cannot guarantee its own replacement using only local Node.js code. If Render does not recover the instance after this action, use **Render Dashboard → your service → Manual Deploy → Restart service**. For a guaranteed programmatic restart, Render's authenticated API or another authorized platform hook is required.
+If Render restarts the service, messages in regular rooms and custom announcement posts are cleared because they are held in memory. The built-in pinned guide posts return when users open `#announcements`.
 
-The countdown can be cancelled before shutdown begins.
+## Developer setup
+
+1. Install Node.js 22 or newer.
+2. Run `npm install`.
+3. Set `ADMIN_PASSWORD` in your environment before exposing the server publicly.
+4. Run `npm start` and open the local URL printed or configured by your environment.
+
+Never use a real production password or webhook when testing locally.
