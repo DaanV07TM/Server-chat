@@ -39,12 +39,14 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 #send{border:0;border-radius:20px;background:var(--accent);color:#fff;padding:0 18px;font:inherit;font-weight:600}
 @media (prefers-color-scheme:dark){#send{color:#10151d}}
 button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:1px}
-#rules{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
-#rules .box{background:var(--panel);border-radius:16px;padding:20px;max-width:420px;max-height:90%;overflow:auto}
-#rules h2{margin:0 0 10px;font-size:20px}
-#rules li{margin-bottom:6px}
-#rules button{width:100%;margin-top:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;padding:12px;font:inherit;font-weight:600}
-@media (prefers-color-scheme:dark){#rules button{color:#10151d}}
+/* overlays */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+  .ov .box{background:var(--panel);border-radius:16px;padding:20px;max-width:420px;max-height:90%;overflow:auto}
+  .ov h2{margin:0 0 10px;font-size:20px}
+  .ov li{margin-bottom:6px}
+  .ov button{display:block;width:100%;margin-top:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;padding:12px;font:inherit;font-weight:600}
+@media (prefers-color-scheme:dark){.ov button{color:#10151d}}
+.ov .plain{background:none;border:1px solid var(--line);color:var(--ink)}
 </style>
 </head>
 <body>
@@ -70,7 +72,7 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <input id="text" maxlength="500" placeholder="Type a message (try /roll)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
 </div>
-<div id="rules" role="dialog" aria-modal="true" aria-labelledby="rt">
+<div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
   <div class="box">
     <h2 id="rt">Before you chat</h2>
     <ul>
@@ -81,6 +83,13 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
       <li>Photos and GIFs are only available in private rooms.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
+  </div>
+</div>
+<div id="rep" class="ov" role="dialog" aria-modal="true" aria-labelledby="repT">
+  <div class="box">
+    <h2 id="repT">Report this message</h2>
+    <div id="reasons"></div>
+    <button id="repX" type="button" class="plain">Cancel</button>
   </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
@@ -103,6 +112,13 @@ function start() {
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const down = () => { log.scrollTop = log.scrollHeight; };
+  let repMid = null;
+  [['spam', 'Spam or scam'], ['harassment', 'Harassment or hate'], ['sexual', 'Sexual content'], ['threat', 'Threats or self-harm'], ['illegal', 'Illegal content or child safety']].forEach(([k, l]) => {
+    const b = document.createElement('button'); b.textContent = l;
+    b.onclick = () => { socket.emit('report', { mid: repMid, reason: k }); $('rep').style.display = 'none'; };
+    $('reasons').append(b);
+  });
+  $('repX').onclick = () => { $('rep').style.display = 'none'; };
   const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
   function add(m) {
@@ -129,7 +145,7 @@ function start() {
     for (const e in r) mk(e + ' ' + r[e], 'Reaction ' + e, () => socket.emit('react', { mid, e }));
     if (open) EMO.forEach(e => mk(e, 'React with ' + e, () => socket.emit('react', { mid, e })));
     else mk('☺', 'Add reaction', () => drawRx(box, mid, r, true), 'add');
-    if (!own) mk('⚑', 'Report this message', () => { if (confirm('Report this message to the moderators?')) socket.emit('report', { mid }); }, 'add');
+    if (!own) mk('⚑', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
   socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
