@@ -12,6 +12,9 @@ An anonymous, real-time chat with separate channels, optional voice chat, and pe
 - **`#help`** — ask questions and help other users.
 - **`#announcements`** — official updates from moderators. Both posts written directly in this channel and global announcements sent by moderators are copied into the channel archive. They do not expire while the server is running. Four pinned guide posts are built into the app and reappear after restarts.
 - **`#voice`** — chat by text, optionally join live voice, mute/unmute, leave voice, and share your screen.
+- **`#music`** — a shared queue for individual YouTube and YouTube Music video links. Tracks are kept in memory, with a maximum of 50 entries and 5 per user.
+
+To use music, open `#music`, paste an individual YouTube or YouTube Music video link, optionally enter its title, and add it to the shared queue. Click **Load YouTube player** to connect to YouTube, then press Play in YouTube's visible player. Each listener starts playback locally; this is not an official YouTube Music account integration, and playback is not synchronized across devices. Some videos cannot be embedded or may show ads.
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
@@ -19,6 +22,7 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 
 - No user account is required. Display names are not identity verification.
 - Ordinary chat messages are held in server memory and expire after about one hour.
+- The shared music queue is also held in server memory and is cleared if the service restarts or redeploys.
 - Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
 - The application does not maintain an account database or intentionally save IP addresses in chat history. However, the hosting provider may process connection metadata under its own policies.
 - Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
