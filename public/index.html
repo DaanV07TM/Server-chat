@@ -52,6 +52,19 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 #screenShareBtn.sharing{background:#b91c1c;color:#fff;border-color:#ef4444}
 #screenShareBtn:disabled{opacity:.65}
 @media(max-width:560px){#screenPanel{padding:8px}#screenVideo{max-height:30vh}#screenShareBtn{padding:0 8px}}
+.admin-screen-monitor{margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.admin-screen-monitor[hidden]{display:none}
+.admin-screen-monitor h3{margin:0 0 6px;font-size:15px}
+.admin-screen-monitor p{margin:5px 0 8px;color:var(--mute);font-size:12px}
+#adminMonitorVideo{display:block;width:100%;max-height:42vh;object-fit:contain;background:#05070b;border-radius:8px}
+#adminMonitorVideo[hidden]{display:none}
+.admin-screen-monitor button{display:inline-block;width:auto;margin:4px 5px 0 0;padding:7px 10px;font-size:13px}
+.admin-screen-monitor .monitor-stop{background:var(--bad);color:#fff}
+.screen-share-row{margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:10px;overflow-wrap:anywhere}
+.screen-share-row .screen-share-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.screen-share-row .screen-share-actions button{display:inline-block;width:auto;margin:0;padding:7px 9px;font-size:12px}
+.screen-share-row .screen-share-actions .red{background:var(--bad);color:#fff}
+.screen-share-row .screen-share-meta{font-size:12px;color:var(--mute);margin-top:3px}
 #game{display:none;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line)}
 #game.open{display:block}
 #grid{display:grid;grid-template-columns:repeat(3,64px);gap:6px;margin:8px 0}
@@ -158,6 +171,12 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <div class="box">
     <h2 id="admT">Admin</h2>
     <div id="admbody"></div>
+    <section id="adminScreenMonitor" class="admin-screen-monitor" hidden aria-label="Admin screen monitor">
+      <h3 id="adminMonitorTitle">Screen monitor</h3>
+      <p id="adminMonitorStatus" aria-live="polite">Choose an active screen share below to monitor it.</p>
+      <video id="adminMonitorVideo" autoplay playsinline controls hidden></video>
+      <button id="adminMonitorClose" class="plain" type="button">Stop monitoring</button>
+    </section>
     <p id="admmsg" aria-live="polite" style="color:var(--mute);min-height:20px"></p>
     <button id="admX" type="button" class="plain">Close</button>
   </div>
