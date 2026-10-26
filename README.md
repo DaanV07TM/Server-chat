@@ -2,6 +2,17 @@
 
 A lightweight anonymous room-based chat built with Node.js, Express and Socket.IO.
 
+## Official channels
+
+- `#general`: the main public chat.
+- `#announcements`: official, moderator-posted updates. Ordinary users cannot post here.
+- `#help`: a public channel for questions and troubleshooting.
+- `#voice`: public text chat with optional voice chat and screen sharing. Voice is off until a user chooses **Join voice**; the browser then asks for microphone access. A user can mute or leave voice at any time.
+
+Voice uses peer-to-peer WebRTC audio and server-routed signaling. It is intended for small groups (up to 8 people in the voice room). This setup uses a STUN server; some NAT/firewall combinations may require a TURN relay server for reliable connectivity.
+
+Screen sharing remains separate from voice transport and is scoped to the current chat room.
+
 ## Render free-service keep-alive
 
 This repository includes a GitHub Actions workflow that requests `/healthz` every five minutes. This can prevent the normal 15-minute idle sleep on Render's free web-service plan while the workflow is running.
