@@ -15,6 +15,7 @@ const ANNOUNCEMENT_TTL = 60 * 1000;
 const rooms = {}, games = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
 let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
+const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -225,6 +226,7 @@ const adminState = () => ({
   serverHost: process.env.RENDER_EXTERNAL_HOSTNAME || null,
   timeouts: Object.values(timeouts).filter(t => t > Date.now()).length,
   channels: channels(),
+  screenShares: Object.entries(screenSharers).map(([room, share]) => ({ room, name: share.name, sharerId: share.socketId, startedAt: share.startedAt, durationSeconds: Math.max(0, Math.floor((Date.now() - share.startedAt) / 1000)), viewers: share.viewers ? share.viewers.size : 0 })),
   reports: [...reportLog.values()].filter(e => e.status !== 'dismissed').slice(-15).reverse()
     .map(e => ({ mid: e.mid, name: e.name, text: e.text.slice(0, 150), n: e.reasons.length, reasons: [...new Set(e.reasons)].map(k => REASONS[k]), status: e.status, urgent: !!e.urgent }))
 });
@@ -318,14 +320,23 @@ setInterval(() => { for (const k in strikes) delete strikes[k]; }, 60 * 60 * 100
 setInterval(() => console.log('[stats] ' + statsLine()), 10 * 60 * 1000);
 
 
+function removeScreenViewer(socketId) {
+  for (const share of Object.values(screenSharers)) {
+    if (share.viewers) share.viewers.delete(socketId);
+  }
+  screenViewerRooms.delete(socketId);
+}
+
 function endScreenShare(socketId) {
+  removeScreenViewer(socketId);
   for (const [screenRoom, share] of Object.entries(screenSharers)) {
-    if (share.socketId !== socketId) {
-      if (share.viewers) share.viewers.delete(socketId);
-      continue;
-    }
+    if (share.socketId !== socketId) continue;
     delete screenSharers[screenRoom];
-    io.to(screenRoom).emit('screen:stopped', { sharerId: socketId });
+    for (const viewerId of (share.viewers || [])) {
+      if (screenViewerRooms.get(viewerId) === screenRoom) screenViewerRooms.delete(viewerId);
+      io.to(viewerId).emit('screen:stopped', { sharerId: socketId, room: screenRoom });
+    }
+    io.to(screenRoom).emit('screen:stopped', { sharerId: socketId, room: screenRoom });
     console.log('[screen] sharing stopped in room ' + screenRoom);
   }
 }
@@ -371,7 +382,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('screen:start', (d) => {
+    const now = Date.now();
     if (blocked()) return socket.emit('screen:error', { message: 'The chat is offline.' });
+    if (timeouts[key()] > now) return socket.emit('screen:error', { message: 'You cannot start screen sharing while timed out. Try again in ' + left(timeouts[key()]) + '.' });
     const active = screenSharers[room];
     if (active && active.socketId !== socket.id && io.sockets.sockets.has(active.socketId)) {
       return socket.emit('screen:error', { message: 'Someone is already sharing their screen in this room.' });
@@ -379,7 +392,7 @@ io.on('connection', (socket) => {
     if (active && active.socketId !== socket.id) delete screenSharers[room];
     const requestedName = clean(d && d.name, 20);
     const shareName = socket.data.admin ? 'Server Admin' : (safeName(requestedName) || 'A user');
-    screenSharers[room] = { socketId: socket.id, name: shareName, viewers: new Set() };
+    screenSharers[room] = { socketId: socket.id, name: shareName, tok: key(), startedAt: Date.now(), viewers: new Set() };
     socket.emit('screen:start:accepted', { sharerId: socket.id, room });
     io.to(room).emit('screen:started', { sharerId: socket.id, name: shareName });
     console.log('[screen] sharing started in room ' + room);
@@ -402,22 +415,87 @@ io.on('connection', (socket) => {
       io.to(room).emit('screen:stopped', { sharerId: share.socketId });
       return;
     }
+    removeScreenViewer(socket.id);
     share.viewers.add(socket.id);
+    screenViewerRooms.set(socket.id, room);
     sharer.emit('screen:viewer', { viewerId: socket.id });
   });
 
-  socket.on('screen:signal', (d) => {
-    if (!d || typeof d.to !== 'string' || d.to === socket.id || !socket.rooms.has(room)) return;
-    const share = screenSharers[room];
-    const target = io.sockets.sockets.get(d.to);
-    if (!share || !target || !target.rooms.has(room)) return;
+  // Admin-only monitoring of any active room, without joining that room.
+  socket.on('screen:admin:watch', (d) => {
+    if (!socket.data.admin) return;
+    const requestedId = d && typeof d.sharerId === 'string' ? d.sharerId : '';
+    const found = Object.entries(screenSharers).find(([, share]) => share.socketId === requestedId);
+    if (!found) return socket.emit('screen:admin:error', { message: 'That screen share is no longer active.' });
+    const [shareRoom, share] = found;
+    removeScreenViewer(socket.id);
+    share.viewers.add(socket.id);
+    screenViewerRooms.set(socket.id, shareRoom);
+    socket.emit('screen:admin:monitor-ready', {
+      room: shareRoom,
+      sharerId: share.socketId,
+      name: share.name
+    });
+    const sharer = io.sockets.sockets.get(share.socketId);
+    if (sharer) sharer.emit('screen:viewer', { viewerId: socket.id });
+  });
 
-    const senderIsSharer = share.socketId === socket.id;
-    if (senderIsSharer) {
-      if (!share.viewers || !share.viewers.has(d.to)) return;
-    } else {
-      if (d.to !== share.socketId || !share.viewers || !share.viewers.has(socket.id)) return;
+  socket.on('screen:admin:unwatch', () => {
+    if (!socket.data.admin) return;
+    removeScreenViewer(socket.id);
+    socket.emit('screen:admin:monitor-ended', {});
+  });
+
+  socket.on('screen:admin:stop', (d) => {
+    if (!socket.data.admin) return;
+    const requestedId = d && typeof d.sharerId === 'string' ? d.sharerId : '';
+    const found = Object.entries(screenSharers).find(([, share]) => share.socketId === requestedId);
+    if (!found) return socket.emit('screen:admin:action-result', { ok: false, message: 'That screen share is no longer active.' });
+    const [shareRoom, share] = found;
+    const sharer = io.sockets.sockets.get(share.socketId);
+    if (sharer) sharer.emit('screen:moderated-stop', { message: 'A server moderator stopped your screen share.' });
+    endScreenShare(share.socketId);
+    socket.emit('screen:admin:action-result', { ok: true, message: 'Screen sharing stopped in #' + shareRoom + '.' });
+  });
+
+  socket.on('screen:admin:timeout', (d) => {
+    if (!socket.data.admin) return;
+    const requestedId = d && typeof d.sharerId === 'string' ? d.sharerId : '';
+    const mins = Math.min(Math.max(parseInt(d && d.minutes, 10) || 10, 1), 1440);
+    const found = Object.entries(screenSharers).find(([, share]) => share.socketId === requestedId);
+    if (!found) return socket.emit('screen:admin:action-result', { ok: false, message: 'That screen share is no longer active.' });
+    const [shareRoom, share] = found;
+    const sharer = io.sockets.sockets.get(share.socketId);
+    timeouts[share.tok || share.socketId] = Date.now() + mins * 60000;
+    if (sharer) {
+      sharer.emit('screen:moderated-timeout', { minutes: mins, room: shareRoom });
+      sharer.emit('sys', 'A server moderator stopped your screen share and timed you out for ' + mins + ' minute(s).');
     }
+    endScreenShare(share.socketId);
+    console.log('[mod] screen-share timeout set for ' + mins + ' min in room ' + shareRoom);
+    socket.emit('screen:admin:action-result', { ok: true, message: 'Stopped screen sharing and timed out the user for ' + mins + ' minute(s).' });
+  });
+
+  socket.on('screen:signal', (d) => {
+    if (!d || typeof d.to !== 'string' || d.to === socket.id) return;
+
+    // Determine the stream from the authenticated sharer or registered viewer.
+    let share = null, shareRoom = null, senderIsSharer = false;
+    for (const [candidateRoom, candidateShare] of Object.entries(screenSharers)) {
+      if (candidateShare.socketId === socket.id) {
+        share = candidateShare; shareRoom = candidateRoom; senderIsSharer = true; break;
+      }
+    }
+    if (senderIsSharer) {
+      if (!share.viewers || !share.viewers.has(d.to) || screenViewerRooms.get(d.to) !== shareRoom) return;
+    } else {
+      shareRoom = screenViewerRooms.get(socket.id);
+      share = shareRoom ? screenSharers[shareRoom] : null;
+      if (!share || !share.viewers || !share.viewers.has(socket.id) || d.to !== share.socketId) return;
+    }
+    const target = io.sockets.sockets.get(d.to);
+    if (!target) return;
+    if (!target.rooms.has(shareRoom)) return;
 
     const payload = { from: socket.id };
     if (d.description !== undefined) {
