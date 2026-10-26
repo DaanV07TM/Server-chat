@@ -8,6 +8,13 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 2e6 });
+
+// Lightweight endpoint for external uptime checks and scheduled keep-alive probes.
+app.get('/healthz', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ ok: true });
+});
+
 app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
