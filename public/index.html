@@ -200,6 +200,36 @@ button:active:not(:disabled){transform:translateY(0)}
 .site-toast.success:before{background:#16a34a}
 @media(max-width:560px){.toast-region{right:12px;bottom:72px;width:calc(100vw - 24px)}#siteDialog .box{padding:18px;border-radius:17px}.site-dialog-actions{gap:7px}.site-dialog-actions button{padding:10px 8px;font-size:14px}}
 @media(prefers-reduced-motion:reduce){.site-toast{transition:none}}
+
+/* Official channel navigation */
+#channelNav{display:flex;align-items:center;gap:7px;padding:9px 14px;overflow-x:auto;overscroll-behavior-x:contain;background:var(--panel);border-bottom:1px solid var(--line);scrollbar-width:thin}
+.channel-link{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;min-height:35px;padding:7px 11px;border:1px solid transparent;border-radius:10px;color:var(--mute);text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.channel-link:hover{background:var(--bg);color:var(--ink)}
+.channel-link[aria-current="page"]{color:var(--accent);background:rgba(99,102,241,.10);border-color:rgba(99,102,241,.2)}
+.channel-link[data-channel="voice"]{color:var(--ink)}
+.channel-link[data-channel="voice"][aria-current="page"]{color:var(--accent)}
+.channel-badge{padding:2px 5px;border-radius:5px;background:rgba(99,102,241,.12);color:var(--accent);font-size:9px;letter-spacing:.06em}
+.voice-panel{display:flex;flex-direction:column;gap:10px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 3px 12px rgba(0,0,0,.025)}
+.voice-panel[hidden]{display:none}
+.voice-panel-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.voice-info{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.voice-info strong{font-size:14px}
+#voiceStatus{margin-top:3px;color:var(--mute);font-size:12px;line-height:1.4}
+.voice-live-indicator{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.1)}
+.voice-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.voice-count{font-size:12px;color:var(--mute);white-space:nowrap}
+.voice-actions button{width:auto;margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;font-weight:750}
+#voiceJoin{background:var(--accent);border-color:transparent;color:#fff}
+#voiceMute[aria-pressed="true"]{border-color:#f59e0b;background:rgba(245,158,11,.12);color:var(--ink)}
+.voice-actions .voice-leave{border-color:rgba(239,68,68,.25);color:var(--bad)}
+.voice-participants{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.voice-participant{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:12px}
+.voice-participant-dot{width:7px;height:7px;border-radius:50%;background:#16a34a}
+.voice-participant.self{border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.08)}
+.voice-empty{color:var(--mute);font-size:12px}
+.voice-audio-container{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.voice-audio-container audio{display:none}
+@media(max-width:560px){#channelNav{padding:7px 9px;gap:5px}.channel-link{padding:7px 9px;font-size:12px} .voice-panel{padding:10px}.voice-panel-top{align-items:flex-start}.voice-actions{width:100%}.voice-actions button{flex:1}.voice-count{margin-right:auto}}
 </style>
 </head>
 <body>
@@ -211,6 +241,31 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="rename" type="button">Name</button>
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
+<nav id="channelNav" aria-label="Official channels">
+  <a class="channel-link" data-channel="general" href="/?room=general"><span aria-hidden="true">#</span><span>general</span></a>
+  <a class="channel-link" data-channel="announcements" href="/?room=announcements"><span aria-hidden="true">📢</span><span>announcements</span><span class="channel-badge">OFFICIAL</span></a>
+  <a class="channel-link" data-channel="help" href="/?room=help"><span aria-hidden="true">❔</span><span>help</span></a>
+  <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
+</nav>
+<section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
+  <div class="voice-panel-top">
+    <div class="voice-info">
+      <span class="voice-live-indicator" aria-hidden="true"></span>
+      <div>
+        <strong>Voice lounge</strong>
+        <div id="voiceStatus" aria-live="polite">Join when you're ready to talk. Your microphone stays off until you join.</div>
+      </div>
+    </div>
+    <div class="voice-actions">
+      <span id="voiceCount" class="voice-count">0 in voice</span>
+      <button id="voiceJoin" type="button">Join voice</button>
+      <button id="voiceMute" type="button" hidden>Mute microphone</button>
+      <button id="voiceLeave" class="voice-leave" type="button" hidden>Leave</button>
+    </div>
+  </div>
+  <div id="voiceParticipants" class="voice-participants" aria-live="polite"><span class="voice-empty">No one is in voice yet.</span></div>
+  <div id="voiceAudioContainer" class="voice-audio-container" aria-label="Incoming voice audio"></div>
+</section>
 <div id="log"></div>
 <section id="screenPanel" class="screen-collapsed" hidden aria-label="Screen sharing">
   <div id="screenHeader">
@@ -400,6 +455,9 @@ function start() {
   if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
   try { tok = localStorage.getItem('tok'); if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); } } catch (e) { tok = rnd(16); }
   $('title').textContent = '#' + room;
+  document.querySelectorAll('[data-channel]').forEach(link => {
+    if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
+  });
   const log = $('log'), text = $('text'), socket = io();
   log.innerHTML = EMPTY;
   const join = () => socket.emit('join', { room, tok });
@@ -529,6 +587,267 @@ function start() {
   const adminMonitorVideo = $('adminMonitorVideo');
   const adminMonitorPlaceholder = $('adminMonitorPlaceholder');
   const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // Dedicated #voice channel: opt-in microphone and peer-to-peer WebRTC audio.
+  const voicePanel = $('voicePanel');
+  const voiceStatus = $('voiceStatus');
+  const voiceCount = $('voiceCount');
+  const voiceJoinBtn = $('voiceJoin');
+  const voiceMuteBtn = $('voiceMute');
+  const voiceLeaveBtn = $('voiceLeave');
+  const voiceParticipantsEl = $('voiceParticipants');
+  const voiceAudioContainer = $('voiceAudioContainer');
+  let voiceStream = null, voiceActive = false, voiceJoining = false, voiceMuted = false;
+  const voicePeers = new Map();
+  const voiceParticipants = new Map();
+
+  function renderVoiceParticipants() {
+    voiceCount.textContent = voiceParticipants.size + (voiceParticipants.size === 1 ? ' in voice' : ' in voice');
+    voiceParticipantsEl.replaceChildren();
+    if (!voiceParticipants.size) {
+      const empty = document.createElement('span');
+      empty.className = 'voice-empty';
+      empty.textContent = room === 'voice' ? 'No one is in voice yet. Join when you\'re ready.' : 'Voice is available in #voice.';
+      voiceParticipantsEl.append(empty);
+      return;
+    }
+    for (const [id, participant] of voiceParticipants) {
+      const chip = document.createElement('span');
+      chip.className = 'voice-participant' + (id === socket.id ? ' self' : '');
+      const dot = document.createElement('span');
+      dot.className = 'voice-participant-dot';
+      dot.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.textContent = (participant.name || 'Anon') + (id === socket.id ? ' (you' + (voiceMuted ? ', muted' : '') + ')' : '');
+      chip.append(dot, label);
+      voiceParticipantsEl.append(chip);
+    }
+  }
+
+  function updateVoiceUI(message) {
+    voicePanel.hidden = room !== 'voice';
+    voiceJoinBtn.hidden = voiceActive || voiceJoining;
+    voiceMuteBtn.hidden = !voiceActive;
+    voiceLeaveBtn.hidden = !voiceActive && !voiceJoining;
+    voiceMuteBtn.textContent = voiceMuted ? 'Unmute microphone' : 'Mute microphone';
+    voiceMuteBtn.setAttribute('aria-pressed', voiceMuted ? 'true' : 'false');
+    if (message) voiceStatus.textContent = message;
+    else if (voiceJoining) voiceStatus.textContent = 'Connecting to voice… allow microphone access in your browser.';
+    else if (voiceActive) voiceStatus.textContent = voiceMuted ? 'You are connected. Your microphone is muted.' : 'You are connected. Your microphone is live.';
+    else voiceStatus.textContent = room === 'voice'
+      ? 'Join when you\'re ready to talk. Your microphone stays off until you join.'
+      : 'Voice is available in #voice.';
+    renderVoiceParticipants();
+  }
+
+  function closeVoicePeer(remoteId) {
+    const entry = voicePeers.get(remoteId);
+    if (entry) {
+      try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
+      voicePeers.delete(remoteId);
+    }
+    for (const audio of [...voiceAudioContainer.querySelectorAll('audio[data-peer]')]) {
+      if (audio.dataset.peer === remoteId) {
+        try { audio.pause(); audio.srcObject = null; } catch (_) {}
+        audio.remove();
+      }
+    }
+  }
+
+  function resetVoiceLocal() {
+    for (const remoteId of [...voicePeers.keys()]) closeVoicePeer(remoteId);
+    voicePeers.clear();
+    if (voiceStream) {
+      for (const track of voiceStream.getTracks()) track.stop();
+      voiceStream = null;
+    }
+    voiceAudioContainer.replaceChildren();
+    voiceActive = false;
+    voiceJoining = false;
+    voiceMuted = false;
+    updateVoiceUI();
+  }
+
+  function leaveVoice(notifyServer = true, showNotice = false) {
+    if (notifyServer && socket.connected && (voiceActive || voiceJoining)) socket.emit('voice:leave');
+    resetVoiceLocal();
+    if (showNotice) showToast('You left voice chat.', 'info');
+  }
+
+  function createVoicePeer(remoteId) {
+    let entry = voicePeers.get(remoteId);
+    if (entry && entry.pc.signalingState !== 'closed') return entry;
+    const pc = new RTCPeerConnection(rtcConfig);
+    entry = { pc, pendingCandidates: [], offerStarted: false };
+    voicePeers.set(remoteId, entry);
+    if (voiceStream) {
+      for (const track of voiceStream.getTracks()) pc.addTrack(track, voiceStream);
+    }
+    pc.onicecandidate = event => {
+      if (event.candidate && socket.connected) {
+        socket.emit('voice:signal', { to: remoteId, candidate: event.candidate.toJSON() });
+      }
+    };
+    pc.ontrack = event => {
+      const stream = event.streams && event.streams[0];
+      if (!stream) return;
+      let audio = [...voiceAudioContainer.querySelectorAll('audio[data-peer]')].find(el => el.dataset.peer === remoteId);
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.dataset.peer = remoteId;
+        audio.setAttribute('aria-label', 'Voice audio from ' + (voiceParticipants.get(remoteId)?.name || 'a participant'));
+        voiceAudioContainer.append(audio);
+      }
+      audio.srcObject = stream;
+      audio.play().catch(() => showToast('Your browser blocked incoming voice audio. Click the page and try again.', 'error'));
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') {
+        voiceStatus.textContent = 'A voice connection failed. This network may require a TURN relay.';
+      }
+    };
+    return entry;
+  }
+
+  async function offerVoicePeer(remoteId) {
+    if (!voiceActive || remoteId === socket.id) return;
+    try {
+      const entry = createVoicePeer(remoteId);
+      if (entry.offerStarted) return;
+      entry.offerStarted = true;
+      const offer = await entry.pc.createOffer();
+      await entry.pc.setLocalDescription(offer);
+      socket.emit('voice:signal', { to: remoteId, description: entry.pc.localDescription });
+    } catch (_) {
+      showToast('Could not start a voice connection to one participant.', 'error');
+    }
+  }
+
+  async function handleVoiceSignal(data) {
+    if (!voiceActive || room !== 'voice' || !data || !data.from || data.from === socket.id) return;
+    try {
+      let entry = voicePeers.get(data.from);
+      if (!entry && (data.description || data.candidate)) entry = createVoicePeer(data.from);
+      if (!entry) return;
+
+      if (data.description && data.description.type === 'offer') {
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
+        for (const candidate of entry.pendingCandidates.splice(0)) {
+          try { await entry.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+        }
+        const answer = await entry.pc.createAnswer();
+        await entry.pc.setLocalDescription(answer);
+        socket.emit('voice:signal', { to: data.from, description: entry.pc.localDescription });
+      } else if (data.description && data.description.type === 'answer') {
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
+        for (const candidate of entry.pendingCandidates.splice(0)) {
+          try { await entry.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+        }
+      }
+
+      if (data.candidate) {
+        if (entry.pc.remoteDescription) {
+          try { await entry.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+        } else {
+          entry.pendingCandidates.push(data.candidate);
+        }
+      }
+    } catch (_) {
+      voiceStatus.textContent = 'The voice connection failed. A TURN relay may be required on this network.';
+    }
+  }
+
+  async function joinVoice() {
+    if (room !== 'voice' || voiceActive || voiceJoining) return;
+    if (!socket.connected) return showToast('Chat is reconnecting. Please try again in a moment.', 'error');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return showToast('Microphone access requires HTTPS and a supported browser.', 'error');
+    }
+    voiceJoining = true;
+    updateVoiceUI();
+    try {
+      voiceStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      });
+      socket.emit('voice:join', { name });
+    } catch (error) {
+      resetVoiceLocal();
+      const message = error && error.name === 'NotAllowedError'
+        ? 'Microphone permission was denied. Allow microphone access in your browser to join voice.'
+        : error && error.name === 'NotFoundError'
+          ? 'No microphone was found. Connect a microphone and try again.'
+          : 'Could not access the microphone. Check your browser and device settings.';
+      showToast(message, 'error');
+    }
+  }
+
+  voiceJoinBtn.onclick = joinVoice;
+  voiceMuteBtn.onclick = () => {
+    if (!voiceActive || !voiceStream) return;
+    voiceMuted = !voiceMuted;
+    for (const track of voiceStream.getAudioTracks()) track.enabled = !voiceMuted;
+    updateVoiceUI();
+  };
+  voiceLeaveBtn.onclick = () => leaveVoice(true, true);
+
+  socket.on('voice:state', data => {
+    if (room !== 'voice' || !data || !Array.isArray(data.participants)) return;
+    voiceParticipants.clear();
+    for (const participant of data.participants) {
+      if (participant && typeof participant.id === 'string') voiceParticipants.set(participant.id, { name: participant.name || 'Anon' });
+    }
+    updateVoiceUI();
+  });
+
+  socket.on('voice:joined', data => {
+    if (room !== 'voice' || !data || data.room !== 'voice') {
+      leaveVoice(false);
+      return;
+    }
+    voiceJoining = false;
+    voiceActive = true;
+    voiceParticipants.set(socket.id, { name, self: true });
+    for (const participant of (Array.isArray(data.participants) ? data.participants : [])) {
+      if (participant && typeof participant.id === 'string') {
+        voiceParticipants.set(participant.id, { name: participant.name || 'Anon' });
+      }
+    }
+    updateVoiceUI();
+    showToast('You joined voice chat. Your microphone is live.', 'success');
+    for (const participant of (Array.isArray(data.participants) ? data.participants : [])) {
+      if (participant && typeof participant.id === 'string') offerVoicePeer(participant.id);
+    }
+  });
+
+  socket.on('voice:peer-joined', data => {
+    if (!voiceActive || !data || typeof data.id !== 'string') return;
+    voiceParticipants.set(data.id, { name: data.name || 'Anon' });
+    updateVoiceUI();
+  });
+
+  socket.on('voice:peer-left', data => {
+    if (!data || typeof data.id !== 'string') return;
+    closeVoicePeer(data.id);
+    voiceParticipants.delete(data.id);
+    updateVoiceUI();
+  });
+
+  socket.on('voice:signal', handleVoiceSignal);
+  socket.on('voice:error', data => {
+    leaveVoice(false);
+    showToast((data && data.message) || 'Voice chat could not be started.', 'error');
+  });
+  socket.on('disconnect', () => {
+    if (voiceActive || voiceJoining) {
+      resetVoiceLocal();
+      showToast('Disconnected from chat. Voice has been stopped; rejoin when the connection returns.', 'error');
+    }
+  });
+
+  updateVoiceUI();
 
   function showScreenPanel(title, status) {
     screenPanel.hidden = false;
@@ -1210,7 +1529,7 @@ function start() {
   };
   $('admbody').onchange = e => { const s = e.target.closest('select[data-cmd]'); if (s) socket.emit('adm', s.dataset.cmd + s.value); };
 
-  if (room !== 'general') $('online').insertAdjacentHTML('afterend', '<a href="/" style="color:var(--accent);font-size:14px">Back to general</a>');
+  // Official channel navigation is always visible, including from private rooms.
 }
 
 let agreed = false;
