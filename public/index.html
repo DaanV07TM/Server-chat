@@ -177,7 +177,19 @@ button:active:not(:disabled){transform:translateY(0)}
 @media(max-width:560px){header{padding:10px 11px;gap:7px}header h1{min-width:100%;font-size:16px}#log{padding:10px}#bar{gap:6px;padding:8px}#adm .box{padding:15px}.admin-screen-monitor{right:12px;bottom:70px;width:min(320px,calc(100vw - 24px));max-height:30vh}#adminMonitorVideo{max-height:16vh}}
 @media(prefers-reduced-motion:reduce){button,.m:not(.bot),#text{transition:none}}
 
-/* Website-owned modal dialogs and non-blocking toast notifications. */
+/* Admin-controlled server restart sequence; deliberately uses a controlled Render restart, never load generation. */
+.nuker-card{margin:12px 0 16px;padding:15px;border:1px solid rgba(239,68,68,.4);border-radius:15px;background:linear-gradient(135deg,rgba(127,29,29,.09),rgba(147,51,234,.06));box-shadow:0 8px 28px rgba(127,29,29,.07)}
+.nuker-card-head{display:flex;align-items:center;gap:10px}
+.nuker-card-icon{display:flex;align-items:center;justify-content:center;width:39px;height:39px;flex:0 0 39px;border-radius:12px;background:linear-gradient(135deg,#ef4444,#7c3aed);color:#fff;font-size:20px}
+.nuker-card-title{font-size:13px;font-weight:900;letter-spacing:.08em}
+.nuker-card-subtitle{margin-top:3px;color:var(--mute);font-size:11px}
+.nuker-card p{margin:11px 0;color:var(--mute);font-size:12px;line-height:1.55}
+.nuker-status{margin:9px 0;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:11px;line-height:1.5}
+.nuker-status.ready{border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.06)}
+.nuker-status.warning{border-color:rgba(234,179,8,.45);background:rgba(234,179,8,.07)}
+#adm .nuker-card button.ab.nuker{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;margin:10px 0 0;padding:11px 14px;border:1px solid rgba(239,68,68,.75);border-radius:11px;background:linear-gradient(100deg,#b91c1c,#7c2d12 70%,#6d28d9);color:#fff;font-weight:850;letter-spacing:.02em;box-shadow:0 5px 16px rgba(185,28,28,.2)}
+#adm .nuker-card button.ab.nuker:hover{filter:brightness(1.12)}
+
 #siteDialog{z-index:100}
 #siteDialog .box{width:min(440px,100%);max-width:440px;padding:clamp(18px,3vw,26px);border-radius:20px}
 .site-dialog-kicker{display:inline-block;margin-bottom:9px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em}
@@ -1451,9 +1463,19 @@ function start() {
       '<div class="sec">Blocked words</div>' + (st.banned.map(w => '<span class="stat">' + h(w) + ' ' + B('×', '/unblock ' + w, 'plain') + '</span>').join('') || '<p>None.</p>') +
       '<input id="blkIn" maxlength="30" placeholder="Word to block" aria-label="Word to block"> ' + B('Add', '/block ', '', '', '#blkIn') +
       '<div class="sec">Alerts</div><p>' + (st.channels.length ? 'Active: ' + h(st.channels.join(', ')) : 'Not set up yet (see the Render environment settings).') + '</p>' + B('Send test alert', '/notifytest', 'plain') +
+      '<div class="sec">Server reboot</div>' +
+      '<div class="nuker-card">' +
+        '<div class="nuker-card-head"><span class="nuker-card-icon" aria-hidden="true">☢</span><div><div class="nuker-card-title">SERVER NUKER</div><div class="nuker-card-subtitle">Controlled reboot · no artificial load</div></div></div>' +
+        '<p>Sends a global announcement and a 15-second countdown, then asks Render to restart this service. Everyone will be disconnected briefly; this does not generate artificial traffic or overload the server.</p>' +
+        (st.renderRestartConfigured
+          ? '<div class="nuker-status ready">' + (st.restartSubmitted ? 'Restart accepted or submitted to Render.' : st.restartInProgress ? 'Countdown active · restart request has not been sent yet.' : 'Ready · Render API credentials are configured.') + '</div>' +
+            (!st.restartInProgress ? B('☢ Initiate restart sequence', '/restart', 'nuker', 'Start a 15-second global countdown, then ask Render to restart the chat? This will briefly disconnect everyone.') : '') +
+            (st.restartInProgress && !st.restartSubmitted ? B('Cancel countdown', '/cancelrestart', 'plain', 'Cancel the scheduled restart?') : '')
+          : '<div class="nuker-status warning"><b>Setup required.</b><br>Add <code>RENDER_API_KEY</code> and <code>RENDER_SERVICE_ID</code> under Render → Environment, then redeploy. The API key stays on the server and is never sent to the browser.</div>') +
+      '</div>' +
       '<div class="sec">Danger zone</div>' +
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
-      B('Restart server', '/restart', 'red', 'Restart the server now?') + B('Log out', '/logout', 'plain');
+      B('Log out', '/logout', 'plain');
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
   socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; if (!on) closeAdm(); });
