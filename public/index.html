@@ -65,10 +65,6 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 .screen-share-row .screen-share-actions button{display:inline-block;width:auto;margin:0;padding:7px 9px;font-size:12px}
 .screen-share-row .screen-share-actions .red{background:var(--bad);color:#fff}
 .screen-share-row .screen-share-meta{font-size:12px;color:var(--mute);margin-top:3px}
-#game{display:none;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line)}
-#game.open{display:block}
-#grid{display:grid;grid-template-columns:repeat(3,64px);gap:6px;margin:8px 0}
-#grid button{height:64px;font-size:28px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
 #bar{display:flex;gap:8px;padding:10px 12px;background:var(--panel);border-top:1px solid var(--line)}
 #bar .icon{border:1px solid var(--line);background:none;border-radius:50%;width:42px;font-size:18px}
 #text{flex:1;min-width:0;border:1px solid var(--line);border-radius:20px;padding:10px 14px;font:inherit;background:var(--bg);color:var(--ink)}
@@ -180,6 +176,30 @@ button:active:not(:disabled){transform:translateY(0)}
 .admin-screen-monitor .monitor-stop-button{width:auto;margin:0;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:11px;font-weight:650}
 @media(max-width:560px){header{padding:10px 11px;gap:7px}header h1{min-width:100%;font-size:16px}#log{padding:10px}#bar{gap:6px;padding:8px}#adm .box{padding:15px}.admin-screen-monitor{right:12px;bottom:70px;width:min(320px,calc(100vw - 24px));max-height:30vh}#adminMonitorVideo{max-height:16vh}}
 @media(prefers-reduced-motion:reduce){button,.m:not(.bot),#text{transition:none}}
+
+/* Website-owned modal dialogs and non-blocking toast notifications. */
+#siteDialog{z-index:100}
+#siteDialog .box{width:min(440px,100%);max-width:440px;padding:clamp(18px,3vw,26px);border-radius:20px}
+.site-dialog-kicker{display:inline-block;margin-bottom:9px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em}
+#siteDialog h2{font-size:21px;line-height:1.25;letter-spacing:-.025em}
+#siteDialogMessage{margin:0;color:var(--mute);line-height:1.6;white-space:pre-line}
+#siteDialogInput{display:block;width:100%;margin-top:16px;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);font:inherit;outline:none}
+#siteDialogInput:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.14)}
+#siteDialogInput[hidden]{display:none}
+.site-dialog-actions{display:flex;gap:9px;margin-top:17px}
+.site-dialog-actions button{display:inline-flex;align-items:center;justify-content:center;flex:1;width:auto;min-height:42px;margin:0;padding:10px 13px;border:1px solid transparent;border-radius:11px;font-weight:700}
+.site-dialog-actions #siteDialogCancel{background:transparent;border-color:var(--line);color:var(--ink)}
+.site-dialog-actions #siteDialogConfirm.danger{background:var(--bad);color:#fff}
+.site-dialog-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toast-region{position:fixed;right:16px;bottom:82px;z-index:90;display:flex;flex-direction:column;align-items:stretch;gap:8px;width:min(360px,calc(100vw - 24px));pointer-events:none}
+.site-toast{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--ink);box-shadow:0 14px 42px rgba(0,0,0,.18);font-size:13px;line-height:1.45;overflow-wrap:anywhere;opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}
+.site-toast.show{opacity:1;transform:translateY(0)}
+.site-toast:before{content:"";width:8px;height:8px;flex:0 0 8px;margin-top:5px;border-radius:50%;background:var(--accent)}
+.site-toast.error{border-color:rgba(239,68,68,.4)}
+.site-toast.error:before{background:#ef4444}
+.site-toast.success:before{background:#16a34a}
+@media(max-width:560px){.toast-region{right:12px;bottom:72px;width:calc(100vw - 24px)}#siteDialog .box{padding:18px;border-radius:17px}.site-dialog-actions{gap:7px}.site-dialog-actions button{padding:10px 8px;font-size:14px}}
+@media(prefers-reduced-motion:reduce){.site-toast{transition:none}}
 </style>
 </head>
 <body>
@@ -210,18 +230,11 @@ button:active:not(:disabled){transform:translateY(0)}
   <div id="screenStatus" aria-live="polite"></div>
 </section>
 <div id="typing" aria-live="polite"></div>
-<div id="game">
-  <strong>Tic-tac-toe</strong>
-  <div id="gstatus"></div>
-  <div id="grid"></div>
-  <button id="greset" type="button">Restart</button>
-</div>
 <div id="bar">
   <input id="file" type="file" accept="image/*" hidden>
   <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
-  <button class="icon" id="gamebtn" type="button" aria-label="Open game">🎮</button>
   <button class="icon" id="screenShareBtn" type="button" aria-label="Share your screen" title="Share your screen">🖥️</button>
-  <input id="text" maxlength="500" placeholder="Type a message (try /roll)" autocomplete="off" aria-label="Message">
+  <input id="text" maxlength="500" placeholder="Write a message… (/roll)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
@@ -253,6 +266,19 @@ button:active:not(:disabled){transform:translateY(0)}
     <button id="admX" type="button" class="plain">Close</button>
   </div>
 </div>
+<div id="siteDialog" class="ov site-dialog" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle" aria-describedby="siteDialogMessage" hidden>
+  <div class="box">
+    <span class="site-dialog-kicker">CHAT NOTICE</span>
+    <h2 id="siteDialogTitle">Please confirm</h2>
+    <p id="siteDialogMessage"></p>
+    <input id="siteDialogInput" type="text" maxlength="80" autocomplete="off" hidden>
+    <div class="site-dialog-actions">
+      <button id="siteDialogCancel" type="button" class="plain">Cancel</button>
+      <button id="siteDialogConfirm" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+<div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 <section id="adminScreenMonitor" class="admin-screen-monitor" hidden aria-label="Admin screen monitor">
   <div class="admin-monitor-head">
     <div class="admin-monitor-heading">
@@ -276,6 +302,94 @@ button:active:not(:disabled){transform:translateY(0)}
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = id => document.getElementById(id);
+let activeSiteDialogCancel = null;
+
+function showToast(message, type = 'info', duration = 3600) {
+  const region = $('toastRegion');
+  if (!region) return;
+  const item = document.createElement('div');
+  item.className = 'site-toast' + (type === 'error' ? ' error' : type === 'success' ? ' success' : '');
+  item.textContent = String(message);
+  region.append(item);
+  requestAnimationFrame(() => item.classList.add('show'));
+  setTimeout(() => {
+    item.classList.remove('show');
+    setTimeout(() => item.remove(), 220);
+  }, duration);
+}
+
+function showSiteDialog(options = {}) {
+  const modal = $('siteDialog');
+  const input = $('siteDialogInput');
+  const cancelButton = $('siteDialogCancel');
+  const confirmButton = $('siteDialogConfirm');
+  const hasInput = options.input === true;
+  if (!modal || !input || !cancelButton || !confirmButton) return Promise.resolve(hasInput ? null : false);
+  if (activeSiteDialogCancel) activeSiteDialogCancel();
+
+  return new Promise(resolve => {
+    let finished = false;
+    const cancelValue = hasInput ? null : false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      modal.style.display = 'none';
+      modal.hidden = true;
+      modal.onclick = null;
+      cancelButton.onclick = null;
+      confirmButton.onclick = null;
+      document.removeEventListener('keydown', onKeydown);
+      if (activeSiteDialogCancel === cancel) activeSiteDialogCancel = null;
+      resolve(value);
+    };
+    const cancel = () => finish(cancelValue);
+    const onKeydown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      } else if (event.key === 'Enter' && hasInput && document.activeElement === input) {
+        event.preventDefault();
+        confirmButton.click();
+      }
+    };
+
+    $('siteDialogTitle').textContent = options.title || 'Please confirm';
+    $('siteDialogMessage').textContent = options.message || '';
+    input.hidden = !hasInput;
+    input.value = hasInput ? String(options.value ?? '') : '';
+    input.placeholder = options.placeholder || '';
+    input.maxLength = Number(options.maxLength) > 0 ? Number(options.maxLength) : 80;
+    cancelButton.textContent = options.cancelText || 'Cancel';
+    confirmButton.textContent = options.confirmText || (hasInput ? 'Save' : 'Continue');
+    confirmButton.classList.toggle('danger', options.danger === true);
+    cancelButton.hidden = options.cancelText === false;
+
+    cancelButton.onclick = cancel;
+    confirmButton.onclick = () => {
+      if (hasInput) {
+        const value = input.value;
+        if (options.required && !value.trim()) {
+          showToast(options.requiredMessage || 'Please enter a value.', 'error');
+          input.focus();
+          return;
+        }
+        finish(value);
+      } else {
+        finish(true);
+      }
+    };
+    modal.onclick = event => { if (event.target === modal) cancel(); };
+    activeSiteDialogCancel = cancel;
+    modal.hidden = false;
+    modal.style.display = 'flex';
+    document.addEventListener('keydown', onKeydown);
+    requestAnimationFrame(() => {
+      if (hasInput) input.focus();
+      else confirmButton.focus();
+    });
+  });
+}
+
 function start() {
   const EMPTY = '<p class="empty" id="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
   const params = new URLSearchParams(location.search);
@@ -618,7 +732,12 @@ function start() {
       add({ bot: true, text: 'Screen sharing is not supported by this browser or connection. Open the chat over HTTPS in a supported browser.' });
       return;
     }
-    const privacyAccepted = confirm('Privacy notice: Screen sharing is not 100% private. Server administrators may monitor active screen shares, stop your stream, or apply a temporary timeout. Continue only if you are comfortable sharing your screen.');
+    const privacyAccepted = await showSiteDialog({
+      title: 'Before you share your screen',
+      message: 'Screen sharing is not 100% private. Server administrators may monitor active screen shares, stop your stream, or apply a temporary timeout. Continue only if you are comfortable sharing your screen.',
+      confirmText: 'Continue to screen selection',
+      cancelText: 'Cancel'
+    });
     if (!privacyAccepted) return;
     try {
       screenStartPending = true;
@@ -861,10 +980,10 @@ function start() {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     if (f.type === 'image/gif') {
-      if (f.size > 900000) return alert('This GIF is too large (max 900 KB).');
+      if (f.size > 900000) { showToast('This GIF is too large (maximum 900 KB).', 'error'); return; }
       const r = new FileReader(); r.onload = () => send(r.result); r.readAsDataURL(f); return;
     }
-    if (!f.type.startsWith('image/')) return alert('Images and GIFs only.');
+    if (!f.type.startsWith('image/')) { showToast('Only images and GIFs can be sent.', 'error'); return; }
     const url = URL.createObjectURL(f), im = new Image();
     im.onload = () => {
       const k = Math.min(1, 800 / Math.max(im.width, im.height));
@@ -874,33 +993,26 @@ function start() {
       URL.revokeObjectURL(url);
       send(c.toDataURL('image/jpeg', .75));
     };
-    im.onerror = () => alert('This image could not be loaded.');
+    im.onerror = () => showToast('This image could not be loaded. Try another image.', 'error');
     im.src = url;
   };
 
-  // tic-tac-toe
-  let G = null;
-  $('gamebtn').onclick = () => { if ($('game').classList.toggle('open')) socket.emit('game:open'); };
-  $('greset').onclick = () => socket.emit('game:reset');
-  socket.on('game', g => { G = g; draw(); });
-  function draw() {
-    const me = G.p.X === socket.id ? 'X' : G.p.O === socket.id ? 'O' : null;
-    $('grid').innerHTML = '';
-    G.b.forEach((v, i) => {
-      const b = document.createElement('button');
-      b.textContent = v; b.setAttribute('aria-label', 'Square ' + (i + 1));
-      b.onclick = () => socket.emit('game:move', i);
-      $('grid').append(b);
+  $('rename').onclick = async () => {
+    const n = await showSiteDialog({
+      title: 'Choose a display name',
+      message: 'Choose how other people in this room will see you. Maximum 20 characters.',
+      input: true,
+      value: name,
+      placeholder: 'Your display name',
+      maxLength: 20,
+      confirmText: 'Save name',
+      cancelText: 'Cancel'
     });
-    $('gstatus').textContent = G.w ? (G.w === 'draw' ? "It's a draw" : G.w + ' wins!')
-      : (!G.p.X || !G.p.O) ? 'Waiting for a second player…'
-      : !me ? 'You are watching'
-      : G.turn === me ? 'Your turn (' + me + ')' : "Opponent's turn";
-  }
-
-  $('rename').onclick = () => {
-    const n = prompt('Choose a name (max 20 characters)', name);
-    if (n && n.trim()) { name = n.trim().slice(0, 20); try { sessionStorage.setItem('name', name); } catch (e) {} }
+    if (typeof n === 'string' && n.trim()) {
+      name = n.trim().slice(0, 20);
+      try { sessionStorage.setItem('name', name); } catch (e) {}
+      showToast('Display name updated.', 'success');
+    }
   };
   $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
   $('share').onclick = async ev => {
@@ -1033,7 +1145,7 @@ function start() {
     admTimer = setInterval(() => { socket.emit('adm', ''); pingServer(); }, 5000);
   };
   $('admX').onclick = closeAdm;
-  $('admbody').onclick = e => {
+  $('admbody').onclick = async e => {
     const screenAction = e.target.closest('button[data-screen-action]');
     if (screenAction) {
       if (!moderator) return;
@@ -1057,18 +1169,41 @@ function start() {
         return;
       }
       if (action === 'stop') {
-        if (!confirm('Stop this user’s screen share?')) return;
+        const approved = await showSiteDialog({
+          title: 'Stop screen sharing?',
+          message: 'This will immediately end the selected user’s active screen share.',
+          confirmText: 'Stop sharing',
+          cancelText: 'Cancel',
+          danger: true
+        });
+        if (!approved) return;
         socket.emit('screen:admin:stop', { sharerId });
         return;
       }
       if (action === 'timeout') {
-        if (!confirm('Stop this screen share and time this user out for ' + minutes + ' minute(s)?')) return;
+        const approved = await showSiteDialog({
+          title: 'Stop sharing and apply timeout?',
+          message: 'This will stop the screen share and temporarily prevent this user from chatting for ' + minutes + ' minute(s).',
+          confirmText: 'Apply timeout',
+          cancelText: 'Cancel',
+          danger: true
+        });
+        if (!approved) return;
         socket.emit('screen:admin:timeout', { sharerId, minutes });
         return;
       }
     }
     const b = e.target.closest('button[data-cmd]'); if (!b) return;
-    if (b.dataset.ask && !confirm(b.dataset.ask)) return;
+    if (b.dataset.ask) {
+      const approved = await showSiteDialog({
+        title: 'Confirm admin action',
+        message: b.dataset.ask,
+        confirmText: 'Confirm',
+        cancelText: 'Cancel',
+        danger: true
+      });
+      if (!approved) return;
+    }
     let c = b.dataset.cmd;
     if (b.dataset.input) { const i = document.querySelector(b.dataset.input); c += i.value.trim(); if (i.tagName === 'INPUT') i.value = ''; }
     socket.emit('adm', c);
