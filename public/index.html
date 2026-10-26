@@ -659,6 +659,11 @@ function start() {
   };
   let musicLoadedTrackId = null;
   let musicListeningEnabled = false;
+  try { musicListeningEnabled = sessionStorage.getItem('serverChatMusicAutoplay') === '1'; } catch (_) {}
+  function enableMusicListening() {
+    musicListeningEnabled = true;
+    try { sessionStorage.setItem('serverChatMusicAutoplay', '1'); } catch (_) {}
+  }
   let musicSuppressNativeEventsUntil = 0;
   let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0, musicSearchSequence = 0;
   const musicPendingSyncRequests = new Map();
@@ -857,7 +862,7 @@ function start() {
     if (!button || button.disabled) return;
     button.disabled = true;
     button.textContent = 'Adding…';
-    musicListeningEnabled = true;
+    enableMusicListening();
     socket.emit('music:add-catalog', { catalogId: button.dataset.trackId, name });
   });
 
@@ -965,7 +970,7 @@ function start() {
     if (!moderator) return;
     const current = sharedMusicState.current;
     if (!current) return musicAudio.pause();
-    musicListeningEnabled = true;
+    enableMusicListening();
     socket.emit('music:control', { action: 'play', trackId: current.id, position: musicAudio.currentTime || 0 });
     updateMusicSyncUI();
   });
@@ -988,19 +993,51 @@ function start() {
     }
   });
 
+  function readMusicFileDuration(file) {
+    return new Promise(resolve => {
+      const probe = document.createElement('audio');
+      probe.preload = 'metadata';
+      const objectUrl = URL.createObjectURL(file);
+      let finished = false;
+      const timer = setTimeout(() => finish(null), 10000);
+      const finish = duration => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        probe.removeAttribute('src');
+        probe.load();
+        URL.revokeObjectURL(objectUrl);
+        const seconds = Number(duration);
+        resolve(Number.isFinite(seconds) && seconds > 0 && seconds <= 86400 ? seconds : null);
+      };
+      probe.addEventListener('loadedmetadata', () => finish(probe.duration), { once: true });
+      probe.addEventListener('error', () => finish(null), { once: true });
+      probe.src = objectUrl;
+    });
+  }
+
   musicAddForm.onsubmit = async event => {
     event.preventDefault();
     if (room !== 'music') return;
     const file = musicFileInput.files && musicFileInput.files[0];
     if (!file) return showToast('Choose an audio file first.', 'error');
     if (file.size > 8 * 1024 * 1024) return showToast('Each audio file must be 8 MB or smaller.', 'error');
-    musicListeningEnabled = true;
+    enableMusicListening();
     musicAddBtn.disabled = true;
     musicAddBtn.textContent = 'Uploading…';
-    musicNotice.textContent = 'Uploading your audio to the server. Keep this page open until it is added.';
+    musicNotice.textContent = 'Reading audio duration so the shared server queue can keep playing without listeners…';
     try {
+      const duration = await readMusicFileDuration(file);
+      if (!duration) {
+        musicAddBtn.disabled = false;
+        musicAddBtn.textContent = 'Upload to shared queue';
+        musicNotice.textContent = 'Could not read this file’s duration. Try a browser-supported MP3, M4A, OGG or WAV file.';
+        showToast('Could not read the audio duration. Try another audio format.', 'error');
+        return;
+      }
+      musicNotice.textContent = 'Uploading audio to the server. Keep this page open until it is added.';
       const audio = await file.arrayBuffer();
-      socket.emit('music:upload', { fileName: file.name, title: musicTitleInput.value.trim(), audio, name });
+      socket.emit('music:upload', { fileName: file.name, title: musicTitleInput.value.trim(), duration, audio, name });
     } catch (_) {
       musicAddBtn.disabled = false;
       musicAddBtn.textContent = 'Upload to shared queue';
@@ -1020,7 +1057,7 @@ function start() {
     if (!current) return showToast('Search for or upload a track first.', 'error');
     if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
     if (musicAudio.error) musicAudio.load();
-    musicListeningEnabled = true;
+    enableMusicListening();
     const target = musicTargetPosition();
     suppressNativeMusicEvents(2200);
     if (musicAudio.readyState >= 1) {
@@ -1051,7 +1088,7 @@ function start() {
     if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
     if (musicAudio.error) musicAudio.load();
     const target = musicTargetPosition();
-    musicListeningEnabled = true;
+    enableMusicListening();
     suppressNativeMusicEvents(2200);
     if (musicAudio.readyState >= 1) {
       try { musicAudio.currentTime = target; } catch (_) {}
