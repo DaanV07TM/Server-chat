@@ -31,7 +31,7 @@ const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
-  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, and #voice for optional live voice chat and screen sharing. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like.' },
+  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for a shared YouTube link queue. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, add an individual YouTube or YouTube Music video link and press Play in the visible player.' },
   { name: 'Privacy & retention', bot: true, pinned: true, text: 'No account is required. Ordinary room messages are kept in server memory for up to one hour. Moderator posts in #announcements do not expire during normal server uptime, but custom posts are lost if the service restarts because this app has no persistent database. Hosting providers may process connection metadata.' },
   { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
@@ -470,6 +470,7 @@ function broadcastVoiceState() {
 function parseYouTubeVideoId(raw) {
   try {
     const url = new URL(String(raw || ''));
+    if (!['https:', 'http:'].includes(url.protocol)) return null;
     const host = url.hostname.toLowerCase().replace(/^www\./, '');
     let videoId = '';
     if (host === 'youtu.be') {
