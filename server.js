@@ -2,6 +2,9 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
+const dns = require('dns').promises;
+const net = require('net');
+const { Readable } = require('stream');
 const v8 = require('v8');
 const { Server } = require('socket.io');
 
@@ -31,7 +34,7 @@ const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
-  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for a shared server-hosted audio queue. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, upload an audio file you have permission to share, then use the shared playback controls.' },
+  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for shared music search and playback relayed by the server. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, search the catalogue or upload audio you have permission to share, then use the shared playback controls.' },
   { name: 'Privacy & retention', bot: true, pinned: true, text: 'No account is required. Ordinary room messages are kept in server memory for up to one hour. Moderator posts in #announcements do not expire during normal server uptime, but custom posts are lost if the service restarts because this app has no persistent database. Hosting providers may process connection metadata.' },
   { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
@@ -55,6 +58,15 @@ const MUSIC_TYPES = Object.freeze({
   '.webm': 'audio/webm',
   '.flac': 'audio/flac'
 });
+const MUSIC_ADDON_BASE_URL = String(process.env.MUSIC_ADDON_BASE_URL || 'https://bppcaf.bot-keep.xyz').trim().replace(/\/+$/, '');
+const requestedMusicQuality = String(process.env.MUSIC_ADDON_QUALITY || 'HIGH').toUpperCase();
+const MUSIC_ADDON_QUALITY = ['LOW', 'HIGH', 'LOSSLESS'].includes(requestedMusicQuality) ? requestedMusicQuality : 'HIGH';
+const MUSIC_ADDON_TIMEOUT_MS = 12000;
+const MUSIC_SEARCH_CACHE_TTL = 30 * 1000;
+const MUSIC_CATALOG_TTL = 10 * 60 * 1000;
+const MUSIC_CATALOG_LIMIT = 500;
+const musicSearchCache = new Map();
+const musicCatalogCache = new Map();
 const musicQueue = [];
 let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes = 0;
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
@@ -506,9 +518,12 @@ function parseYouTubeVideoId(raw) {
 const publicMusicTrack = track => track && ({
   id: track.id,
   title: track.title,
+  artist: track.artist || undefined,
+  album: track.album || undefined,
   addedBy: track.addedBy,
   addedAt: track.addedAt,
-  format: track.extension.slice(1).toUpperCase(),
+  source: track.source || 'upload',
+  format: track.format || (track.extension ? track.extension.slice(1).toUpperCase() : 'AUDIO'),
   sizeBytes: track.audio ? track.audio.length : 0
 });
 function getMusicPosition(now = Date.now()) {
@@ -545,12 +560,258 @@ function releaseMusicTrack(track) {
   track.audio = null;
 }
 
-// The server hosts the uploaded audio itself. Range requests let HTMLAudioElement
-// seek and buffer normally without downloading the entire track before playback.
-app.get('/music/stream/:id', (req, res) => {
+// All catalogue requests originate on this server. Do not forward visitor headers or IPs.
+function musicAddonEndpoint(path) {
+  const base = new URL(MUSIC_ADDON_BASE_URL);
+  if (base.protocol !== 'https:' || base.username || base.password) {
+    throw new Error('Music addon must be configured as a public HTTPS URL.');
+  }
+  const basePath = base.pathname.endsWith('/') ? base.pathname : base.pathname + '/';
+  return new URL(String(path).replace(/^\/+/, ''), base.origin + basePath);
+}
+
+function publicMusicAddress(address) {
+  const version = net.isIP(address);
+  if (version === 4) {
+    const [a, b, c] = address.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+    if (a === 192 && b === 88 && c === 99) return false;
+    if (a === 198 && (b === 18 || b === 19)) return false;
+    if (a === 198 && b === 51 && c === 100) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    return true;
+  }
+  if (version === 6) {
+    const value = address.toLowerCase().split('%')[0];
+    if (value === '::' || value === '::1' || value.startsWith('::ffff:')) return false;
+    if (/^(fc|fd|fe[89ab]|ff)/i.test(value) || value.startsWith('2001:db8:')) return false;
+    const first = parseInt(value.split(':')[0] || '0', 16);
+    return first >= 0x2000 && first <= 0x3fff;
+  }
+  return false;
+}
+
+async function validatePublicAudioUrl(value) {
+  let url;
+  try { url = new URL(value); } catch (_) { throw new Error('The music provider returned an invalid stream URL.'); }
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (url.protocol !== 'https:' || url.username || url.password ||
+      !hostname || hostname === 'localhost' || hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    throw new Error('The music provider returned a blocked stream URL.');
+  }
+  if (url.port && url.port !== '443') throw new Error('The music provider returned an unsupported stream port.');
+  if (net.isIP(hostname)) {
+    if (!publicMusicAddress(hostname)) throw new Error('The music provider returned a non-public stream address.');
+  } else {
+    const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some(item => !publicMusicAddress(item.address))) {
+      throw new Error('The music provider returned a non-public stream destination.');
+    }
+  }
+  return url;
+}
+
+async function requestMusicAddonJson(url) {
+  const response = await fetch(url, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(MUSIC_ADDON_TIMEOUT_MS),
+    redirect: 'follow'
+  });
+  if (!response.ok) throw new Error('Music catalogue returned HTTP ' + response.status);
+  return response.json();
+}
+
+function pruneMusicCaches() {
+  const now = Date.now();
+  for (const [key, entry] of musicSearchCache) if (entry.expiresAt <= now) musicSearchCache.delete(key);
+  for (const [key, entry] of musicCatalogCache) if (entry.expiresAt <= now) musicCatalogCache.delete(key);
+  while (musicSearchCache.size > 100) musicSearchCache.delete(musicSearchCache.keys().next().value);
+  while (musicCatalogCache.size > MUSIC_CATALOG_LIMIT) musicCatalogCache.delete(musicCatalogCache.keys().next().value);
+}
+
+app.get('/api/music/search', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const query = clean(typeof req.query.q === 'string' ? req.query.q : '', 100);
+  if (query.length < 2) return res.status(400).json({ error: 'Enter at least two characters to search.' });
+  pruneMusicCaches();
+  const cacheKey = query.toLocaleLowerCase();
+  let cached = musicSearchCache.get(cacheKey);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    try {
+      const url = musicAddonEndpoint('search');
+      url.searchParams.set('q', query);
+      url.searchParams.set('quality', MUSIC_ADDON_QUALITY);
+      url.searchParams.set('atmos', 'auto');
+      const body = await requestMusicAddonJson(url);
+      const rawTracks = Array.isArray(body) ? body : (body && Array.isArray(body.tracks) ? body.tracks : []);
+      const tracks = [];
+      for (const raw of rawTracks.slice(0, 20)) {
+        if (!raw || typeof raw !== 'object') continue;
+        const sourceId = typeof raw.id === 'string' ? raw.id : '';
+        const title = clean(raw.title, 120);
+        if (!/^qobuz_[A-Za-z0-9_-]{10,120}$/.test(sourceId) || !title) continue;
+        const catalogId = crypto.randomBytes(16).toString('hex');
+        const track = {
+          sourceId,
+          title,
+          artist: clean(raw.artist, 120),
+          album: clean(raw.album, 120),
+          duration: Number.isFinite(Number(raw.duration)) && Number(raw.duration) >= 0 ? Number(raw.duration) : null,
+          format: clean(raw.format || raw.codec || raw.container, 20).toUpperCase() || 'AUDIO'
+        };
+        musicCatalogCache.set(catalogId, { track, expiresAt: Date.now() + MUSIC_CATALOG_TTL });
+        tracks.push({
+          id: catalogId,
+          title: track.title,
+          artist: track.artist || '',
+          album: track.album || '',
+          duration: track.duration,
+          format: track.format
+        });
+      }
+      pruneMusicCaches();
+      cached = { tracks, expiresAt: Date.now() + MUSIC_SEARCH_CACHE_TTL };
+      musicSearchCache.set(cacheKey, cached);
+    } catch (_) {
+      return res.status(502).json({ error: 'The music catalogue could not be reached. Try again in a moment.' });
+    }
+  }
+  return res.json({ tracks: cached.tracks });
+});
+
+async function resolveMusicAddonStream(track, forceRefresh = false) {
+  if (!forceRefresh && track.streamUrl && track.streamUrlExpiresAt > Date.now() + 2000) {
+    return { url: track.streamUrl, format: track.streamFormat || track.format };
+  }
+  const url = musicAddonEndpoint('stream/' + encodeURIComponent(track.sourceTrackId));
+  url.searchParams.set('quality', MUSIC_ADDON_QUALITY);
+  url.searchParams.set('atmos', 'auto');
+  const response = await fetch(url, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(MUSIC_ADDON_TIMEOUT_MS),
+    redirect: 'follow'
+  });
+  if (!response.ok) throw new Error('Music provider could not resolve this track.');
+  const info = await response.json();
+  if (!info || typeof info.url !== 'string') throw new Error('The music provider did not return a playable stream.');
+  if (info.encrypted === true) throw new Error('This source reports that the stream is encrypted.');
+  const manifest = String(info.manifest || 'none').toLowerCase();
+  if (manifest !== 'none') throw new Error('This track uses a segmented stream format that is not supported by the privacy relay yet.');
+  const streamUrl = await validatePublicAudioUrl(info.url);
+  track.streamUrl = streamUrl.toString();
+  track.streamUrlExpiresAt = Date.now() + 45 * 1000;
+  track.streamFormat = clean(info.format || info.codec || track.format, 20).toUpperCase() || 'AUDIO';
+  return { url: track.streamUrl, format: track.streamFormat };
+}
+
+async function fetchRelayedAudio(url, rangeHeader) {
+  let current = url;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const checked = await validatePublicAudioUrl(current);
+    const headers = { accept: 'audio/*, application/octet-stream;q=0.9, */*;q=0.5' };
+    if (rangeHeader && /^bytes=(?:\d+-\d*|-\d+)$/.test(rangeHeader)) headers.range = rangeHeader;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MUSIC_ADDON_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(checked, { headers, redirect: 'manual', signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location');
+      if (response.body) await response.body.cancel().catch(() => {});
+      if (!location) throw new Error('The audio source returned an invalid redirect.');
+      current = new URL(location, checked).toString();
+      continue;
+    }
+    return response;
+  }
+  throw new Error('The audio source redirected too many times.');
+}
+
+function mimeForMusicFormat(format) {
+  const key = String(format || '').toLowerCase().replace(/^\./, '');
+  return ({
+    flac: 'audio/flac', mp3: 'audio/mpeg', mpeg: 'audio/mpeg',
+    m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac',
+    ogg: 'audio/ogg', opus: 'audio/ogg', wav: 'audio/wav', wave: 'audio/wav',
+    webm: 'audio/webm'
+  })[key] || 'audio/mpeg';
+}
+
+async function streamMusicAddonTrack(track, req, res) {
+  try {
+    let upstream = null;
+    let descriptor = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      descriptor = await resolveMusicAddonStream(track, attempt > 0);
+      upstream = await fetchRelayedAudio(descriptor.url, req.headers.range);
+      if (attempt === 0 && [401, 403, 404, 410].includes(upstream.status)) {
+        if (upstream.body) await upstream.body.cancel().catch(() => {});
+        track.streamUrl = null;
+        track.streamUrlExpiresAt = 0;
+        continue;
+      }
+      break;
+    }
+    if (!upstream) throw new Error('The audio source did not respond.');
+    if (upstream.status === 416) {
+      const contentRange = upstream.headers.get('content-range');
+      if (contentRange) res.setHeader('Content-Range', contentRange);
+      res.setHeader('Accept-Ranges', 'bytes');
+      return res.status(416).end();
+    }
+    if (!upstream.ok && upstream.status !== 206) {
+      if (upstream.body) await upstream.body.cancel().catch(() => {});
+      throw new Error('The audio source returned HTTP ' + upstream.status);
+    }
+    if (!upstream.body) throw new Error('The audio source returned no audio data.');
+    const upstreamType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (upstreamType === 'text/html' || upstreamType === 'application/json') {
+      await upstream.body.cancel().catch(() => {});
+      throw new Error('The music provider returned a web page instead of audio.');
+    }
+
+    res.status(upstream.status);
+    res.setHeader('Content-Type', upstreamType.startsWith('audio/') ? upstreamType : mimeForMusicFormat(descriptor && descriptor.format || track.format));
+    res.setHeader('Accept-Ranges', upstream.headers.get('accept-ranges') || 'bytes');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline; filename="shared-track.' + (String(descriptor && descriptor.format || track.format || 'audio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'audio') + '"');
+    const contentLength = upstream.headers.get('content-length');
+    const contentRange = upstream.headers.get('content-range');
+    if (contentLength && /^\d+$/.test(contentLength)) res.setHeader('Content-Length', contentLength);
+    if (contentRange && /^bytes \d+-\d+\/\d+$/.test(contentRange)) res.setHeader('Content-Range', contentRange);
+
+    const source = Readable.fromWeb(upstream.body);
+    res.on('close', () => { if (!res.writableEnded) source.destroy(); });
+    source.on('error', () => { if (!res.headersSent) res.status(502).end(); else if (!res.writableEnded) res.destroy(); });
+    source.pipe(res);
+  } catch (_) {
+    console.log('[music] server-side stream relay failed');
+    if (!res.headersSent) res.status(502).json({ error: 'The server could not relay this track. It may be unavailable or use an unsupported stream format.' });
+    else if (!res.writableEnded) res.destroy();
+  }
+}
+
+// The chat server serves either an uploaded track or a relayed stream. Range requests
+// are passed upstream, so listeners' browsers never connect to the music addon/media host.
+app.get('/music/stream/:id', async (req, res) => {
   const id = Number(req.params.id);
   const track = Number.isSafeInteger(id) && id > 0 ? findMusicTrack(id) : null;
-  if (!track || !Buffer.isBuffer(track.audio)) {
+  if (!track) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'This track is no longer available on the server.' });
+  }
+  if (track.source === 'addon') return streamMusicAddonTrack(track, req, res);
+  if (!Buffer.isBuffer(track.audio)) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(404).json({ error: 'This track is no longer available on the server.' });
   }
@@ -906,6 +1167,59 @@ io.on('connection', (socket) => {
 
     const target = io.sockets.sockets.get(d.to);
     if (target) target.emit('voice:signal', payload);
+  });
+
+  // Queue an opaque catalogue result created by this server's search endpoint.
+  socket.on('music:add-catalog', (d) => {
+    const now = Date.now();
+    if (room !== 'music' || !socket.rooms.has('music')) return;
+    if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
+    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot add tracks right now.' });
+    const catalogId = clean(d && d.catalogId, 64);
+    if (!/^[a-f0-9]{32}$/.test(catalogId) || now - (socket.data.musicLastAdd || 0) < 2500) {
+      return socket.emit('music:error', { message: 'Search for that track again, then try adding it.', catalogId });
+    }
+    pruneMusicCaches();
+    const entry = musicCatalogCache.get(catalogId);
+    if (!entry || entry.expiresAt <= now) {
+      return socket.emit('music:error', { message: 'That search result expired. Search again before adding it.', catalogId });
+    }
+    const selected = entry.track;
+    if ([musicCurrent, ...musicQueue].some(track => track && track.source === 'addon' && track.sourceTrackId === selected.sourceId)) {
+      return socket.emit('music:error', { message: 'That track is already in the current song or queue.', catalogId });
+    }
+    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
+    if (sameUserCount >= MUSIC_MAX_PER_USER) {
+      return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.', catalogId });
+    }
+    if ((musicCurrent ? 1 : 0) + musicQueue.length >= MUSIC_MAX_TRACKS) {
+      return socket.emit('music:error', { message: 'The shared list is full (maximum ' + MUSIC_MAX_TRACKS + ' tracks).', catalogId });
+    }
+
+    const track = {
+      id: ++musicTrackId,
+      source: 'addon',
+      sourceTrackId: selected.sourceId,
+      title: selected.title,
+      artist: selected.artist,
+      album: selected.album,
+      format: selected.format,
+      addedBy: safeName(d && d.name),
+      addedById: socket.id,
+      addedAt: now,
+      streamUrl: null,
+      streamUrlExpiresAt: 0
+    };
+    socket.data.musicLastAdd = now;
+    if (!musicCurrent) {
+      musicCurrent = track;
+      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: socket.id };
+    } else {
+      musicQueue.push(track);
+    }
+    broadcastMusicState();
+    socket.emit('music:added', { id: track.id, source: 'addon', catalogId });
+    console.log('[music] catalogue track queued by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
   });
 
   // Shared server-hosted audio queue. Only upload audio you have permission to share.
