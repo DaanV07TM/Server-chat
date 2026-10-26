@@ -12,7 +12,7 @@ app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const ANNOUNCEMENT_TTL = 60 * 1000;
-const rooms = {}, games = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
+const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
 let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
@@ -303,11 +303,6 @@ function adminCommand(socket, c, arg, room) {
   else if (c === 'logout') { removeScreenViewer(socket.id); socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
   else say(ADMIN_HELP);
 }
-
-// tic-tac-toe
-const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-const game = (room) => (games[room] ||= { b: Array(9).fill(''), turn: 'X', p: { X: null, O: null }, w: null });
-const pushGame = (room) => io.to(room).emit('game', game(room));
 
 setInterval(() => {
   const now = Date.now();
@@ -666,41 +661,10 @@ io.on('connection', (socket) => {
 
   socket.on('typing', (n) => { if (!blocked()) socket.to(room).emit('typing', safeName(n)); });
 
-  socket.on('game:open', () => {
-    if (blocked()) return;
-    const g = game(room);
-    if (!g.p.X) g.p.X = socket.id; else if (!g.p.O && g.p.X !== socket.id) g.p.O = socket.id;
-    pushGame(room);
-  });
-  socket.on('game:move', (i) => {
-    if (blocked()) return;
-    const g = game(room);
-    const s = g.p.X === socket.id ? 'X' : g.p.O === socket.id ? 'O' : null;
-    if (!s || g.w || g.turn !== s || !Number.isInteger(i) || i < 0 || i > 8 || g.b[i]) return;
-    g.b[i] = s;
-    if (LINES.some(l => l.every(k => g.b[k] === s))) g.w = s;
-    else if (g.b.every(Boolean)) g.w = 'draw';
-    else g.turn = s === 'X' ? 'O' : 'X';
-    pushGame(room);
-  });
-  socket.on('game:reset', () => {
-    if (blocked()) return;
-    const g = game(room);
-    if (g.p.X !== socket.id && g.p.O !== socket.id) return;
-    g.b = Array(9).fill(''); g.turn = 'X'; g.w = null;
-    pushGame(room);
-  });
-
   socket.on('disconnect', () => {
     endScreenShare(socket.id);
     console.log('[online] ' + io.engine.clientsCount);
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 0);
-    const g = games[room];
-    if (g) {
-      if (g.p.X === socket.id) g.p.X = null;
-      if (g.p.O === socket.id) g.p.O = null;
-      if (!g.p.X && !g.p.O) delete games[room]; else pushGame(room);
-    }
   });
 });
 
