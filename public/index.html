@@ -37,6 +37,21 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 .rx .add{opacity:.6}
 .empty{margin:auto;color:var(--mute);text-align:center;max-width:260px}
 #typing{height:20px;padding:0 16px;font-size:13px;color:var(--mute)}
+#screenPanel{display:flex;flex-direction:column;gap:8px;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line);max-height:48vh;overflow:auto}
+#screenPanel[hidden]{display:none}
+#screenHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#screenTitle{font-size:14px;font-weight:700}
+#screenStop{border:0;border-radius:8px;padding:7px 12px;background:var(--bad);color:#fff;font:inherit;font-size:13px;font-weight:700}
+#screenStage{position:relative;background:#05070b;border:1px solid var(--line);border-radius:12px;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#screenVideo{display:block;width:100%;height:auto;max-height:38vh;object-fit:contain;background:#05070b}
+#screenVideo[hidden]{display:none}
+#screenPlaceholder{padding:24px;color:#aab4c5;text-align:center;font-size:14px}
+#screenPlaceholder[hidden]{display:none}
+#screenStatus{font-size:12px;color:var(--mute)}
+#screenShareBtn{width:auto;min-width:42px;border-radius:10px;padding:0 10px;font-size:16px}
+#screenShareBtn.sharing{background:#b91c1c;color:#fff;border-color:#ef4444}
+#screenShareBtn:disabled{opacity:.65}
+@media(max-width:560px){#screenPanel{padding:8px}#screenVideo{max-height:30vh}#screenShareBtn{padding:0 8px}}
 #game{display:none;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line)}
 #game.open{display:block}
 #grid{display:grid;grid-template-columns:repeat(3,64px);gap:6px;margin:8px 0}
@@ -93,6 +108,17 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <div id="log"></div>
+<section id="screenPanel" hidden aria-label="Screen sharing">
+  <div id="screenHeader">
+    <strong id="screenTitle">Screen sharing</strong>
+    <button id="screenStop" type="button" hidden>Stop sharing</button>
+  </div>
+  <div id="screenStage">
+    <div id="screenPlaceholder">The live screen will appear here.</div>
+    <video id="screenVideo" autoplay playsinline controls hidden></video>
+  </div>
+  <div id="screenStatus" aria-live="polite"></div>
+</section>
 <div id="typing" aria-live="polite"></div>
 <div id="game">
   <strong>Tic-tac-toe</strong>
@@ -104,6 +130,7 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <input id="file" type="file" accept="image/*" hidden>
   <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
   <button class="icon" id="gamebtn" type="button" aria-label="Open game">🎮</button>
+  <button class="icon" id="screenShareBtn" type="button" aria-label="Share your screen" title="Share your screen">🖥️</button>
   <input id="text" maxlength="500" placeholder="Type a message (try /roll)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
 </div>
@@ -245,12 +272,263 @@ function start() {
   socket.on('connect_error', () => $('online').textContent = 'offline');
   socket.on('disconnect', () => {
     $('online').textContent = 'reconnecting…';
+    if (localScreenStream) resetScreenShare();
     pendingPing = null;
     lastPingMs = null;
     const pingValue = $('serverPingValue');
     const pingDetail = $('serverPingDetail');
     if (pingValue) pingValue.textContent = '—';
     if (pingDetail) pingDetail.textContent = 'Disconnected — waiting for the server connection.';
+  });
+
+  // WebRTC screen sharing: one room-scoped sharer; media is peer-to-peer.
+  let localScreenStream = null;
+  let activeSharerId = null;
+  let screenStartPending = false;
+  let requestedSharerId = null;
+  const screenPeers = new Map();
+  const screenVideo = $('screenVideo');
+  const screenPanel = $('screenPanel');
+  const screenShareBtn = $('screenShareBtn');
+  const screenStopBtn = $('screenStop');
+  const screenTitle = $('screenTitle');
+  const screenStatus = $('screenStatus');
+  const screenPlaceholder = $('screenPlaceholder');
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  function showScreenPanel(title, status) {
+    screenPanel.hidden = false;
+    screenTitle.textContent = title;
+    screenStatus.textContent = status || '';
+  }
+
+  function clearScreenPeers() {
+    for (const { pc } of screenPeers.values()) {
+      try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch (_) {}
+    }
+    screenPeers.clear();
+    requestedSharerId = null;
+  }
+
+  function resetScreenShare() {
+    const stream = localScreenStream;
+    localScreenStream = null;
+    screenStartPending = false;
+    activeSharerId = null;
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        track.onended = null;
+        try { track.stop(); } catch (_) {}
+      }
+    }
+    clearScreenPeers();
+    screenVideo.pause();
+    screenVideo.srcObject = null;
+    screenVideo.hidden = true;
+    screenPlaceholder.hidden = false;
+    screenPlaceholder.textContent = 'The live screen will appear here.';
+    screenPanel.hidden = true;
+    screenTitle.textContent = 'Screen sharing';
+    screenStatus.textContent = '';
+    screenShareBtn.textContent = '🖥️';
+    screenShareBtn.title = 'Share your screen';
+    screenShareBtn.setAttribute('aria-label', 'Share your screen');
+    screenShareBtn.classList.remove('sharing');
+    screenShareBtn.disabled = false;
+    screenStopBtn.hidden = true;
+  }
+
+  async function startScreenPeer(remoteId) {
+    let entry = screenPeers.get(remoteId);
+    if (entry && entry.pc.signalingState !== 'closed') return entry;
+    const pc = new RTCPeerConnection(rtcConfig);
+    entry = { pc, pendingCandidates: [], offerStarted: false };
+    screenPeers.set(remoteId, entry);
+    pc.onicecandidate = event => {
+      if (event.candidate && socket.connected) {
+        socket.emit('screen:signal', { to: remoteId, candidate: event.candidate.toJSON() });
+      }
+    };
+    pc.ontrack = event => {
+      if (socket.id === activeSharerId) return;
+      const stream = event.streams && event.streams[0];
+      if (!stream) return;
+      screenVideo.srcObject = stream;
+      screenVideo.muted = false;
+      screenVideo.hidden = false;
+      screenPlaceholder.hidden = true;
+      screenVideo.play().catch(() => {});
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connected') {
+        screenStatus.textContent = socket.id === activeSharerId
+          ? 'Your screen is being shared with ' + screenPeers.size + ' viewer(s).'
+          : 'Connected — watching the live screen.';
+      } else if (pc.connectionState === 'failed') {
+        screenStatus.textContent = 'Could not connect. This network may require a TURN server.';
+      } else if (pc.connectionState === 'connecting') {
+        screenStatus.textContent = 'Connecting to the live screen…';
+      }
+    };
+    return entry;
+  }
+
+  async function flushScreenCandidates(entry) {
+    if (!entry.pc.remoteDescription) return;
+    const queued = entry.pendingCandidates.splice(0);
+    for (const candidate of queued) {
+      try { await entry.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+    }
+  }
+
+  async function handleScreenStarted(data) {
+    if (!data || !data.sharerId || activeSharerId === data.sharerId) return;
+    if (localScreenStream && data.sharerId !== socket.id) return;
+    if (activeSharerId) resetScreenShare();
+    activeSharerId = data.sharerId;
+    const displayName = data.name || 'A room member';
+    showScreenPanel(displayName + ' is sharing their screen', 'Waiting for the video connection…');
+
+    if (socket.id === data.sharerId && localScreenStream) {
+      screenVideo.srcObject = localScreenStream;
+      screenVideo.muted = true;
+      screenVideo.hidden = false;
+      screenPlaceholder.hidden = true;
+      screenVideo.play().catch(() => {});
+      screenShareBtn.textContent = '⏹';
+      screenShareBtn.title = 'Stop sharing';
+      screenShareBtn.setAttribute('aria-label', 'Stop sharing');
+      screenShareBtn.classList.add('sharing');
+      screenShareBtn.disabled = false;
+      screenStopBtn.hidden = false;
+      screenStatus.textContent = 'You are sharing your screen in this room.';
+    } else {
+      screenShareBtn.disabled = true;
+      screenShareBtn.textContent = '👀';
+      screenShareBtn.title = 'Someone is already sharing in this room';
+      screenShareBtn.setAttribute('aria-label', 'Someone is sharing their screen');
+      screenStopBtn.hidden = true;
+      screenPlaceholder.textContent = 'Connecting to ' + displayName + '…';
+      screenVideo.hidden = true;
+      screenPlaceholder.hidden = false;
+      if (requestedSharerId !== data.sharerId) {
+        requestedSharerId = data.sharerId;
+        socket.emit('screen:watch');
+      }
+    }
+  }
+
+  async function stopScreenShare() {
+    if (localScreenStream && socket.connected) socket.emit('screen:stop');
+    resetScreenShare();
+  }
+
+  screenShareBtn.onclick = async () => {
+    if (localScreenStream) return stopScreenShare();
+    if (activeSharerId && activeSharerId !== socket.id) {
+      add({ bot: true, text: 'Someone is already sharing their screen in this room.' });
+      return;
+    }
+    if (screenStartPending) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      add({ bot: true, text: 'Screen sharing is not supported by this browser or connection. Open the chat over HTTPS in a supported browser.' });
+      return;
+    }
+    try {
+      screenStartPending = true;
+      screenShareBtn.disabled = true;
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 15, max: 30 } },
+        audio: false
+      });
+      localScreenStream = stream;
+      activeSharerId = socket.id;
+      const track = stream.getVideoTracks()[0];
+      if (track) track.addEventListener('ended', () => {
+        if (localScreenStream) {
+          if (socket.connected) socket.emit('screen:stop');
+          resetScreenShare();
+        }
+      }, { once: true });
+      screenVideo.srcObject = stream;
+      screenVideo.muted = true;
+      screenVideo.hidden = false;
+      screenPlaceholder.hidden = true;
+      showScreenPanel('Your screen is being shared', 'Starting screen sharing in this room…');
+      screenVideo.play().catch(() => {});
+      screenShareBtn.textContent = '⏹';
+      screenShareBtn.title = 'Stop sharing';
+      screenShareBtn.setAttribute('aria-label', 'Stop sharing');
+      screenShareBtn.classList.add('sharing');
+      screenShareBtn.disabled = false;
+      screenStopBtn.hidden = false;
+      socket.emit('screen:start', { name });
+    } catch (error) {
+      screenStartPending = false;
+      screenShareBtn.disabled = false;
+      const message = error && error.name === 'NotAllowedError'
+        ? 'Screen sharing was cancelled or permission was denied.'
+        : 'Could not start screen sharing. Check browser permissions and try again.';
+      add({ bot: true, text: message });
+    }
+  };
+  screenStopBtn.onclick = () => stopScreenShare();
+
+  socket.on('screen:state', handleScreenStarted);
+  socket.on('screen:started', handleScreenStarted);
+  socket.on('screen:stopped', data => {
+    if (data && activeSharerId && data.sharerId !== activeSharerId) return;
+    resetScreenShare();
+  });
+  socket.on('screen:error', data => {
+    resetScreenShare();
+    add({ bot: true, text: 'Screen sharing: ' + ((data && data.message) || 'the request failed.') });
+  });
+  socket.on('screen:viewer', async data => {
+    if (!data || !data.viewerId || !localScreenStream || activeSharerId !== socket.id) return;
+    try {
+      const entry = await startScreenPeer(data.viewerId);
+      if (entry.offerStarted) return;
+      entry.offerStarted = true;
+      for (const track of localScreenStream.getTracks()) entry.pc.addTrack(track, localScreenStream);
+      const offer = await entry.pc.createOffer();
+      await entry.pc.setLocalDescription(offer);
+      socket.emit('screen:signal', { to: data.viewerId, description: entry.pc.localDescription });
+    } catch (_) {
+      screenStatus.textContent = 'Could not start the stream to one viewer.';
+    }
+  });
+  socket.on('screen:signal', async data => {
+    if (!data || !data.from || data.from === socket.id) return;
+    try {
+      if (data.description && data.description.type === 'offer') {
+        if (data.from !== activeSharerId || localScreenStream) return;
+        const entry = await startScreenPeer(data.from);
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
+        await flushScreenCandidates(entry);
+        const answer = await entry.pc.createAnswer();
+        await entry.pc.setLocalDescription(answer);
+        socket.emit('screen:signal', { to: data.from, description: entry.pc.localDescription });
+      } else if (data.description && data.description.type === 'answer') {
+        if (activeSharerId !== socket.id) return;
+        const entry = screenPeers.get(data.from);
+        if (!entry) return;
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
+        await flushScreenCandidates(entry);
+      }
+      if (data.candidate) {
+        let entry = screenPeers.get(data.from);
+        if (!entry && (data.from === activeSharerId || localScreenStream)) entry = await startScreenPeer(data.from);
+        if (!entry) return;
+        if (entry.pc.remoteDescription) {
+          try { await entry.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+        } else {
+          entry.pendingCandidates.push(data.candidate);
+        }
+      }
+    } catch (_) {
+      screenStatus.textContent = 'The screen connection failed. A TURN server may be required on this network.';
+    }
   });
 
   function send(img) {
