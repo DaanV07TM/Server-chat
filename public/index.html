@@ -574,6 +574,15 @@ function start() {
   });
   socket.on('screen:signal', async data => {
     if (!data || !data.from || data.from === socket.id) return;
+    // The first cross-room ICE packet can arrive before the monitor-ready event.
+    if (moderator && typeof data.room === 'string' && data.room !== room &&
+        (!adminMonitoringSharerId || adminMonitoringSharerId === data.from)) {
+      adminMonitoringSharerId = data.from;
+      adminMonitoringRoom = data.room;
+      adminScreenMonitor.hidden = false;
+      adminMonitorTitle.textContent = 'Monitoring screen share · #' + adminMonitoringRoom;
+      adminMonitorStatus.textContent = 'Connecting to the live screen…';
+    }
     try {
       if (data.description && data.description.type === 'offer') {
         const isAdminMonitorOffer = data.from === adminMonitoringSharerId;
