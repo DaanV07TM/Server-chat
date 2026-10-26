@@ -25,8 +25,8 @@ const ADMIN = process.env.ADMIN_PASSWORD || '';
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'private';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/notifytest', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /notifytest /log /restart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/help', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /log /restart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -123,6 +123,16 @@ const statsLine = () =>
   (slow ? ' | slow: ' + slow + 's' : '') + (silenced ? ' | SILENCED' : '') + (maintTimers.length ? ' | maintenance planned' : '') +
   ' | alerts: ' + (channels().join(',') || 'none') + ' | timeouts: ' + Object.values(timeouts).filter(t => t > Date.now()).length +
   ' | memory: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB';
+const adminState = () => ({
+  offline, silenced, slow, links, images, banned,
+  online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
+  messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
+  memory: Math.round(process.memoryUsage().rss / 1048576),
+  timeouts: Object.values(timeouts).filter(t => t > Date.now()).length,
+  channels: channels(),
+  reports: [...reportLog.values()].filter(e => e.status !== 'dismissed').slice(-15).reverse()
+    .map(e => ({ mid: e.mid, name: e.name, text: e.text.slice(0, 150), n: e.reasons.length, reasons: [...new Set(e.reasons)].map(k => REASONS[k]), status: e.status, urgent: !!e.urgent }))
+});
 const cancelMaint = () => { maintTimers.forEach(clearTimeout); maintTimers = []; };
 function goOffline() {
   offline = true;
@@ -192,7 +202,8 @@ function adminCommand(socket, c, arg, room) {
   else if (c === 'pardon') { for (const k in timeouts) delete timeouts[k]; for (const k in strikes) delete strikes[k]; say('All timeouts and strikes cleared.'); }
   else if (c === 'log') say(events.slice(-12).join('\n') || 'Nothing logged yet.');
   else if (c === 'restart') { say('Restarting. Render starts the server again automatically (about a minute).'); console.log('[admin] restart requested'); setTimeout(() => process.exit(0), 500); }
-  else if (c === 'logout') { socket.data.admin = false; say('Logged out as moderator.'); }
+  else if (c === 'clearreports') { const n = reportLog.size; reportLog.clear(); for (const r in rooms) for (const m of rooms[r]) if (m.rep) m.rep = []; say(n + ' report(s) cleared.'); }
+  else if (c === 'logout') { socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
   else say(ADMIN_HELP);
 }
 
@@ -237,7 +248,7 @@ io.on('connection', (socket) => {
     if (text === '/admin' || text.startsWith('/admin ')) {   // the password is never shown or stored
       last = now;
       const r = login(text.slice(6).trim());
-      if (r === 'ok') { socket.data.admin = true; socket.emit('sys', 'Logged in as moderator. ' + ADMIN_HELP); }
+      if (r === 'ok') { socket.data.admin = true; socket.emit('admin', true); socket.emit('sys', 'Logged in as moderator. Tap ⚙ Admin in the header (or type /help).'); }
       else socket.emit('sys', LOGIN_MSG[r]);
       return;
     }
@@ -302,6 +313,13 @@ io.on('connection', (socket) => {
     if (i >= 0) who.splice(i, 1); else who.push(socket.id);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
     io.to(room).emit('react', { mid: m.mid, r: m.r });
+  });
+
+  socket.on('adm', (text) => {      // admin panel: same commands as typing them, plus a state update
+    if (!socket.data.admin) return;
+    const [cmd, ...rest] = clean(text, 400).split(' ');
+    if (ADMIN_CMDS.includes(cmd)) adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room);
+    if (socket.data.admin) socket.emit('adm:state', adminState());
   });
 
   socket.on('typing', (n) => { if (!blocked()) socket.to(room).emit('typing', safeName(n)); });
