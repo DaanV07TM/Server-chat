@@ -14,6 +14,7 @@ const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const ANNOUNCEMENT_TTL = 60 * 1000;
 const rooms = {}, games = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
 let latestAnnouncement = null, latestAnnouncementTimer = null;
+const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -316,6 +317,19 @@ setInterval(() => {
 setInterval(() => { for (const k in strikes) delete strikes[k]; }, 60 * 60 * 1000);
 setInterval(() => console.log('[stats] ' + statsLine()), 10 * 60 * 1000);
 
+
+function endScreenShare(socketId) {
+  for (const [screenRoom, share] of Object.entries(screenSharers)) {
+    if (share.socketId !== socketId) {
+      if (share.viewers) share.viewers.delete(socketId);
+      continue;
+    }
+    delete screenSharers[screenRoom];
+    io.to(screenRoom).emit('screen:stopped', { sharerId: socketId });
+    console.log('[screen] sharing stopped in room ' + screenRoom);
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
@@ -323,7 +337,12 @@ io.on('connection', (socket) => {
   const key = () => socket.data.tok || socket.id;
 
   socket.on('join', (d) => {
-    room = roomName(d && d.room);
+    const nextRoom = roomName(d && d.room);
+    if (socket.rooms.has(room) && room !== nextRoom) {
+      endScreenShare(socket.id);
+      socket.leave(room);
+    }
+    room = nextRoom;
     socket.data.tok = clean(d && d.tok, 32);
     socket.join(room);
     socket.emit('config', { images: imagesAllowed(room) });
@@ -336,7 +355,90 @@ io.on('connection', (socket) => {
       history.push(latestAnnouncement);
     }
     socket.emit('history', history);
+    const activeShare = screenSharers[room];
+    socket.emit('screen:state', activeShare
+      ? { sharerId: activeShare.socketId, name: activeShare.name }
+      : { sharerId: null });
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 1);
+  });
+
+  // Screen sharing signalling. Video stays peer-to-peer; the server only routes setup messages.
+  socket.on('screen:state', () => {
+    const share = screenSharers[room];
+    socket.emit('screen:state', share
+      ? { sharerId: share.socketId, name: share.name }
+      : { sharerId: null });
+  });
+
+  socket.on('screen:start', (d) => {
+    if (blocked()) return socket.emit('screen:error', { message: 'The chat is offline.' });
+    const active = screenSharers[room];
+    if (active && active.socketId !== socket.id && io.sockets.sockets.has(active.socketId)) {
+      return socket.emit('screen:error', { message: 'Someone is already sharing their screen in this room.' });
+    }
+    if (active && active.socketId !== socket.id) delete screenSharers[room];
+    const requestedName = clean(d && d.name, 20);
+    const shareName = socket.data.admin ? 'Server Admin' : (safeName(requestedName) || 'A user');
+    screenSharers[room] = { socketId: socket.id, name: shareName, viewers: new Set() };
+    socket.emit('screen:start:accepted', { sharerId: socket.id, room });
+    io.to(room).emit('screen:started', { sharerId: socket.id, name: shareName });
+    console.log('[screen] sharing started in room ' + room);
+  });
+
+  socket.on('screen:stop', () => {
+    endScreenShare(socket.id);
+  });
+
+  socket.on('screen:watch', () => {
+    const share = screenSharers[room];
+    if (!share || share.socketId === socket.id || !socket.rooms.has(room)) {
+      return socket.emit('screen:state', share
+        ? { sharerId: share.socketId, name: share.name }
+        : { sharerId: null });
+    }
+    const sharer = io.sockets.sockets.get(share.socketId);
+    if (!sharer || !sharer.rooms.has(room)) {
+      delete screenSharers[room];
+      io.to(room).emit('screen:stopped', { sharerId: share.socketId });
+      return;
+    }
+    share.viewers.add(socket.id);
+    sharer.emit('screen:viewer', { viewerId: socket.id });
+  });
+
+  socket.on('screen:signal', (d) => {
+    if (!d || typeof d.to !== 'string' || d.to === socket.id || !socket.rooms.has(room)) return;
+    const share = screenSharers[room];
+    const target = io.sockets.sockets.get(d.to);
+    if (!share || !target || !target.rooms.has(room)) return;
+
+    const senderIsSharer = share.socketId === socket.id;
+    if (senderIsSharer) {
+      if (!share.viewers || !share.viewers.has(d.to)) return;
+    } else {
+      if (d.to !== share.socketId || !share.viewers || !share.viewers.has(socket.id)) return;
+    }
+
+    const payload = { from: socket.id };
+    if (d.description !== undefined) {
+      const desc = d.description;
+      if (!desc || !['offer', 'answer'].includes(desc.type) || typeof desc.sdp !== 'string' || desc.sdp.length > 100000) return;
+      if (senderIsSharer && desc.type !== 'offer') return;
+      if (!senderIsSharer && desc.type !== 'answer') return;
+      payload.description = { type: desc.type, sdp: desc.sdp };
+    }
+    if (d.candidate !== undefined && d.candidate !== null) {
+      const c = d.candidate;
+      if (!c || typeof c.candidate !== 'string' || c.candidate.length > 4096) return;
+      payload.candidate = {
+        candidate: c.candidate,
+        sdpMid: typeof c.sdpMid === 'string' ? c.sdpMid.slice(0, 256) : null,
+        sdpMLineIndex: Number.isInteger(c.sdpMLineIndex) ? c.sdpMLineIndex : null,
+        usernameFragment: typeof c.usernameFragment === 'string' ? c.usernameFragment.slice(0, 256) : undefined
+      };
+    }
+    if (!payload.description && !payload.candidate) return;
+    target.emit('screen:signal', payload);
   });
 
   socket.on('msg', (d) => {
@@ -457,6 +559,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    endScreenShare(socket.id);
     console.log('[online] ' + io.engine.clientsCount);
     io.to(room).emit('online', io.sockets.adapter.rooms.get(room)?.size || 0);
     const g = games[room];
