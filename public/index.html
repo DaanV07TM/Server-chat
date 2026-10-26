@@ -62,6 +62,20 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
 .sec{margin:16px 0 2px;font-weight:700;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
 .rep{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px;overflow-wrap:anywhere}
 .stat{display:inline-block;margin-right:14px}
+.load-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:10px 0 12px}
+.load-card{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px}
+.load-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}
+.load-head strong{font-size:16px;font-variant-numeric:tabular-nums}
+.load-track{height:9px;margin:8px 0 6px;border-radius:99px;background:var(--line);overflow:hidden}
+.load-fill{height:100%;border-radius:99px;background:#16a34a;transition:width .35s ease}
+.load-fill.warn{background:#eab308}
+.load-fill.critical{background:#ef4444}
+.load-detail{font-size:12px;line-height:1.4;color:var(--mute);overflow-wrap:anywhere}
+.load-status{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px}
+.load-status.normal{border-color:#16a34a}
+.load-status.high{border-color:#eab308;background:rgba(234,179,8,.08)}
+.load-status.critical{border-color:#ef4444;background:rgba(239,68,68,.1)}
+.load-status.unknown{border-color:var(--line)}
 </style>
 </head>
 <body>
@@ -170,7 +184,7 @@ function start() {
     if (isFlashBanner) {
       const badge = document.createElement('div');
       badge.className = 'admin-tag';
-      badge.textContent = isAnnouncement ? '📢 OFFICIËLE MEDEDELING' : '⚡ ADMINBERICHT';
+      badge.textContent = isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT' : '⚡ MESSAGE FROM SERVER ADMIN';
       d.append(badge);
     }
     if (!m.bot) {
@@ -297,9 +311,35 @@ function start() {
   const B = (label, cmd, cls, ask, inp) => '<button class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
   const SEL = (cmd, opts, cur) => '<select data-cmd="' + cmd + '" aria-label="' + cmd.trim().slice(1) + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
   let admOpen = false, admTimer;
+  function meterHtml(label, percent, detail) {
+    const value = Number.isFinite(Number(percent)) ? Math.max(0, Number(percent)) : 0;
+    const width = Math.min(100, value);
+    const tone = value >= 95 ? 'critical' : value >= 80 ? 'warn' : '';
+    return '<div class="load-card"><div class="load-head"><b>' + h(label) + '</b><strong>' + Math.round(value) + '%</strong></div>' +
+      '<div class="load-track"><div class="load-fill ' + tone + '" style="width:' + width + '%"></div></div>' +
+      '<div class="load-detail">' + h(detail) + '</div></div>';
+  }
   function renderAdmin(st) {
+    const load = st.load || {};
+    const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
+    const memoryPct = hasContainerRam ? Number(load.rssPct) : Number(load.heapPct) || 0;
+    const memoryTitle = hasContainerRam ? 'Process RAM' : 'JavaScript heap';
+    const memoryDetail = hasContainerRam
+      ? (load.rssMB + ' MB RSS / ' + load.memoryLimitMB + ' MB container limit')
+      : ((load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB heap limit · RSS ' + (load.rssMB || 0) + ' MB');
+    const level = String(load.level || 'UNKNOWN').toLowerCase();
+    const levelText = level === 'normal' ? 'LOAD NORMAL' : level === 'high' ? 'HIGH LOAD — CHECK SERVER' : level === 'critical' ? 'CRITICAL LOAD — CRASH RISK' : 'COLLECTING LOAD DATA';
     $('admbody').innerHTML =
-      '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="sec">Server load</div>' +
+      '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '"><b>' + levelText + '</b><span>Refreshes every 5 seconds while this panel is open.</span></div>' +
+      '<div class="load-grid">' +
+        meterHtml('CPU (one core = 100%)', load.cpuPct || 0, 'Node.js process CPU usage') +
+        (hasContainerRam
+          ? meterHtml(memoryTitle, memoryPct, memoryDetail)
+          : '<div class="load-card"><div class="load-head"><b>Process RAM (RSS)</b><strong>' + (load.rssMB || 0) + ' MB</strong></div><div class="load-detail">Container RAM limit is unavailable, so no RAM percentage is shown.</div></div>') +
+        meterHtml('JavaScript heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit') +
+      '</div>' +
       '<div class="sec">Chat</div>' +
       B(st.offline ? 'Bring chat online' : 'Take chat offline', st.offline ? '/online' : '/offline', st.offline ? '' : 'red', st.offline ? '' : 'Disconnect everyone?') +
       B(st.silenced ? 'Silence is ON (tap to end)' : 'Silence everyone', '/silence') +
