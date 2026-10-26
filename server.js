@@ -81,6 +81,7 @@ const musicHostCooldowns = new Map();
 const musicQueue = [];
 let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes = 0;
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
+let musicPausedByAdmin = false;
 
 // in-memory event log (readable in chat with /log)
 const events = [];
@@ -535,6 +536,7 @@ const publicMusicTrack = track => track && ({
   addedBy: track.addedBy,
   addedAt: track.addedAt,
   source: track.source || 'upload',
+  prepared: track.source !== 'addon' || !!track.relayCachePath,
   format: track.format || (track.extension ? track.extension.slice(1).toUpperCase() : 'AUDIO'),
   sizeBytes: track.audio ? track.audio.length : 0
 });
@@ -585,8 +587,15 @@ function advanceMusicTrack(now = Date.now(), reason = 'ended') {
   if (musicQueue.length) {
     musicCurrent = musicQueue.shift();
     releaseMusicTrack(previous);
-    musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
-    console.log('[music] ' + reason + '; advancing shared queue');
+    const nextIsReady = musicCurrent.source !== 'addon' || !!musicCurrent.relayCachePath;
+    const shouldStartNow = nextIsReady && !musicPausedByAdmin;
+    musicPlayback = {
+      isPlaying: shouldStartNow,
+      position: 0,
+      startedAt: shouldStartNow ? now : null,
+      changedBy: null
+    };
+    console.log('[music] ' + reason + '; advancing shared queue' + (shouldStartNow ? '' : ' and preparing the next track'));
   } else {
     const duration = Number(previous.duration);
     const finalPosition = Number.isFinite(duration) && duration > 0 ? duration : getMusicPosition(now);
@@ -913,6 +922,11 @@ async function ensureAddonTrackCached(track) {
       track.relayCacheRetryAt = 0;
       track.relayCacheStatus = 200;
       console.log('[music] one server-side audio fetch cached (' + bytes + ' bytes); listeners will use the local cache');
+      if (musicCurrent === track && !musicPlayback.isPlaying && !musicPausedByAdmin) {
+        const readyAt = Date.now();
+        musicPlayback = { isPlaying: true, position: 0, startedAt: readyAt, changedBy: null };
+      }
+      if (musicCurrent === track) broadcastMusicState();
       return tempPath;
     } catch (error) {
       if (tempPath) await fs.promises.unlink(tempPath).catch(() => {});
@@ -1477,7 +1491,7 @@ io.on('connection', (socket) => {
     socket.data.musicLastAdd = now;
     if (!musicCurrent) {
       musicCurrent = track;
-      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
+      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
     } else {
       musicQueue.push(track);
     }
@@ -1576,7 +1590,11 @@ io.on('connection', (socket) => {
     const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : null;
 
     if (action === 'play') {
+      if (musicCurrent.source === 'addon' && !musicCurrent.relayCachePath) {
+        return socket.emit('music:error', { message: 'The server is still preparing the shared audio. Try again when it is ready.' });
+      }
       if (musicPlayback.isPlaying) return socket.emit('music:state', getMusicState());
+      musicPausedByAdmin = false;
       musicPlayback = {
         isPlaying: true,
         position: position === null ? getMusicPosition(now) : position,
@@ -1585,6 +1603,7 @@ io.on('connection', (socket) => {
       };
     } else if (action === 'pause') {
       if (!musicPlayback.isPlaying) return socket.emit('music:state', getMusicState());
+      musicPausedByAdmin = true;
       musicPlayback = {
         isPlaying: false,
         position: getMusicPosition(now),
@@ -1639,13 +1658,7 @@ io.on('connection', (socket) => {
     if (!musicQueue.length) {
       return socket.emit('music:error', { message: 'There are no more tracks in the queue yet.' });
     }
-    musicLastSkipAt = now;
-    const previousTrack = musicCurrent;
-    musicCurrent = musicQueue.shift();
-    releaseMusicTrack(previousTrack);
-    musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: socket.id };
-    broadcastMusicState();
-    console.log('[music] admin advanced the shared track; playback continues');
+    advanceMusicTrack(now, 'admin skip');
   });
 
   socket.on('msg', (d) => {
