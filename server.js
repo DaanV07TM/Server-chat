@@ -495,7 +495,10 @@ io.on('connection', (socket) => {
     }
     const target = io.sockets.sockets.get(d.to);
     if (!target) return;
-    if (!target.rooms.has(shareRoom)) return;
+    // Admin monitors can be outside the room, but only while explicitly registered as a viewer.
+    if (senderIsSharer) {
+      if (screenViewerRooms.get(d.to) !== shareRoom) return;
+    } else if (!target.rooms.has(shareRoom)) return;
 
     const payload = { from: socket.id };
     if (d.description !== undefined) {
