@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Anoniem chatten</title>
+<meta name="description" content="Anonymous chat. No accounts, no tracking, messages disappear after 1 hour.">
+<title>Anonymous Chat</title>
 <style>
 :root{--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
 @media (prefers-color-scheme:dark){:root{--bg:#10151d;--panel:#171d28;--ink:#e8edf5;--mute:#8d99ab;--accent:#7b93ff;--mine:#4b63e0;--other:#1e2633;--line:#27303f;--l:72%}}
@@ -38,156 +39,188 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 #send{border:0;border-radius:20px;background:var(--accent);color:#fff;padding:0 18px;font:inherit;font-weight:600}
 @media (prefers-color-scheme:dark){#send{color:#10151d}}
 button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:1px}
+#rules{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+#rules .box{background:var(--panel);border-radius:16px;padding:20px;max-width:420px;max-height:90%;overflow:auto}
+#rules h2{margin:0 0 10px;font-size:20px}
+#rules li{margin-bottom:6px}
+#rules button{width:100%;margin-top:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;padding:12px;font:inherit;font-weight:600}
+@media (prefers-color-scheme:dark){#rules button{color:#10151d}}
 </style>
 </head>
 <body>
 <header>
   <h1 id="title">Chat</h1>
   <small id="online"></small>
-  <button id="share" type="button">Link kopiëren</button>
-  <button id="private" type="button">Nieuwe privékamer</button>
-  <button id="rename" type="button">Naam</button>
+  <button id="share" type="button">Copy link</button>
+  <button id="private" type="button">New private room</button>
+  <button id="rename" type="button">Name</button>
 </header>
 <div id="log"></div>
 <div id="typing" aria-live="polite"></div>
 <div id="game">
-  <strong>Boter-kaas-en-eieren</strong>
+  <strong>Tic-tac-toe</strong>
   <div id="gstatus"></div>
   <div id="grid"></div>
-  <button id="greset" type="button">Opnieuw</button>
+  <button id="greset" type="button">Restart</button>
 </div>
 <div id="bar">
   <input id="file" type="file" accept="image/*" hidden>
-  <button class="icon" id="photo" type="button" aria-label="Foto of GIF sturen">📎</button>
-  <button class="icon" id="gamebtn" type="button" aria-label="Spel openen">🎮</button>
-  <input id="text" maxlength="500" placeholder="Typ een bericht (of /dobbel)" autocomplete="off" aria-label="Bericht">
-  <button id="send" type="button">Stuur</button>
+  <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
+  <button class="icon" id="gamebtn" type="button" aria-label="Open game">🎮</button>
+  <input id="text" maxlength="500" placeholder="Type a message (try /roll)" autocomplete="off" aria-label="Message">
+  <button id="send" type="button">Send</button>
+</div>
+<div id="rules" role="dialog" aria-modal="true" aria-labelledby="rt">
+  <div class="box">
+    <h2 id="rt">Before you chat</h2>
+    <ul>
+      <li>Be kind. No harassment, hate, threats or scams.</li>
+      <li>No illegal content, and nothing sexual involving minors. Ever.</li>
+      <li>No accounts. Messages exist only in server memory and disappear after 1 hour. IP addresses are not stored.</li>
+      <li>Use ⚑ to report a message. Enough reports remove it, and moderators can time out repeat offenders.</li>
+      <li>Photos and GIFs are only available in private rooms.</li>
+    </ul>
+    <button id="agree" type="button">I'm 16 or older and I agree</button>
+  </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const EMPTY = '<p class="empty" id="empty">Nog niets hier. Schrijf het eerste bericht. Berichten verdwijnen na 1 uur.</p>';
-const params = new URLSearchParams(location.search);
-const room = (params.get('room') || 'algemeen').toLowerCase().replace(/[^a-z0-9-_]/g,'').slice(0,30) || 'algemeen';
-let name = null;
-try { name = sessionStorage.getItem('name'); } catch(e){}
-if (!name) {
-  name = 'Anoniem-' + Math.random().toString(36).slice(2,6);
-  try { sessionStorage.setItem('name', name); } catch(e){}
-}
-$('title').textContent = '#' + room;
-const log = $('log'), text = $('text'), socket = io();
-log.innerHTML = EMPTY;
-socket.on('connect', () => socket.emit('join', room));
+function start() {
+  const EMPTY = '<p class="empty" id="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
+  const params = new URLSearchParams(location.search);
+  const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
+  const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
+  let name = null, tok = null;
+  try { name = sessionStorage.getItem('name'); } catch (e) {}
+  if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
+  try { tok = localStorage.getItem('tok'); if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); } } catch (e) { tok = rnd(16); }
+  $('title').textContent = '#' + room;
+  const log = $('log'), text = $('text'), socket = io();
+  log.innerHTML = EMPTY;
+  const join = () => socket.emit('join', { room, tok });
+  socket.on('connect', join);
 
-const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-const down = () => { log.scrollTop = log.scrollHeight; };
+  const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const down = () => { log.scrollTop = log.scrollHeight; };
+  const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
-function add(m){
-  const e = $('empty'); if (e) e.remove();
-  const d = document.createElement('div');
-  d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '');
-  if (!m.bot) {
-    const b = document.createElement('b'); b.textContent = m.name;
-    if (m.id !== socket.id) b.style.color = 'hsl(' + hue(m.name) + ' 60% var(--l))';
-    d.append(b);
+  function add(m) {
+    const e = $('empty'); if (e) e.remove();
+    const d = document.createElement('div');
+    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '');
+    if (!m.bot) {
+      const b = document.createElement('b'); b.textContent = m.name;
+      if (m.id !== socket.id) b.style.color = 'hsl(' + hue(m.name) + ' 60% var(--l))';
+      d.append(b);
+    }
+    if (m.text) { const p = document.createElement('span'); p.textContent = m.text; d.append(p); }
+    if (m.img) { const i = document.createElement('img'); i.alt = 'Image'; i.onload = down; i.src = m.img; d.append(i); }
+    if (m.mid && !m.bot) {
+      const rx = document.createElement('div'); rx.className = 'rx'; d.dataset.mid = m.mid; d.dataset.own = m.id === socket.id ? '1' : '';
+      d.append(rx); drawRx(rx, m.mid, m.r || {});
+    }
+    log.append(d); down();
   }
-  if (m.text) { const p = document.createElement('span'); p.textContent = m.text; d.append(p); }
-  if (m.img) { const i = document.createElement('img'); i.alt = 'Afbeelding'; i.onload = down; i.src = m.img; d.append(i); }
-  if (m.mid && !m.bot) { const rx = document.createElement('div'); rx.className = 'rx'; d.dataset.mid = m.mid; d.append(rx); drawRx(rx, m.mid, m.r || {}); }
-  log.append(d); down();
-}
-const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
-function drawRx(box, mid, r, open) {
-  box.innerHTML = '';
-  const mk = (label, aria, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; box.append(b); };
-  for (const e in r) mk(e + ' ' + r[e], 'Reactie ' + e, () => socket.emit('react', { mid, e }));
-  if (open) EMO.forEach(e => mk(e, 'Reageer met ' + e, () => socket.emit('react', { mid, e })));
-  else mk('☺', 'Reactie toevoegen', () => drawRx(box, mid, r, true), 'add');
-}
-socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
-socket.on('history', l => { log.innerHTML = l.length ? '' : EMPTY; l.forEach(add); });
-socket.on('msg', m => { add(m); $('typing').textContent = ''; });
-socket.on('online', n => $('online').textContent = n + ' online');
-socket.on('sys', t => add({ bot: true, text: t }));
-socket.on('closed', c => {
-  if (c) { log.innerHTML = '<p class="empty" id="empty">De chat is tijdelijk offline.</p>'; $('online').textContent = 'offline'; }
-  else socket.emit('join', room);
-});
-socket.on('connect_error', () => $('online').textContent = 'offline');
-socket.on('disconnect', () => $('online').textContent = 'verbinding weg');
-
-function send(img){
-  const t = text.value.trim();
-  if (!t && !img) return;
-  socket.emit('msg', { name, text: t, img });
-  text.value = '';
-}
-$('send').onclick = () => send();
-text.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-
-// typt...
-let lt = 0, tt;
-text.addEventListener('input', () => { const n = Date.now(); if (n - lt > 2000) { lt = n; socket.emit('typing', name); } });
-socket.on('typing', n => { $('typing').textContent = n + ' typt…'; clearTimeout(tt); tt = setTimeout(() => $('typing').textContent = '', 2500); });
-
-// foto's en GIFs (foto's worden verkleind; daarbij verdwijnt ook locatie-info)
-$('photo').onclick = () => $('file').click();
-$('file').onchange = e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  if (f.type === 'image/gif') {
-    if (f.size > 900000) return alert('Deze GIF is te groot (max 900 KB).');
-    const r = new FileReader(); r.onload = () => send(r.result); r.readAsDataURL(f); return;
+  function drawRx(box, mid, r, open) {
+    box.innerHTML = '';
+    const own = box.parentNode.dataset.own === '1';
+    const mk = (label, aria, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; box.append(b); };
+    for (const e in r) mk(e + ' ' + r[e], 'Reaction ' + e, () => socket.emit('react', { mid, e }));
+    if (open) EMO.forEach(e => mk(e, 'React with ' + e, () => socket.emit('react', { mid, e })));
+    else mk('☺', 'Add reaction', () => drawRx(box, mid, r, true), 'add');
+    if (!own) mk('⚑', 'Report this message', () => { if (confirm('Report this message to the moderators?')) socket.emit('report', { mid }); }, 'add');
   }
-  if (!f.type.startsWith('image/')) return alert('Alleen afbeeldingen en GIFs.');
-  const url = URL.createObjectURL(f), im = new Image();
-  im.onload = () => {
-    const k = Math.min(1, 800 / Math.max(im.width, im.height));
-    const c = document.createElement('canvas');
-    c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
-    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url);
-    send(c.toDataURL('image/jpeg', .75));
-  };
-  im.onerror = () => alert('Deze afbeelding kan niet geladen worden.');
-  im.src = url;
-};
-
-// boter-kaas-en-eieren
-let G = null;
-$('gamebtn').onclick = () => { if ($('game').classList.toggle('open')) socket.emit('game:open'); };
-$('greset').onclick = () => socket.emit('game:reset');
-socket.on('game', g => { G = g; draw(); });
-function draw(){
-  const me = G.p.X === socket.id ? 'X' : G.p.O === socket.id ? 'O' : null;
-  $('grid').innerHTML = '';
-  G.b.forEach((v, i) => {
-    const b = document.createElement('button');
-    b.textContent = v; b.setAttribute('aria-label', 'Vak ' + (i + 1));
-    b.onclick = () => socket.emit('game:move', i);
-    $('grid').append(b);
+  socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
+  socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
+  socket.on('history', l => { log.innerHTML = l.length ? '' : EMPTY; l.forEach(add); });
+  socket.on('msg', m => { add(m); $('typing').textContent = ''; });
+  socket.on('online', n => $('online').textContent = n + ' online');
+  socket.on('config', c => { $('photo').hidden = !c.images; });
+  socket.on('sys', t => add({ bot: true, text: t }));
+  socket.on('closed', c => {
+    if (c) { log.innerHTML = '<p class="empty" id="empty">The chat is temporarily offline.</p>'; $('online').textContent = 'offline'; }
+    else join();
   });
-  $('gstatus').textContent = G.w ? (G.w === 'gelijk' ? 'Gelijkspel' : G.w + ' wint!')
-    : (!G.p.X || !G.p.O) ? 'Wachten op een tweede speler…'
-    : !me ? 'Je kijkt mee'
-    : G.turn === me ? 'Jouw beurt (' + me + ')' : 'Beurt van de tegenstander';
+  socket.on('connect_error', () => $('online').textContent = 'offline');
+  socket.on('disconnect', () => $('online').textContent = 'reconnecting…');
+
+  function send(img) {
+    const t = text.value.trim();
+    if (!t && !img) return;
+    socket.emit('msg', { name, text: t, img });
+    text.value = '';
+  }
+  $('send').onclick = () => send();
+  text.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+
+  let lt = 0, tt;
+  text.addEventListener('input', () => { const n = Date.now(); if (n - lt > 2000) { lt = n; socket.emit('typing', name); } });
+  socket.on('typing', n => { $('typing').textContent = n + ' is typing…'; clearTimeout(tt); tt = setTimeout(() => $('typing').textContent = '', 2500); });
+
+  // photos and GIFs (photos are resized, which also removes location data)
+  $('photo').onclick = () => $('file').click();
+  $('file').onchange = e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (f.type === 'image/gif') {
+      if (f.size > 900000) return alert('This GIF is too large (max 900 KB).');
+      const r = new FileReader(); r.onload = () => send(r.result); r.readAsDataURL(f); return;
+    }
+    if (!f.type.startsWith('image/')) return alert('Images and GIFs only.');
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 800 / Math.max(im.width, im.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      send(c.toDataURL('image/jpeg', .75));
+    };
+    im.onerror = () => alert('This image could not be loaded.');
+    im.src = url;
+  };
+
+  // tic-tac-toe
+  let G = null;
+  $('gamebtn').onclick = () => { if ($('game').classList.toggle('open')) socket.emit('game:open'); };
+  $('greset').onclick = () => socket.emit('game:reset');
+  socket.on('game', g => { G = g; draw(); });
+  function draw() {
+    const me = G.p.X === socket.id ? 'X' : G.p.O === socket.id ? 'O' : null;
+    $('grid').innerHTML = '';
+    G.b.forEach((v, i) => {
+      const b = document.createElement('button');
+      b.textContent = v; b.setAttribute('aria-label', 'Square ' + (i + 1));
+      b.onclick = () => socket.emit('game:move', i);
+      $('grid').append(b);
+    });
+    $('gstatus').textContent = G.w ? (G.w === 'draw' ? "It's a draw" : G.w + ' wins!')
+      : (!G.p.X || !G.p.O) ? 'Waiting for a second player…'
+      : !me ? 'You are watching'
+      : G.turn === me ? 'Your turn (' + me + ')' : "Opponent's turn";
+  }
+
+  $('rename').onclick = () => {
+    const n = prompt('Choose a name (max 20 characters)', name);
+    if (n && n.trim()) { name = n.trim().slice(0, 20); try { sessionStorage.setItem('name', name); } catch (e) {} }
+  };
+  $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
+  $('share').onclick = async ev => {
+    try { await navigator.clipboard.writeText(location.origin + '/?room=' + room); ev.target.textContent = 'Copied'; }
+    catch (e) { ev.target.textContent = 'Copy failed'; }
+    setTimeout(() => ev.target.textContent = 'Copy link', 2000);
+  };
+  if (room !== 'general') $('online').insertAdjacentHTML('afterend', '<a href="/" style="color:var(--accent);font-size:14px">Back to general</a>');
 }
 
-$('rename').onclick = () => {
-  const n = prompt('Kies een naam (max 20 tekens)', name);
-  if (n && n.trim()) { name = n.trim().slice(0, 20); try { sessionStorage.setItem('name', name); } catch(e){} }
-};
-$('private').onclick = () => {
-  const a = new Uint8Array(9); crypto.getRandomValues(a);
-  location.href = '/?room=prive-' + Array.from(a, x => (x % 36).toString(36)).join('');
-};
-$('share').onclick = async (ev) => {
-  try { await navigator.clipboard.writeText(location.origin + '/?room=' + room); ev.target.textContent = 'Gekopieerd'; }
-  catch(e) { ev.target.textContent = 'Kopiëren mislukt'; }
-  setTimeout(() => ev.target.textContent = 'Link kopiëren', 2000);
-};
-if (room !== 'algemeen') $('online').insertAdjacentHTML('afterend', '<a href="/" style="color:var(--accent);font-size:14px">Naar algemeen</a>');
+let agreed = false;
+try { agreed = localStorage.getItem('agreed') === '1'; } catch (e) {}
+if (agreed) start();
+else {
+  $('rules').style.display = 'flex';
+  $('agree').onclick = () => { try { localStorage.setItem('agreed', '1'); } catch (e) {} $('rules').style.display = 'none'; start(); };
+}
 </script>
 </body>
 </html>
