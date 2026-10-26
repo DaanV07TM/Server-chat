@@ -14,7 +14,7 @@ An anonymous, real-time chat with separate channels, optional voice chat, and pe
 - **`#voice`** — chat by text, optionally join live voice, mute/unmute, leave voice, and share your screen.
 - **`#music`** — a shared queue for individual YouTube and YouTube Music video links. Tracks are kept in memory, with a maximum of 50 entries and 5 per user.
 
-To use music, open `#music`, paste an individual YouTube or YouTube Music video link, optionally enter its title, and add it to the shared queue. Click **Load YouTube player** to connect to YouTube, then press Play in YouTube's visible player. Each listener starts playback locally; this is not an official YouTube Music account integration, and playback is not synchronized across devices. Some videos cannot be embedded or may show ads.
+To use music, open `#music`, paste an individual YouTube or YouTube Music video link, optionally enter its title, and add it to the shared queue. Everyone in `#music` sees the same current track and queue, with a server-authoritative playback clock. Use **Play for everyone**, **Pause everyone**, or **Next track** to control the room; use **Join / resync** on a device when its browser blocks remote playback or it drifts. YouTube's visible player and controls remain present. This is an embedded YouTube player, not an official YouTube Music account integration, and browser autoplay policies, advertisements, buffering, and videos that disallow embedding can prevent perfectly simultaneous playback. Some users may need to click Play/Join on their own device.
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
@@ -22,7 +22,7 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 
 - No user account is required. Display names are not identity verification.
 - Ordinary chat messages are held in server memory and expire after about one hour.
-- The shared music queue is also held in server memory and is cleared if the service restarts or redeploys.
+- The shared music queue and synchronized playback clock are held in server memory and are cleared if the service restarts or redeploys.
 - Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
 - The application does not maintain an account database or intentionally save IP addresses in chat history. However, the hosting provider may process connection metadata under its own policies.
 - Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
