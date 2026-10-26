@@ -109,6 +109,77 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
 .connection-card .load-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}
 .connection-card .load-head strong{font-size:18px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
 .connection-card .load-detail{margin-top:7px}
+/* Modern chat UI and compact, optional screen previews */
+body{background:radial-gradient(ellipse at top left,rgba(99,102,241,.07),transparent 38%),var(--bg)}
+header{position:sticky;top:0;z-index:5;padding:13px 18px;background:var(--panel);box-shadow:0 4px 18px rgba(0,0,0,.045);backdrop-filter:blur(14px)}
+header h1{letter-spacing:-.025em;font-weight:750}
+header button{border-radius:11px;min-height:36px;transition:background .16s ease,border-color .16s ease,transform .16s ease}
+button{cursor:pointer;transition:filter .15s ease,transform .15s ease,box-shadow .15s ease}
+button:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px)}
+button:active:not(:disabled){transform:translateY(0)}
+#log{gap:11px;padding:clamp(12px,2.2vw,22px)}
+.m:not(.bot){box-shadow:0 3px 12px rgba(0,0,0,.035);transition:box-shadow .18s ease}
+.m:not(.bot):hover{box-shadow:0 5px 18px rgba(0,0,0,.07)}
+#bar{position:sticky;bottom:0;z-index:5;align-items:center;padding:11px 14px;background:var(--panel);box-shadow:0 -5px 22px rgba(0,0,0,.045)}
+#bar .icon{height:42px;flex-shrink:0;border-radius:13px}
+#text{border-radius:14px;min-height:42px;transition:border-color .15s ease,box-shadow .15s ease}
+#text:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.12);outline:none}
+#send{min-height:42px;border-radius:13px;box-shadow:0 3px 10px rgba(47,75,216,.18)}
+.ov{backdrop-filter:blur(8px)}
+.ov .box{border:1px solid var(--line);box-shadow:0 24px 80px rgba(0,0,0,.22)}
+#adm .box{width:min(900px,100%);max-width:min(900px,100%);padding:clamp(16px,2.4vw,26px)}
+#admT{letter-spacing:-.025em}
+.sec{margin:20px 0 8px;color:var(--mute);font-size:11px;letter-spacing:.12em}
+.load-card,.connection-card{border-radius:14px;box-shadow:0 2px 7px rgba(0,0,0,.025)}
+.load-status{border-radius:12px}
+.screen-share-row{margin-top:9px;padding:13px;border-radius:14px;background:var(--panel);box-shadow:0 2px 9px rgba(0,0,0,.025)}
+.screen-share-row>b{font-size:14px}
+.screen-share-row .screen-share-actions{margin-top:10px}
+.screen-share-row .screen-share-actions button{border-radius:9px;min-height:34px}
+
+/* Room share appears as a compact strip. Video is shown only after Watch screen. */
+#screenPanel{display:flex;flex-direction:column;gap:8px;padding:9px 12px;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.04);max-height:none;overflow:visible}
+#screenPanel[hidden]{display:none}
+#screenHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#screenHeading{display:flex;align-items:center;gap:9px;min-width:0}
+.screen-live-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.12);flex:0 0 8px}
+#screenTitle{font-size:13px;display:block}
+#screenStatusShort{font-size:11px;color:var(--mute);margin-top:2px}
+#screenHeaderActions{display:flex;gap:7px;align-items:center}
+#screenWatchToggle,#screenStop{display:inline-flex;align-items:center;justify-content:center;width:auto;min-height:32px;margin:0;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;font-weight:700}
+#screenStop{background:var(--bad);border-color:transparent;color:#fff}
+#screenWatchToggle:disabled,#screenShareBtn:disabled{opacity:.65}
+#screenStage{position:relative;background:#05070b;border:1px solid var(--line);border-radius:12px;min-height:100px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#screenPanel.screen-collapsed #screenStage,#screenPanel.screen-collapsed #screenStatus{display:none}
+#screenVideo{display:block;width:100%;height:auto;max-height:24vh;object-fit:contain;background:#05070b}
+#screenVideo[hidden]{display:none}
+#screenPlaceholder{padding:18px;color:#aab4c5;text-align:center;font-size:12px}
+#screenPlaceholder[hidden]{display:none}
+#screenStatus{font-size:11px;color:var(--mute)}
+#screenShareBtn{width:auto;min-width:42px;border-radius:13px;padding:0 10px;font-size:16px}
+#screenShareBtn.sharing{background:#b91c1c;color:#fff;border-color:#ef4444}
+
+/* Admin monitor floats independently and stays small; it appears only when Monitor is clicked. */
+.admin-screen-monitor{position:fixed;right:18px;bottom:82px;z-index:30;width:min(360px,calc(100vw - 24px));max-height:34vh;margin:0;padding:0;overflow:hidden;border:1px solid rgba(148,163,184,.35);border-radius:16px;background:var(--panel);box-shadow:0 18px 60px rgba(0,0,0,.28);color:var(--ink);display:flex;flex-direction:column}
+.admin-screen-monitor[hidden]{display:none}
+.admin-screen-monitor.is-minimized .admin-monitor-media,.admin-screen-monitor.is-minimized .admin-monitor-footer{display:none}
+.admin-monitor-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 12px;border-bottom:1px solid var(--line)}
+.admin-monitor-heading{display:flex;align-items:flex-start;gap:9px;min-width:0}
+.admin-monitor-heading>div{min-width:0}
+.admin-live-dot{width:8px;height:8px;flex:0 0 8px;margin-top:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.12)}
+.admin-monitor-heading h3{margin:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.admin-monitor-heading p{margin:3px 0 0;font-size:11px;line-height:1.35;color:var(--mute)}
+.admin-monitor-top-actions{display:flex;gap:5px;flex-shrink:0}
+.admin-screen-monitor .monitor-icon-button{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;line-height:1}
+.admin-monitor-media{padding:8px 9px 0;min-height:0}
+#adminMonitorVideo{display:block;width:100%;max-height:20vh;aspect-ratio:16/9;object-fit:contain;border-radius:9px;background:#07090f}
+#adminMonitorVideo[hidden]{display:none}
+.admin-monitor-placeholder{display:flex;align-items:center;justify-content:center;min-height:80px;padding:12px;border:1px dashed var(--line);border-radius:9px;color:var(--mute);font-size:12px;text-align:center}
+.admin-monitor-placeholder[hidden]{display:none}
+.admin-monitor-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px 11px;color:var(--mute);font-size:10px}
+.admin-screen-monitor .monitor-stop-button{width:auto;margin:0;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:11px;font-weight:650}
+@media(max-width:560px){header{padding:10px 11px;gap:7px}header h1{min-width:100%;font-size:16px}#log{padding:10px}#bar{gap:6px;padding:8px}#adm .box{padding:15px}.admin-screen-monitor{right:12px;bottom:70px;width:min(320px,calc(100vw - 24px));max-height:30vh}#adminMonitorVideo{max-height:16vh}}
+@media(prefers-reduced-motion:reduce){button,.m:not(.bot),#text{transition:none}}
 </style>
 </head>
 <body>
@@ -121,13 +192,19 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <div id="log"></div>
-<section id="screenPanel" hidden aria-label="Screen sharing">
+<section id="screenPanel" class="screen-collapsed" hidden aria-label="Screen sharing">
   <div id="screenHeader">
-    <strong id="screenTitle">Screen sharing</strong>
-    <button id="screenStop" type="button" hidden>Stop sharing</button>
+    <div id="screenHeading">
+      <span class="screen-live-dot" aria-hidden="true"></span>
+      <div><strong id="screenTitle">Screen sharing</strong><div id="screenStatusShort">Live screen available</div></div>
+    </div>
+    <div id="screenHeaderActions">
+      <button id="screenWatchToggle" type="button">Watch screen</button>
+      <button id="screenStop" type="button" hidden>Stop sharing</button>
+    </div>
   </div>
   <div id="screenStage">
-    <div id="screenPlaceholder">The live screen will appear here.</div>
+    <div id="screenPlaceholder">Screen sharing is available. Select Watch screen to preview it.</div>
     <video id="screenVideo" autoplay playsinline controls hidden></video>
   </div>
   <div id="screenStatus" aria-live="polite"></div>
@@ -171,16 +248,31 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
   <div class="box">
     <h2 id="admT">Admin</h2>
     <div id="admbody"></div>
-    <section id="adminScreenMonitor" class="admin-screen-monitor" hidden aria-label="Admin screen monitor">
-      <h3 id="adminMonitorTitle">Screen monitor</h3>
-      <p id="adminMonitorStatus" aria-live="polite">Choose an active screen share below to monitor it.</p>
-      <video id="adminMonitorVideo" autoplay playsinline controls hidden></video>
-      <button id="adminMonitorClose" class="plain" type="button">Stop monitoring</button>
-    </section>
+
     <p id="admmsg" aria-live="polite" style="color:var(--mute);min-height:20px"></p>
     <button id="admX" type="button" class="plain">Close</button>
   </div>
 </div>
+<section id="adminScreenMonitor" class="admin-screen-monitor" hidden aria-label="Admin screen monitor">
+  <div class="admin-monitor-head">
+    <div class="admin-monitor-heading">
+      <span class="admin-live-dot" aria-hidden="true"></span>
+      <div><h3 id="adminMonitorTitle">Screen monitor</h3><p id="adminMonitorStatus" aria-live="polite">Choose an active screen share below to monitor it.</p></div>
+    </div>
+    <div class="admin-monitor-top-actions">
+      <button id="adminMonitorMinimize" class="monitor-icon-button" type="button" aria-label="Minimize monitor" title="Minimize">−</button>
+      <button id="adminMonitorClose" class="monitor-icon-button" type="button" aria-label="Stop monitoring" title="Stop monitoring">×</button>
+    </div>
+  </div>
+  <div class="admin-monitor-media">
+    <video id="adminMonitorVideo" autoplay playsinline controls hidden></video>
+    <div id="adminMonitorPlaceholder" class="admin-monitor-placeholder">Waiting for the screen stream…</div>
+  </div>
+  <div class="admin-monitor-footer">
+    <span>Moderator preview · only visible to admins</span>
+    <button id="adminMonitorStop" class="monitor-stop-button" type="button">Disconnect</button>
+  </div>
+</section>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $ = id => document.getElementById(id);
