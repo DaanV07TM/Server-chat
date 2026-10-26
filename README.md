@@ -29,3 +29,16 @@ This repository includes a GitHub Actions workflow that requests `/healthz` ever
 The scheduled workflow runs every five minutes and requests `https://your-service.onrender.com/healthz`. A successful response is a small JSON object confirming the server is responding.
 
 **Limitations:** This prevents the usual idle sleep only while the scheduled workflow keeps running. GitHub may delay scheduled jobs, Render may restart a free service for other reasons, and a running free service consumes its monthly instance hours. Render currently provides 750 free instance hours per workspace per calendar month, shared across free web services.
+
+## Controlled admin restart
+
+The Admin panel's **Server Nuker** is a playful name for a controlled restart: it broadcasts a 15-second countdown, then calls Render's authenticated restart API. It does not generate load or intentionally crash the server.
+
+To enable it:
+
+1. In Render, open **Account Settings → API Keys** and create an API key with only the permissions required to restart the intended service.
+2. Open the chat service's Settings page and copy its service ID (usually starts with `srv-`).
+3. In **Render → your web service → Environment**, add `RENDER_API_KEY` and `RENDER_SERVICE_ID`. Do not add these credentials to GitHub or the browser code.
+4. Save and redeploy. The Admin panel will then show that the restart sequence is configured.
+
+The countdown can be cancelled by a moderator before the API request is submitted. Once Render accepts the restart request, it cannot be cancelled from the chat panel. See [Render's restart API documentation](https://api-docs.render.com/reference/restart-service).
