@@ -300,7 +300,7 @@ function adminCommand(socket, c, arg, room) {
   else if (c === 'log') say(events.slice(-12).join('\n') || 'Nothing logged yet.');
   else if (c === 'restart') { say('Restarting. Render starts the server again automatically (about a minute).'); console.log('[admin] restart requested'); setTimeout(() => process.exit(0), 500); }
   else if (c === 'clearreports') { const n = reportLog.size; reportLog.clear(); for (const r in rooms) for (const m of rooms[r]) if (m.rep) m.rep = []; say(n + ' report(s) cleared.'); }
-  else if (c === 'logout') { socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
+  else if (c === 'logout') { removeScreenViewer(socket.id); socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
   else say(ADMIN_HELP);
 }
 
@@ -441,7 +441,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('screen:admin:unwatch', () => {
-    if (!socket.data.admin) return;
+    // Safe for any socket to unregister its own viewer entry, including during logout.
     removeScreenViewer(socket.id);
     socket.emit('screen:admin:monitor-ended', {});
   });
