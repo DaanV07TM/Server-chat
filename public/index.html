@@ -336,11 +336,27 @@ function start() {
   }
 
   function closeAdminMonitorPeer() {
-    if (adminMonitoringSharerId) {
-      const entry = screenPeers.get(adminMonitoringSharerId);
-      if (entry) {
+    const oldSharerId = adminMonitoringSharerId;
+    const oldRoom = adminMonitoringRoom;
+    const sameRoomShare = !!oldSharerId && oldSharerId === activeSharerId && oldRoom === room && oldSharerId !== socket.id;
+    if (oldSharerId) {
+      const entry = screenPeers.get(oldSharerId);
+      if (entry && sameRoomShare) {
+        // The same peer also serves the normal room viewer, so keep it alive.
+        const stream = adminMonitorVideo.srcObject;
+        if (stream) {
+          screenVideo.srcObject = stream;
+          screenVideo.muted = false;
+          screenVideo.hidden = false;
+          screenPlaceholder.hidden = true;
+          screenVideo.play().catch(() => {});
+        } else {
+          screenPlaceholder.hidden = false;
+          screenPlaceholder.textContent = 'Connecting to the screen in this room…';
+        }
+      } else if (entry) {
         try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
-        screenPeers.delete(adminMonitoringSharerId);
+        screenPeers.delete(oldSharerId);
       }
     }
     adminMonitoringSharerId = null;
@@ -353,9 +369,14 @@ function start() {
   }
 
   function clearAdminMonitor(notifyServer = true) {
-    const hadMonitor = !!adminMonitoringSharerId;
+    const oldSharerId = adminMonitoringSharerId;
+    const oldRoom = adminMonitoringRoom;
+    const hadMonitor = !!oldSharerId;
+    const isRegularRoomViewer = hadMonitor && oldSharerId === activeSharerId && oldRoom === room && oldSharerId !== socket.id;
     closeAdminMonitorPeer();
-    if (notifyServer && hadMonitor && socket.connected) socket.emit('screen:admin:unwatch');
+    if (notifyServer && hadMonitor && !isRegularRoomViewer && socket.connected) {
+      socket.emit('screen:admin:unwatch', { sharerId: oldSharerId, room: oldRoom });
+    }
   }
 
   function resetScreenShare() {
@@ -585,7 +606,15 @@ function start() {
     }
     try {
       if (data.description && data.description.type === 'offer') {
-        const isAdminMonitorOffer = data.from === adminMonitoringSharerId;
+        const isAdminMonitorOffer = data.from === adminMonitoringSharerId ||
+          (moderator && typeof data.room === 'string' && data.room !== room);
+        if (isAdminMonitorOffer && !adminMonitoringSharerId) {
+          adminMonitoringSharerId = data.from;
+          adminMonitoringRoom = data.room;
+          adminScreenMonitor.hidden = false;
+          adminMonitorTitle.textContent = 'Monitoring screen share · #' + adminMonitoringRoom;
+          adminMonitorStatus.textContent = 'Connecting to the live screen…';
+        }
         if (data.from !== activeSharerId && !isAdminMonitorOffer) return;
         const entry = await startScreenPeer(data.from);
         await entry.pc.setRemoteDescription(new RTCSessionDescription(data.description));
@@ -613,6 +642,17 @@ function start() {
     } catch (_) {
       screenStatus.textContent = 'The screen connection failed. A TURN server may be required on this network.';
     }
+  });
+
+  socket.on('screen:viewer-stopped', data => {
+    const viewerId = data && data.viewerId;
+    if (!viewerId) return;
+    const entry = screenPeers.get(viewerId);
+    if (entry) {
+      try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
+      screenPeers.delete(viewerId);
+    }
+    if (localScreenStream) screenStatus.textContent = 'Your screen is being shared with ' + screenPeers.size + ' viewer(s).';
   });
 
   socket.on('screen:admin:monitor-ready', data => {
