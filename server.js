@@ -1,6 +1,8 @@
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs');
+const v8 = require('v8');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -141,6 +143,59 @@ function command(room, name, text) {
   else if (c === 'rules') bot(room, 'Be kind. No harassment, hate, threats, scams or illegal content. Use ⚑ to report a message.');
 }
 
+// CPU samples let the admin panel show recent process usage rather than lifetime averages.
+let cpuUsageSample = process.cpuUsage();
+let cpuUsageSampleAt = process.hrtime.bigint();
+
+function getContainerMemoryLimit() {
+  const files = ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'];
+  for (const file of files) {
+    try {
+      const raw = fs.readFileSync(file, 'utf8').trim();
+      if (!raw || raw === 'max') continue;
+      const bytes = Number(raw);
+      // cgroup v1 represents "unlimited" with a huge signed-64-bit value.
+      if (Number.isFinite(bytes) && bytes > 0 && bytes < 8e18) return bytes;
+    } catch (_) {}
+  }
+  if (typeof process.constrainedMemory === 'function') {
+    try {
+      const bytes = process.constrainedMemory();
+      if (Number.isFinite(bytes) && bytes > 0 && bytes < 8e18) return bytes;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function getServerLoad() {
+  const now = process.hrtime.bigint();
+  const elapsedMicros = Math.max(1, Number(now - cpuUsageSampleAt) / 1000);
+  const cpuDelta = process.cpuUsage(cpuUsageSample);
+  cpuUsageSample = process.cpuUsage();
+  cpuUsageSampleAt = now;
+
+  // 100% means the Node process has used one CPU core fully over the sample interval.
+  const cpuPct = Math.round(Math.max(0, (cpuDelta.user + cpuDelta.system) / elapsedMicros * 100));
+  const memory = process.memoryUsage();
+  const heapLimit = v8.getHeapStatistics().heap_size_limit;
+  const containerLimit = getContainerMemoryLimit();
+  const rssPct = containerLimit ? Math.round(memory.rss / containerLimit * 100) : null;
+  const heapPct = heapLimit > 0 ? Math.round(memory.heapUsed / heapLimit * 100) : 0;
+
+  const critical = cpuPct >= 95 || heapPct >= 95 || (rssPct !== null && rssPct >= 95);
+  const high = cpuPct >= 80 || heapPct >= 85 || (rssPct !== null && rssPct >= 85);
+  return {
+    cpuPct,
+    rssMB: Math.round(memory.rss / 1048576),
+    rssPct,
+    memoryLimitMB: containerLimit ? Math.round(containerLimit / 1048576) : null,
+    heapUsedMB: Math.round(memory.heapUsed / 1048576),
+    heapLimitMB: Math.round(heapLimit / 1048576),
+    heapPct,
+    level: critical ? 'critical' : high ? 'high' : 'normal'
+  };
+}
+
 const statsLine = () =>
   'online: ' + io.engine.clientsCount + ' | rooms: ' + Object.keys(rooms).length +
   ' | messages: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
@@ -153,6 +208,7 @@ const adminState = () => ({
   online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
   memory: Math.round(process.memoryUsage().rss / 1048576),
+  load: getServerLoad(),
   timeouts: Object.values(timeouts).filter(t => t > Date.now()).length,
   channels: channels(),
   reports: [...reportLog.values()].filter(e => e.status !== 'dismissed').slice(-15).reverse()
