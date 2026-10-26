@@ -203,6 +203,48 @@ button:active:not(:disabled){transform:translateY(0)}
 .welcome-guide .guide-actions{display:flex;gap:8px;margin-top:15px}
 .welcome-guide .guide-actions button{margin:0}
 @media(max-width:560px){.welcome-guide .box{padding:16px}.guide-item{padding:9px}.m.pinned-info{width:100%}}
+/* Shared YouTube queue */
+#channelNav .channel-link[data-channel="music"]{color:var(--ink)}
+#channelNav .channel-link[data-channel="music"][aria-current="page"]{color:var(--accent)}
+.music-panel{padding:13px 16px 15px;background:var(--panel);border-bottom:1px solid var(--line);max-height:48vh;overflow-y:auto}
+.music-panel[hidden]{display:none}
+.music-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.music-eyebrow{font-size:9px;font-weight:900;letter-spacing:.14em;color:var(--accent)}
+.music-panel-heading h2{margin:3px 0 2px;font-size:18px;letter-spacing:-.025em}
+.music-subtitle{margin:0;color:var(--mute);font-size:12px;line-height:1.45}
+.music-count{flex:0 0 auto;padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--mute);font-size:11px;font-weight:750}
+.music-layout{display:grid;grid-template-columns:minmax(250px,380px) minmax(0,1fr);gap:15px;align-items:start}
+.music-player-shell{min-height:225px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg)}
+.music-player-placeholder{min-height:225px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center}
+.music-placeholder-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;font-size:17px}
+.music-player-placeholder strong{font-size:13px}
+.music-player-placeholder p{max-width:300px;margin:0;color:var(--mute);font-size:11px;line-height:1.5}
+.music-player-placeholder button,.music-add-form button,.music-next-btn{width:auto;margin:0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+#musicPlayerMount{width:100%;height:225px;min-height:200px}
+#musicPlayerMount iframe{display:block;width:100%!important;height:225px!important;min-height:200px;border:0}
+.music-current-label{margin-top:8px;color:var(--mute);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.music-current-label strong{color:var(--ink)}
+.music-add-form{display:grid;grid-template-columns:1fr;gap:6px}
+.music-add-form label{margin-top:2px;color:var(--mute);font-size:10px;font-weight:800;letter-spacing:.04em}
+.music-add-form input{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
+.music-add-form input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.13)}
+.music-add-form button{justify-self:start;margin-top:2px}
+.music-queue-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:12px 0 6px}
+.music-queue-heading strong{font-size:12px}
+.music-queue-heading span{color:var(--mute);font-size:10px}
+.music-queue-list{display:flex;flex-direction:column;gap:5px;list-style:none;padding:0;margin:0;max-height:130px;overflow:auto}
+.music-queue-list li{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);min-width:0}
+.music-queue-index{flex:0 0 21px;width:21px;height:21px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(99,102,241,.12);color:var(--accent);font-size:10px;font-weight:900}
+.music-queue-track{flex:1;min-width:0;overflow-wrap:anywhere}
+.music-queue-track strong{display:block;font-size:11px;font-weight:750}
+.music-queue-track span{display:block;margin-top:1px;color:var(--mute);font-size:10px}
+.music-queue-track a{color:var(--accent);text-decoration:none}
+.music-queue-empty{color:var(--mute);font-size:11px}
+.music-next-btn{margin-top:8px;background:transparent;color:var(--ink)}
+.music-next-btn:disabled{opacity:.45;cursor:not-allowed}
+.music-notice{margin:8px 0 0;color:var(--mute);font-size:10px;line-height:1.45}
+@media(max-width:780px){.music-layout{grid-template-columns:1fr}.music-panel{max-height:55vh}.music-player-shell{max-width:480px;width:100%}.music-player-column{min-width:0}}
+@media(max-width:560px){.music-panel{padding:10px}.music-panel-heading h2{font-size:16px}.music-layout{gap:12px}.music-queue-list{max-height:110px}}
 #siteDialog{z-index:100}
 #siteDialog .box{width:min(440px,100%);max-width:440px;padding:clamp(18px,3vw,26px);border-radius:20px}
 .site-dialog-kicker{display:inline-block;margin-bottom:9px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em}
@@ -272,6 +314,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="announcements" href="/?room=announcements"><span aria-hidden="true">📢</span><span>announcements</span><span class="channel-badge">OFFICIAL</span></a>
   <a class="channel-link" data-channel="help" href="/?room=help"><span aria-hidden="true">❔</span><span>help</span></a>
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
+  <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
@@ -291,6 +334,43 @@ button:active:not(:disabled){transform:translateY(0)}
   </div>
   <div id="voiceParticipants" class="voice-participants" aria-live="polite"><span class="voice-empty">No one is in voice yet.</span></div>
   <div id="voiceAudioContainer" class="voice-audio-container" aria-label="Incoming voice audio"></div>
+</section>
+<section id="musicPanel" class="music-panel" hidden aria-label="Shared music channel">
+  <div class="music-panel-heading">
+    <div>
+      <div class="music-eyebrow">COMMUNITY PLAYLIST</div>
+      <h2>🎵 Music room</h2>
+      <p class="music-subtitle">Share a YouTube or YouTube Music video link and build a queue together.</p>
+    </div>
+    <span id="musicQueueCount" class="music-count">0 tracks</span>
+  </div>
+  <div class="music-layout">
+    <div class="music-player-column">
+      <div class="music-player-shell">
+        <div id="musicPlayerPlaceholder" class="music-player-placeholder">
+          <div class="music-placeholder-icon" aria-hidden="true">▶</div>
+          <strong>Load the YouTube player</strong>
+          <p>The embedded player connects to YouTube only after you press this button. Playback never starts automatically.</p>
+          <button id="musicLoadPlayer" type="button">Load YouTube player</button>
+        </div>
+        <div id="musicPlayerMount" hidden></div>
+      </div>
+      <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Add the first song to the queue.</div>
+    </div>
+    <div class="music-queue-column">
+      <form id="musicAddForm" class="music-add-form">
+        <label for="musicUrlInput">YouTube video link</label>
+        <input id="musicUrlInput" type="url" placeholder="Paste a YouTube / YouTube Music link" autocomplete="url" maxlength="500" required>
+        <label for="musicTitleInput">Track name (optional)</label>
+        <input id="musicTitleInput" type="text" placeholder="e.g. Artist — Song title" maxlength="100" autocomplete="off">
+        <button id="musicAddBtn" type="submit">Add to shared queue</button>
+      </form>
+      <div class="music-queue-heading"><strong>Up next</strong><span>Shared with everyone in #music</span></div>
+      <ol id="musicQueueList" class="music-queue-list"><li class="music-queue-empty">Queue is empty. Add a YouTube video to get started.</li></ol>
+      <button id="musicNextBtn" class="music-next-btn" type="button" disabled>Next track</button>
+      <p id="musicNotice" class="music-notice">YouTube’s own player and controls stay visible. Each person presses Play locally; browser autoplay restrictions mean playback is not forced across devices.</p>
+    </div>
+  </div>
 </section>
 <div id="log"></div>
 <section id="screenPanel" class="screen-collapsed" hidden aria-label="Screen sharing">
@@ -323,7 +403,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <h2 id="rt">Welcome to Anonymous Chat</h2>
     <p class="guide-intro">A quick guide before you start. Pick a channel, keep personal information private, and use the report flag if something is wrong.</p>
     <ul>
-      <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, and #voice for optional live voice.</li>
+      <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, #voice for optional live voice, and #music for a shared YouTube queue.</li>
       <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
       <li><b>Privacy:</b> No account is required. Ordinary messages expire after one hour; #announcements posts are retained while the server runs. Hosting providers may process connection metadata. Do not share passwords, private addresses, or sensitive data.</li>
       <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
@@ -336,7 +416,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <span class="site-dialog-kicker">QUICK START</span>
     <h2 id="welcomeGuideTitle">Welcome to Anonymous Chat</h2>
     <p id="welcomeGuideIntro" class="guide-intro">Here is the quick tour. You can reopen this guide with the Quick guide button in the header.</p>
-    <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, and #voice is for live voice chat.</span></div></div>
+    <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has a shared YouTube queue.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
     <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>No account is needed. Ordinary chat history expires after one hour. Official posts in #announcements remain while the server is running; fixed guide posts reappear after a restart. Do not post passwords or sensitive personal information.</span></div></div>
     <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
@@ -513,6 +593,173 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+
+  // Shared #music queue. YouTube's official visible player is loaded only after an explicit click.
+  const musicPanel = $('musicPanel');
+  const musicLoadPlayerBtn = $('musicLoadPlayer');
+  const musicPlayerPlaceholder = $('musicPlayerPlaceholder');
+  const musicPlayerMount = $('musicPlayerMount');
+  const musicUrlInput = $('musicUrlInput');
+  const musicTitleInput = $('musicTitleInput');
+  const musicAddForm = $('musicAddForm');
+  const musicAddBtn = $('musicAddBtn');
+  const musicNextBtn = $('musicNextBtn');
+  const musicQueueList = $('musicQueueList');
+  const musicQueueCount = $('musicQueueCount');
+  const musicCurrentLabel = $('musicCurrentLabel');
+  const musicNotice = $('musicNotice');
+  let sharedMusicState = { current: null, queue: [], maxTracks: 50 };
+  let musicPlayer = null, musicPlayerReady = false, musicApiLoading = false, musicApiLoaded = false;
+  let lastCuedMusicId = null;
+  musicPanel.hidden = room !== 'music';
+
+  function cueCurrentMusic() {
+    if (!musicPlayerReady || !musicPlayer) return;
+    const current = sharedMusicState.current;
+    if (current && current.videoId && current.id !== lastCuedMusicId) {
+      lastCuedMusicId = current.id;
+      musicPlayer.cueVideoById(current.videoId);
+      musicNotice.textContent = 'Track cued in the YouTube player. Press Play in the player to listen; it will not autoplay.';
+    } else if (!current && lastCuedMusicId !== null) {
+      lastCuedMusicId = null;
+      musicPlayer.stopVideo();
+      musicNotice.textContent = 'The queue is empty. Add a YouTube video to start the music room.';
+    }
+  }
+
+  function renderMusicState(state) {
+    if (!state || !Array.isArray(state.queue)) return;
+    sharedMusicState = state;
+    const total = state.queue.length + (state.current ? 1 : 0);
+    musicQueueCount.textContent = total + (total === 1 ? ' track' : ' tracks');
+    musicNextBtn.disabled = state.queue.length === 0;
+    musicCurrentLabel.replaceChildren();
+    if (state.current) {
+      const label = document.createElement('span');
+      label.textContent = 'Selected: ' + (state.current.title || 'YouTube video') +
+        ' · added by ' + (state.current.addedBy || 'Anon') + '. Press Play in the embedded player.';
+      musicCurrentLabel.append(label);
+    } else {
+      musicCurrentLabel.textContent = 'No track selected yet. Add the first song to the queue.';
+    }
+
+    musicQueueList.replaceChildren();
+    if (!state.queue.length) {
+      const empty = document.createElement('li');
+      empty.className = 'music-queue-empty';
+      empty.textContent = 'Queue is empty. Add a YouTube video to get started.';
+      musicQueueList.append(empty);
+    } else {
+      state.queue.forEach((track, index) => {
+        const row = document.createElement('li');
+        const badge = document.createElement('span');
+        badge.className = 'music-queue-index';
+        badge.textContent = String(index + 1);
+        const info = document.createElement('div');
+        info.className = 'music-queue-track';
+        const title = document.createElement('strong');
+        title.textContent = track.title || 'YouTube video';
+        const details = document.createElement('span');
+        details.textContent = 'Added by ' + (track.addedBy || 'Anon') + ' · ';
+        const link = document.createElement('a');
+        link.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(track.videoId);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open on YouTube';
+        details.append(link);
+        info.append(title, details);
+        row.append(badge, info);
+        musicQueueList.append(row);
+      });
+    }
+    cueCurrentMusic();
+  }
+
+  function createMusicPlayer() {
+    if (musicPlayer || !window.YT || !window.YT.Player) return;
+    musicPlayerPlaceholder.hidden = true;
+    musicPlayerMount.hidden = false;
+    musicPlayer = new YT.Player('musicPlayerMount', {
+      width: '400',
+      height: '225',
+      playerVars: {
+        autoplay: 0,
+        controls: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin
+      },
+      events: {
+        onReady: () => {
+          musicPlayerReady = true;
+          cueCurrentMusic();
+          musicNotice.textContent = 'YouTube player ready. Press Play in the player to listen; playback is not forced across devices.';
+        },
+        onError: event => {
+          const reason = [101, 150].includes(event.data)
+            ? 'This video does not allow embedded playback. Try another track or open it on YouTube.'
+            : event.data === 153
+              ? 'YouTube could not verify the embed context. Try reloading the player.'
+              : 'This video is unavailable or cannot be embedded. Try another link.';
+          musicNotice.textContent = reason;
+          showToast(reason, 'error', 6000);
+        }
+      }
+    });
+  }
+
+  function loadMusicPlayer() {
+    if (room !== 'music') return;
+    if (window.YT && window.YT.Player) {
+      createMusicPlayer();
+      return;
+    }
+    if (musicApiLoading) return;
+    musicApiLoading = true;
+    musicNotice.textContent = 'Connecting to YouTube…';
+    window.onYouTubeIframeAPIReady = () => {
+      musicApiLoaded = true;
+      musicApiLoading = false;
+      createMusicPlayer();
+    };
+    let script = document.querySelector('script[data-youtube-iframe-api]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      script.dataset.youtubeIframeApi = '1';
+      script.onerror = () => {
+        musicApiLoading = false;
+        musicNotice.textContent = 'Could not load YouTube. Check your connection or browser content blocker, then try again.';
+        showToast('The YouTube player could not be loaded.', 'error');
+      };
+      document.head.appendChild(script);
+    }
+  }
+
+  musicLoadPlayerBtn.onclick = loadMusicPlayer;
+  musicAddForm.onsubmit = event => {
+    event.preventDefault();
+    if (room !== 'music') return;
+    const url = musicUrlInput.value.trim();
+    if (!url) return;
+    musicAddBtn.disabled = true;
+    socket.emit('music:add', { url, title: musicTitleInput.value.trim(), name });
+  };
+  musicNextBtn.onclick = () => socket.emit('music:next');
+  socket.on('music:state', renderMusicState);
+  socket.on('music:added', () => {
+    musicUrlInput.value = '';
+    musicTitleInput.value = '';
+    musicAddBtn.disabled = false;
+    showToast('Track added to the shared queue.', 'success');
+  });
+  socket.on('music:error', data => {
+    musicAddBtn.disabled = false;
+    const message = data && data.message ? data.message : 'The music action could not be completed.';
+    musicNotice.textContent = message;
+    showToast(message, 'error');
+  });
   log.innerHTML = EMPTY;
   const join = () => socket.emit('join', { room, tok });
   socket.on('connect', join);
