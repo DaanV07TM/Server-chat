@@ -136,7 +136,7 @@ function start() {
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const down = () => { log.scrollTop = log.scrollHeight; };
-  let repMid = null;
+  let moderator = false, repMid = null;
   [['spam', 'Spam or scam'], ['harassment', 'Harassment or hate'], ['sexual', 'Sexual content'], ['threat', 'Threats or self-harm'], ['illegal', 'Illegal content or child safety']].forEach(([k, l]) => {
     const b = document.createElement('button'); b.textContent = l;
     b.onclick = () => { socket.emit('report', { mid: repMid, reason: k }); $('rep').style.display = 'none'; };
@@ -148,11 +148,13 @@ function start() {
   function add(m) {
     const e = $('empty'); if (e) e.remove();
     const d = document.createElement('div');
-    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') + (m.admin ? ' admin-message' : '') + (m.announcement ? ' announcement' : '');
-    if (m.admin || m.announcement) {
+    const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢');
+    const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
+    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') + (isAdminMessage ? ' admin-message' : '') + (isAnnouncement ? ' announcement' : '');
+    if (isAdminMessage || isAnnouncement) {
       const badge = document.createElement('div');
       badge.className = 'admin-tag';
-      badge.textContent = m.announcement ? '📢 OFFICIËLE MEDEDELING' : '⚡ ADMINBERICHT';
+      badge.textContent = isAnnouncement ? '📢 OFFICIËLE MEDEDELING' : '⚡ ADMINBERICHT';
       d.append(badge);
     }
     if (!m.bot) {
@@ -285,7 +287,7 @@ function start() {
       B('Restart server', '/restart', 'red', 'Restart the server now?') + B('Log out', '/logout', 'plain');
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); $('adm').style.display = 'none'; };
-  socket.on('admin', on => { $('admbtn').hidden = !on; if (!on) closeAdm(); });
+  socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; if (!on) closeAdm(); });
   socket.on('adm:state', st => {
     if (!admOpen) return;
     const a = document.activeElement;
