@@ -91,7 +91,7 @@ function bot(room, text) {
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
-const announce = (t) => io.emit('msg', { name: '📢', bot: true, text: t, t: Date.now() });
+const announce = (t) => io.emit('msg', { name: '📢', bot: true, announcement: true, text: t, t: Date.now() });
 const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.admin) s.emit('sys', t); };
 function removeMsg(mid) {
   for (const r in rooms) {
@@ -267,7 +267,8 @@ io.on('connection', (socket) => {
     const img = d && typeof d.img === 'string' && imagesAllowed(room) && d.img.length < 1.4e6 && IMG.test(d.img) ? d.img : null;
     if (!text && !img) return;
     last = now; lastText = text; lastTextAt = now;
-    const m = { id: socket.id, tok: key(), name: safeName(d && d.name), text: mask(text), t: now };
+    const isAdmin = socket.data.admin === true;
+    const m = { id: socket.id, tok: key(), name: isAdmin ? 'Admin' : safeName(d && d.name), admin: isAdmin, text: mask(text), t: now };
     if (img) m.img = img;
     store(room, m);
     io.to(room).emit('msg', pub(m));
