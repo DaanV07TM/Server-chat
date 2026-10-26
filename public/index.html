@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Anonymous chat. No accounts, no tracking, messages disappear after 1 hour.">
+<meta name="description" content="Anonymous real-time chat with public channels, optional voice chat, and screen sharing. No account required; avoid sharing sensitive information.">
 <title>Anonymous Chat</title>
 <style>
 :root{--bad:#b3261e;--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
@@ -190,6 +190,19 @@ button:active:not(:disabled){transform:translateY(0)}
 #adm .nuker-card button.ab.nuker{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;margin:10px 0 0;padding:11px 14px;border:1px solid rgba(239,68,68,.75);border-radius:11px;background:linear-gradient(100deg,#b91c1c,#7c2d12 70%,#6d28d9);color:#fff;font-weight:850;letter-spacing:.02em;box-shadow:0 5px 16px rgba(185,28,28,.2)}
 #adm .nuker-card button.ab.nuker:hover{filter:brightness(1.12)}
 
+/* Retained official channel posts and a compact first-visit guide. */
+.m.official-post{align-self:center;width:min(96%,760px);max-width:100%;border:1px solid rgba(99,102,241,.35);border-left:4px solid var(--accent);background:var(--panel);box-shadow:0 4px 18px rgba(0,0,0,.04)}
+.m.pinned-info{align-self:center;width:min(96%,760px);max-width:100%;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.035)}
+.pinned-info-tag{display:inline-flex;align-items:center;gap:6px;margin:0 0 7px;padding:4px 7px;border-radius:6px;background:rgba(99,102,241,.11);color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.06em}
+.welcome-guide .box{width:min(540px,100%);max-width:540px;padding:clamp(18px,3vw,26px)}
+.welcome-guide .guide-intro{margin:0 0 14px;color:var(--mute);font-size:13px;line-height:1.55}
+.guide-item{display:flex;gap:10px;margin:9px 0;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.guide-number{display:flex;align-items:center;justify-content:center;flex:0 0 27px;width:27px;height:27px;border-radius:8px;background:rgba(99,102,241,.12);color:var(--accent);font-size:12px;font-weight:850}
+.guide-item b{display:block;margin-bottom:2px;font-size:12px}
+.guide-item span{display:block;color:var(--mute);font-size:12px;line-height:1.5}
+.welcome-guide .guide-actions{display:flex;gap:8px;margin-top:15px}
+.welcome-guide .guide-actions button{margin:0}
+@media(max-width:560px){.welcome-guide .box{padding:16px}.guide-item{padding:9px}.m.pinned-info{width:100%}}
 #siteDialog{z-index:100}
 #siteDialog .box{width:min(440px,100%);max-width:440px;padding:clamp(18px,3vw,26px);border-radius:20px}
 .site-dialog-kicker{display:inline-block;margin-bottom:9px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.14em}
@@ -248,6 +261,7 @@ button:active:not(:disabled){transform:translateY(0)}
 <header>
   <h1 id="title">Chat</h1>
   <small id="online"></small>
+  <button id="quickGuide" type="button" title="Open the quick guide">Quick guide</button>
   <button id="share" type="button">Copy link</button>
   <button id="private" type="button">New private room</button>
   <button id="rename" type="button">Name</button>
@@ -306,15 +320,27 @@ button:active:not(:disabled){transform:translateY(0)}
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
   <div class="box">
-    <h2 id="rt">Before you chat</h2>
+    <h2 id="rt">Welcome to Anonymous Chat</h2>
+    <p class="guide-intro">A quick guide before you start. Pick a channel, keep personal information private, and use the report flag if something is wrong.</p>
     <ul>
-      <li>Be kind. No harassment, hate, threats or scams.</li>
-      <li>No illegal content, and nothing sexual involving minors. Ever.</li>
-      <li>No accounts. Messages exist only in server memory and disappear after 1 hour. IP addresses are not stored.</li>
-      <li>Use ⚑ to report a message. Enough reports remove it, and moderators can time out repeat offenders.</li>
-      <li>Photos and GIFs are only available in private rooms.</li>
+      <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, and #voice for optional live voice.</li>
+      <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
+      <li><b>Privacy:</b> No account is required. Ordinary messages expire after one hour; #announcements posts are retained while the server runs. Hosting providers may process connection metadata. Do not share passwords, private addresses, or sensitive data.</li>
+      <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
+  </div>
+</div>
+<div id="welcomeGuide" class="ov welcome-guide" role="dialog" aria-modal="true" aria-labelledby="welcomeGuideTitle" aria-describedby="welcomeGuideIntro" hidden>
+  <div class="box">
+    <span class="site-dialog-kicker">QUICK START</span>
+    <h2 id="welcomeGuideTitle">Welcome to Anonymous Chat</h2>
+    <p id="welcomeGuideIntro" class="guide-intro">Here is the quick tour. You can reopen this guide with the Quick guide button in the header.</p>
+    <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, and #voice is for live voice chat.</span></div></div>
+    <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
+    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>No account is needed. Ordinary chat history expires after one hour. Official posts in #announcements remain while the server is running; fixed guide posts reappear after a restart. Do not post passwords or sensitive personal information.</span></div></div>
+    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
+    <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
 </div>
 <div id="rep" class="ov" role="dialog" aria-modal="true" aria-labelledby="repT">
@@ -457,6 +483,21 @@ function showSiteDialog(options = {}) {
   });
 }
 
+function showWelcomeGuide() {
+  const modal = $('welcomeGuide');
+  if (!modal) return;
+  modal.hidden = false;
+  modal.style.display = 'flex';
+  const close = () => {
+    modal.style.display = 'none';
+    modal.hidden = true;
+    modal.onclick = null;
+    try { localStorage.setItem('welcomeGuideSeen_v2', '1'); } catch (_) {}
+  };
+  $('welcomeClose').onclick = close;
+  modal.onclick = event => { if (event.target === modal) close(); };
+}
+
 function start() {
   const EMPTY = '<p class="empty" id="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
   const params = new URLSearchParams(location.search);
@@ -467,6 +508,7 @@ function start() {
   if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
   try { tok = localStorage.getItem('tok'); if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); } } catch (e) { tok = rnd(16); }
   $('title').textContent = '#' + room;
+  $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
@@ -491,7 +533,9 @@ function start() {
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢');
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
-    const isFlashBanner = isAdminMessage || isAnnouncement;
+    const isPinnedInfo = m.pinned === true;
+    const isPersistentAdminPost = room === 'announcements' && isAdminMessage && !isAnnouncement;
+    const isFlashBanner = !isPinnedInfo && (isAnnouncement || (isAdminMessage && !isPersistentAdminPost));
     const age = Number.isFinite(Number(m.t)) ? Math.max(0, Date.now() - Number(m.t)) : 0;
 
     // Expired admin banners must not reappear when chat history is loaded.
@@ -507,11 +551,16 @@ function start() {
 
     const e = $('empty'); if (e) e.remove();
     const d = document.createElement('div');
-    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') + (isAdminMessage ? ' admin-message' : '') + (isAnnouncement ? ' announcement' : '');
-    if (isFlashBanner) {
+    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') +
+      (isAdminMessage && !isPersistentAdminPost ? ' admin-message' : '') +
+      (isAnnouncement ? ' announcement' : '') +
+      (isPersistentAdminPost ? ' official-post' : '') +
+      (isPinnedInfo ? ' pinned-info' : '');
+    if (isFlashBanner || isPinnedInfo) {
       const badge = document.createElement('div');
-      badge.className = 'admin-tag';
-      badge.textContent = isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT' : '⚡ MESSAGE FROM SERVER ADMIN';
+      badge.className = isPinnedInfo ? 'pinned-info-tag' : 'admin-tag';
+      badge.textContent = isPinnedInfo ? '📌 PINNED SERVER INFO' :
+        isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT' : '⚡ MESSAGE FROM SERVER ADMIN';
       d.append(badge);
     }
     if (!m.bot) {
@@ -1565,12 +1614,24 @@ function start() {
   // Official channel navigation is always visible, including from private rooms.
 }
 
-let agreed = false;
-try { agreed = localStorage.getItem('agreed') === '1'; } catch (e) {}
-if (agreed) start();
-else {
+let agreed = false, welcomeGuideSeen = false;
+try {
+  agreed = localStorage.getItem('agreed') === '1';
+  welcomeGuideSeen = localStorage.getItem('welcomeGuideSeen_v2') === '1';
+} catch (e) {}
+if (agreed) {
+  start();
+  if (!welcomeGuideSeen) showWelcomeGuide();
+} else {
   $('rules').style.display = 'flex';
-  $('agree').onclick = () => { try { localStorage.setItem('agreed', '1'); } catch (e) {} $('rules').style.display = 'none'; start(); };
+  $('agree').onclick = () => {
+    try {
+      localStorage.setItem('agreed', '1');
+      localStorage.setItem('welcomeGuideSeen_v2', '1');
+    } catch (e) {}
+    $('rules').style.display = 'none';
+    start();
+  };
 }
 </script>
 </body>
