@@ -94,6 +94,13 @@ function add(m){
 socket.on('history', l => { log.innerHTML = l.length ? '' : EMPTY; l.forEach(add); });
 socket.on('msg', m => { add(m); $('typing').textContent = ''; });
 socket.on('online', n => $('online').textContent = n + ' online');
+socket.on('sys', t => add({ bot: true, text: t }));
+socket.on('closed', c => {
+  if (c) { log.innerHTML = '<p class="empty" id="empty">De chat is tijdelijk offline.</p>'; $('online').textContent = 'offline'; }
+  else socket.emit('join', room);
+});
+socket.on('connect_error', () => $('online').textContent = 'offline');
+socket.on('disconnect', () => $('online').textContent = 'verbinding weg');
 
 function send(img){
   const t = text.value.trim();
@@ -168,4 +175,4 @@ $('share').onclick = async (ev) => {
 if (room !== 'algemeen') $('online').insertAdjacentHTML('afterend', '<a href="/" style="color:var(--accent);font-size:14px">Naar algemeen</a>');
 </script>
 </body>
-</html
+</html>
