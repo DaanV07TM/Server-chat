@@ -292,6 +292,7 @@ function start() {
   socket.on('disconnect', () => {
     $('online').textContent = 'reconnecting…';
     if (localScreenStream) resetScreenShare();
+    clearAdminMonitor(false);
     pendingPing = null;
     lastPingMs = null;
     const pingValue = $('serverPingValue');
@@ -605,6 +606,29 @@ function start() {
     }
   });
 
+  socket.on('screen:admin:monitor-ready', data => {
+    if (!moderator || !data || !data.sharerId) return;
+    if (adminMonitoringSharerId && adminMonitoringSharerId !== data.sharerId) closeAdminMonitorPeer();
+    adminMonitoringSharerId = data.sharerId;
+    adminMonitoringRoom = data.room || 'unknown';
+    adminScreenMonitor.hidden = false;
+    adminMonitorTitle.textContent = 'Monitoring ' + (data.name || 'user') + ' · #' + adminMonitoringRoom;
+    adminMonitorStatus.textContent = 'Connecting to the live screen…';
+    adminMonitorVideo.srcObject = null;
+    adminMonitorVideo.hidden = true;
+  });
+  socket.on('screen:admin:error', data => {
+    adminScreenMonitor.hidden = false;
+    adminMonitorTitle.textContent = 'Screen monitor';
+    adminMonitorStatus.textContent = (data && data.message) || 'Could not open this screen share.';
+  });
+  socket.on('screen:admin:action-result', data => {
+    $('admmsg').textContent = (data && data.message) || 'Screen-share action completed.';
+    if (admOpen && moderator) socket.emit('adm', '');
+  });
+  socket.on('screen:admin:monitor-ended', () => closeAdminMonitorPeer());
+  $('adminMonitorClose').onclick = () => clearAdminMonitor(true);
+
   function send(img) {
     const t = text.value.trim();
     if (!t && !img) return;
@@ -729,6 +753,20 @@ function start() {
     const locationDescription = st.serverLocation
       ? 'Configured through Render environment variable SERVER_LOCATION.'
       : 'Set SERVER_LOCATION in Render → Environment to show the deployment region.';
+    const screenShares = Array.isArray(st.screenShares) ? st.screenShares : [];
+    const screenShareRows = screenShares.length ? screenShares.map(share => {
+      const duration = Math.max(0, Number(share.durationSeconds) || 0);
+      const durationText = Math.floor(duration / 60) + 'm ' + (duration % 60) + 's';
+      const id = h(share.sharerId || '');
+      return '<div class="screen-share-row"><b>' + h(share.name || 'Anonymous user') + '</b>' +
+        '<div class="screen-share-meta">Room #' + h(share.room || 'unknown') + ' · Live ' + durationText + ' · ' + (Number(share.viewers) || 0) + ' viewer(s)</div>' +
+        '<div class="screen-share-actions">' +
+          '<button type="button" data-screen-action="monitor" data-sharer-id="' + id + '">Monitor</button>' +
+          '<button type="button" class="red" data-screen-action="stop" data-sharer-id="' + id + '">Stop sharing</button>' +
+          '<button type="button" data-screen-action="timeout" data-minutes="10" data-sharer-id="' + id + '">Timeout 10 min</button>' +
+          '<button type="button" class="red" data-screen-action="timeout" data-minutes="60" data-sharer-id="' + id + '">Timeout 1 hour</button>' +
+        '</div></div>';
+    }).join('') : '<p>No active screen shares.</p>';
     $('admbody').innerHTML =
       '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
       '<div class="sec">Server load</div>' +
@@ -745,6 +783,8 @@ function start() {
         '<div class="connection-card"><div class="load-head"><b>Ping (round trip)</b><strong id="serverPingValue">' + pingLabel + '</strong></div><div class="load-detail" id="serverPingDetail">' + h(pingDescription) + '</div></div>' +
         '<div class="connection-card"><div class="load-head"><b>Server location</b><strong>' + serverLocation + '</strong></div><div class="load-detail">' + h(locationDescription) + (serverHost ? '<br>Host: ' + serverHost : '') + '</div></div>' +
       '</div>' +
+      '<div class="sec">Active screen shares (' + screenShares.length + ')</div>' +
+      '<p>Moderators can monitor a live share, stop it, or apply a temporary timeout.</p>' + screenShareRows +
       '<div class="sec">Chat</div>' +
       B(st.offline ? 'Bring chat online' : 'Take chat offline', st.offline ? '/online' : '/offline', st.offline ? '' : 'red', st.offline ? '' : 'Disconnect everyone?') +
       B(st.silenced ? 'Silence is ON (tap to end)' : 'Silence everyone', '/silence') +
@@ -764,7 +804,7 @@ function start() {
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
       B('Restart server', '/restart', 'red', 'Restart the server now?') + B('Log out', '/logout', 'plain');
   }
-  const closeAdm = () => { admOpen = false; clearInterval(admTimer); $('adm').style.display = 'none'; };
+  const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
   socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; if (!on) closeAdm(); });
   socket.on('adm:state', st => {
     if (!admOpen) return;
@@ -781,6 +821,36 @@ function start() {
   };
   $('admX').onclick = closeAdm;
   $('admbody').onclick = e => {
+    const screenAction = e.target.closest('button[data-screen-action]');
+    if (screenAction) {
+      if (!moderator) return;
+      const sharerId = screenAction.dataset.sharerId;
+      const action = screenAction.dataset.screenAction;
+      const minutes = Number(screenAction.dataset.minutes) || 10;
+      if (!sharerId) return;
+      if (action === 'monitor') {
+        if (adminMonitoringSharerId === sharerId) {
+          adminScreenMonitor.hidden = false;
+          return;
+        }
+        clearAdminMonitor(true);
+        adminScreenMonitor.hidden = false;
+        adminMonitorTitle.textContent = 'Screen monitor';
+        adminMonitorStatus.textContent = 'Requesting access to the active screen share…';
+        socket.emit('screen:admin:watch', { sharerId });
+        return;
+      }
+      if (action === 'stop') {
+        if (!confirm('Stop this user’s screen share?')) return;
+        socket.emit('screen:admin:stop', { sharerId });
+        return;
+      }
+      if (action === 'timeout') {
+        if (!confirm('Stop this screen share and time this user out for ' + minutes + ' minute(s)?')) return;
+        socket.emit('screen:admin:timeout', { sharerId, minutes });
+        return;
+      }
+    }
     const b = e.target.closest('button[data-cmd]'); if (!b) return;
     if (b.dataset.ask && !confirm(b.dataset.ask)) return;
     let c = b.dataset.cmd;
