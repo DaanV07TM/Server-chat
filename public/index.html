@@ -76,6 +76,11 @@ button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:
 .load-status.high{border-color:#eab308;background:rgba(234,179,8,.08)}
 .load-status.critical{border-color:#ef4444;background:rgba(239,68,68,.1)}
 .load-status.unknown{border-color:var(--line)}
+.connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:10px 0 12px}
+.connection-card{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px}
+.connection-card .load-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}
+.connection-card .load-head strong{font-size:18px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
+.connection-card .load-detail{margin-top:7px}
 </style>
 </head>
 <body>
@@ -238,7 +243,15 @@ function start() {
     else join();
   });
   socket.on('connect_error', () => $('online').textContent = 'offline');
-  socket.on('disconnect', () => $('online').textContent = 'reconnecting…');
+  socket.on('disconnect', () => {
+    $('online').textContent = 'reconnecting…';
+    pendingPing = null;
+    lastPingMs = null;
+    const pingValue = $('serverPingValue');
+    const pingDetail = $('serverPingDetail');
+    if (pingValue) pingValue.textContent = '—';
+    if (pingDetail) pingDetail.textContent = 'Disconnected — waiting for the server connection.';
+  });
 
   function send(img) {
     const t = text.value.trim();
@@ -311,6 +324,31 @@ function start() {
   const B = (label, cmd, cls, ask, inp) => '<button class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
   const SEL = (cmd, opts, cur) => '<select data-cmd="' + cmd + '" aria-label="' + cmd.trim().slice(1) + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
   let admOpen = false, admTimer;
+  let pingSequence = 0, pendingPing = null, lastPingMs = null;
+
+  function pingServer() {
+    if (!admOpen || !socket.connected) return;
+    const now = performance.now();
+    // If a ping gets stuck, replace it on the next refresh rather than freezing the meter.
+    if (pendingPing && now - pendingPing.startedAt < 4000) return;
+    const id = ++pingSequence;
+    pendingPing = { id, startedAt: now };
+    socket.emit('health:ping', { id });
+  }
+
+  socket.on('health:pong', data => {
+    if (!data || !pendingPing || data.id !== pendingPing.id) return;
+    lastPingMs = Math.max(0, Math.round(performance.now() - pendingPing.startedAt));
+    pendingPing = null;
+    const value = $('serverPingValue');
+    const detail = $('serverPingDetail');
+    if (value) value.textContent = lastPingMs + ' ms';
+    if (detail) detail.textContent = lastPingMs < 80
+      ? 'Low round-trip latency from this browser to the server.'
+      : lastPingMs < 180
+        ? 'Moderate round-trip latency from this browser to the server.'
+        : 'High round-trip latency from this browser to the server.';
+  });
   function meterHtml(label, percent, detail) {
     const value = Number.isFinite(Number(percent)) ? Math.max(0, Number(percent)) : 0;
     const width = Math.min(100, value);
@@ -329,6 +367,16 @@ function start() {
       : ((load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB heap limit · RSS ' + (load.rssMB || 0) + ' MB');
     const level = String(load.level || 'UNKNOWN').toLowerCase();
     const levelText = level === 'normal' ? 'LOAD NORMAL' : level === 'high' ? 'HIGH LOAD — CHECK SERVER' : level === 'critical' ? 'CRITICAL LOAD — CRASH RISK' : 'COLLECTING LOAD DATA';
+    const pingLabel = lastPingMs === null ? 'Measuring…' : lastPingMs + ' ms';
+    const pingDescription = lastPingMs === null ? 'Measuring browser-to-server round-trip time…' :
+      lastPingMs < 80 ? 'Low round-trip latency from this browser.' :
+      lastPingMs < 180 ? 'Moderate round-trip latency from this browser.' :
+      'High round-trip latency from this browser.';
+    const serverLocation = st.serverLocation ? h(st.serverLocation) : 'Not configured';
+    const serverHost = st.serverHost ? h(st.serverHost) : '';
+    const locationDescription = st.serverLocation
+      ? 'Configured through Render environment variable SERVER_LOCATION.'
+      : 'Set SERVER_LOCATION in Render → Environment to show the deployment region.';
     $('admbody').innerHTML =
       '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
       '<div class="sec">Server load</div>' +
@@ -339,6 +387,11 @@ function start() {
           ? meterHtml(memoryTitle, memoryPct, memoryDetail)
           : '<div class="load-card"><div class="load-head"><b>Process RAM (RSS)</b><strong>' + (load.rssMB || 0) + ' MB</strong></div><div class="load-detail">Container RAM limit is unavailable, so no RAM percentage is shown.</div></div>') +
         meterHtml('JavaScript heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit') +
+      '</div>' +
+      '<div class="sec">Server connection</div>' +
+      '<div class="connection-grid">' +
+        '<div class="connection-card"><div class="load-head"><b>Ping (round trip)</b><strong id="serverPingValue">' + pingLabel + '</strong></div><div class="load-detail" id="serverPingDetail">' + h(pingDescription) + '</div></div>' +
+        '<div class="connection-card"><div class="load-head"><b>Server location</b><strong>' + serverLocation + '</strong></div><div class="load-detail">' + h(locationDescription) + (serverHost ? '<br>Host: ' + serverHost : '') + '</div></div>' +
       '</div>' +
       '<div class="sec">Chat</div>' +
       B(st.offline ? 'Bring chat online' : 'Take chat offline', st.offline ? '/online' : '/offline', st.offline ? '' : 'red', st.offline ? '' : 'Disconnect everyone?') +
@@ -366,7 +419,14 @@ function start() {
     const a = document.activeElement;
     if (!(a && a.tagName === 'INPUT' && $('adm').contains(a))) renderAdmin(st);   // don't interrupt typing
   });
-  $('admbtn').onclick = () => { admOpen = true; $('adm').style.display = 'flex'; $('admmsg').textContent = ''; socket.emit('adm', ''); admTimer = setInterval(() => socket.emit('adm', ''), 5000); };
+  $('admbtn').onclick = () => {
+    admOpen = true;
+    $('adm').style.display = 'flex';
+    $('admmsg').textContent = '';
+    socket.emit('adm', '');
+    pingServer();
+    admTimer = setInterval(() => { socket.emit('adm', ''); pingServer(); }, 5000);
+  };
   $('admX').onclick = closeAdm;
   $('admbody').onclick = e => {
     const b = e.target.closest('button[data-cmd]'); if (!b) return;
