@@ -4,7 +4,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const dns = require('dns').promises;
 const net = require('net');
-const { Readable } = require('stream');
+const os = require('os');
+const path = require('path');
+const { Readable, Transform } = require('stream');
+const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
 
@@ -62,6 +65,11 @@ const MUSIC_ADDON_BASE_URL = String(process.env.MUSIC_ADDON_BASE_URL || 'https:/
 const requestedMusicQuality = String(process.env.MUSIC_ADDON_QUALITY || 'HIGH').toUpperCase();
 const MUSIC_ADDON_QUALITY = ['LOW', 'HIGH', 'LOSSLESS'].includes(requestedMusicQuality) ? requestedMusicQuality : 'HIGH';
 const MUSIC_ADDON_TIMEOUT_MS = 12000;
+const MUSIC_CACHE_DOWNLOAD_TIMEOUT_MS = 180000;
+const MUSIC_MAX_RELAY_CACHE_BYTES = 120 * 1024 * 1024;
+const MUSIC_RELAY_CACHE_DIR = path.join(os.tmpdir(), 'server-chat-music-relay-cache');
+try { fs.rmSync(MUSIC_RELAY_CACHE_DIR, { recursive: true, force: true }); } catch (_) {}
+fs.mkdirSync(MUSIC_RELAY_CACHE_DIR, { recursive: true });
 const MUSIC_SEARCH_CACHE_TTL = 30 * 1000;
 const MUSIC_CATALOG_TTL = 10 * 60 * 1000;
 const MUSIC_CATALOG_LIMIT = 500;
@@ -69,6 +77,7 @@ const MUSIC_STREAM_CHECK_TTL = 15 * 1000;
 const musicSearchCache = new Map();
 const musicCatalogCache = new Map();
 const musicStreamCheckCache = new Map();
+const musicHostCooldowns = new Map();
 const musicQueue = [];
 let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes = 0;
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
@@ -557,9 +566,15 @@ function findMusicTrack(id) {
   return musicQueue.find(track => track.id === id) || null;
 }
 function releaseMusicTrack(track) {
-  if (!track || !Buffer.isBuffer(track.audio)) return;
-  musicStoredBytes = Math.max(0, musicStoredBytes - track.audio.length);
-  track.audio = null;
+  if (!track) return;
+  if (Buffer.isBuffer(track.audio)) {
+    musicStoredBytes = Math.max(0, musicStoredBytes - track.audio.length);
+    track.audio = null;
+  }
+  const cachedPath = track.relayCachePath || track.relayCacheTempPath;
+  track.relayCachePath = null;
+  track.relayCacheTempPath = null;
+  if (cachedPath) fs.promises.unlink(cachedPath).catch(() => {});
 }
 
 // All catalogue requests originate on this server. Do not forward visitor headers or IPs.
@@ -633,6 +648,7 @@ function pruneMusicCaches() {
   const now = Date.now();
   for (const [key, entry] of musicSearchCache) if (entry.expiresAt <= now) musicSearchCache.delete(key);
   for (const [key, entry] of musicCatalogCache) if (entry.expiresAt <= now) musicCatalogCache.delete(key);
+  for (const [key, expiresAt] of musicHostCooldowns) if (expiresAt <= now) musicHostCooldowns.delete(key);
   while (musicSearchCache.size > 100) musicSearchCache.delete(musicSearchCache.keys().next().value);
   while (musicCatalogCache.size > MUSIC_CATALOG_LIMIT) musicCatalogCache.delete(musicCatalogCache.keys().next().value);
 }
@@ -748,58 +764,212 @@ function mimeForMusicFormat(format) {
   })[key] || 'audio/mpeg';
 }
 
-async function streamMusicAddonTrack(track, req, res) {
-  try {
+function musicRetryAfterMs(response) {
+  const value = response && response.headers ? response.headers.get('retry-after') : null;
+  if (value && /^\d+$/.test(value.trim())) return Math.max(10000, Math.min(15 * 60 * 1000, Number(value.trim()) * 1000));
+  if (value) {
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) return Math.max(10000, Math.min(15 * 60 * 1000, timestamp - Date.now()));
+  }
+  return 60 * 1000;
+}
+
+function musicRateLimitError(host, response) {
+  const waitMs = musicRetryAfterMs(response);
+  const retryAt = Date.now() + waitMs;
+  musicHostCooldowns.set(host, retryAt);
+  const error = new Error('The audio source rate-limited the chat server (HTTP 429). The server will wait about ' +
+    Math.ceil(waitMs / 1000) + ' seconds before trying that host again.');
+  error.statusCode = 429;
+  error.retryAt = retryAt;
+  return error;
+}
+
+async function ensureAddonTrackCached(track) {
+  if (track.relayCachePath) {
+    try {
+      await fs.promises.access(track.relayCachePath);
+      return track.relayCachePath;
+    } catch (_) {
+      track.relayCachePath = null;
+    }
+  }
+  if (track.relayCacheError && track.relayCacheRetryAt > Date.now()) {
+    const error = new Error(track.relayCacheError);
+    error.statusCode = track.relayCacheStatus || 502;
+    error.retryAt = track.relayCacheRetryAt;
+    throw error;
+  }
+  if (track.relayCachePromise) return track.relayCachePromise;
+
+  track.relayCacheError = null;
+  track.relayCacheRetryAt = 0;
+  const task = (async () => {
     let upstream = null;
     let descriptor = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      descriptor = await resolveMusicAddonStream(track, attempt > 0);
-      upstream = await fetchRelayedAudio(descriptor.url, req.headers.range);
-      if (attempt === 0 && [401, 403, 404, 410].includes(upstream.status)) {
-        if (upstream.body) await upstream.body.cancel().catch(() => {});
-        track.streamUrl = null;
-        track.streamUrlExpiresAt = 0;
-        continue;
+    let host = '';
+    let tempPath = null;
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        descriptor = await resolveMusicAddonStream(track, attempt > 0);
+        const streamUrl = await validatePublicAudioUrl(descriptor.url);
+        host = streamUrl.host.toLowerCase();
+        const cooldownUntil = musicHostCooldowns.get(host) || 0;
+        if (cooldownUntil > Date.now()) {
+          const waitSeconds = Math.ceil((cooldownUntil - Date.now()) / 1000);
+          const error = new Error('The audio host has rate-limited the chat server. Try again in about ' + waitSeconds + ' seconds.');
+          error.statusCode = 429;
+          error.retryAt = cooldownUntil;
+          throw error;
+        }
+        upstream = await fetchRelayedAudio(streamUrl.toString(), null);
+        if (attempt === 0 && [401, 403, 404, 410].includes(upstream.status)) {
+          if (upstream.body) await upstream.body.cancel().catch(() => {});
+          track.streamUrl = null;
+          track.streamUrlExpiresAt = 0;
+          upstream = null;
+          continue;
+        }
+        break;
       }
-      break;
+
+      if (!upstream) throw new Error('The audio source did not respond.');
+      const upstreamType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      if (upstream.status === 429) {
+        if (upstream.body) await upstream.body.cancel().catch(() => {});
+        throw musicRateLimitError(host, upstream);
+      }
+      if (!upstream.ok || upstream.status === 206) {
+        if (upstream.body) await upstream.body.cancel().catch(() => {});
+        throw new Error('The audio source returned HTTP ' + upstream.status + '.');
+      }
+      if (!upstream.body || upstreamType === 'text/html' || upstreamType === 'application/json' ||
+          !(upstreamType.startsWith('audio/') || upstreamType === 'application/octet-stream' || upstreamType === 'video/webm')) {
+        if (upstream.body) await upstream.body.cancel().catch(() => {});
+        throw new Error('The source did not return a direct audio stream (HTTP ' + upstream.status +
+          ', content type ' + (upstreamType || 'unknown') + ').');
+      }
+
+      tempPath = path.join(MUSIC_RELAY_CACHE_DIR, 'track-' + track.id + '-' + crypto.randomBytes(8).toString('hex') + '.cache');
+      track.relayCacheTempPath = tempPath;
+      let bytes = 0;
+      let timedOut = false;
+      const source = Readable.fromWeb(upstream.body);
+      const limiter = new Transform({
+        transform(chunk, _encoding, callback) {
+          bytes += chunk.length;
+          if (bytes > MUSIC_MAX_RELAY_CACHE_BYTES) {
+            callback(new Error('This audio file exceeds the server cache limit of 120 MB.'));
+            return;
+          }
+          callback(null, chunk);
+        }
+      });
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        source.destroy(new Error('The server timed out while preparing the audio cache.'));
+      }, MUSIC_CACHE_DOWNLOAD_TIMEOUT_MS);
+      try {
+        await pipeline(source, limiter, fs.createWriteStream(tempPath, { flags: 'wx' }));
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (timedOut) throw new Error('The server timed out while preparing the audio cache.');
+      if (!bytes) throw new Error('The audio source returned an empty file.');
+      if (findMusicTrack(track.id) !== track) throw new Error('This track is no longer in the shared queue.');
+
+      track.relayCachePath = tempPath;
+      track.relayCacheTempPath = null;
+      track.relayCacheBytes = bytes;
+      track.relayCacheMimeType = upstreamType.startsWith('audio/') ? upstreamType : mimeForMusicFormat(descriptor && descriptor.format || track.format);
+      track.relayCacheError = null;
+      track.relayCacheRetryAt = 0;
+      track.relayCacheStatus = 200;
+      console.log('[music] one server-side audio fetch cached (' + bytes + ' bytes); listeners will use the local cache');
+      return tempPath;
+    } catch (error) {
+      if (tempPath) await fs.promises.unlink(tempPath).catch(() => {});
+      track.relayCacheTempPath = null;
+      const status = error && Number.isInteger(error.statusCode) ? error.statusCode : 502;
+      const retryAt = error && Number.isFinite(error.retryAt) ? error.retryAt : Date.now() + 8000;
+      const rawMessage = error && typeof error.message === 'string' ? error.message : 'The audio source could not be fetched.';
+      const safeMessage = safeMusicDiagnosticMessage(error);
+      track.relayCacheError = safeMessage || rawMessage;
+      track.relayCacheRetryAt = retryAt;
+      track.relayCacheStatus = status;
+      throw error;
     }
-    if (!upstream) throw new Error('The audio source did not respond.');
-    if (upstream.status === 416) {
-      const contentRange = upstream.headers.get('content-range');
-      if (contentRange) res.setHeader('Content-Range', contentRange);
-      res.setHeader('Accept-Ranges', 'bytes');
+  })();
+  track.relayCachePromise = task;
+  try {
+    return await task;
+  } finally {
+    if (track.relayCachePromise === task) track.relayCachePromise = null;
+  }
+}
+
+function serveCachedAddonAudio(track, req, res) {
+  const filePath = track.relayCachePath;
+  const total = Number(track.relayCacheBytes) || 0;
+  if (!filePath || total <= 0) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'The server audio cache is not ready.' });
+  }
+  res.setHeader('Content-Type', track.relayCacheMimeType || mimeForMusicFormat(track.format));
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline; filename="shared-track.' + (String(track.format || 'audio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'audio') + '"');
+
+  let start = 0, end = total - 1, status = 200;
+  const rangeHeader = req.headers.range;
+  if (rangeHeader) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+    if (!match || (!match[1] && !match[2])) {
+      res.setHeader('Content-Range', 'bytes */' + total);
       return res.status(416).end();
     }
-    if (!upstream.ok && upstream.status !== 206) {
-      if (upstream.body) await upstream.body.cancel().catch(() => {});
-      throw new Error('The audio source returned HTTP ' + upstream.status);
+    if (!match[1]) {
+      const suffix = Number(match[2]);
+      if (!Number.isSafeInteger(suffix) || suffix <= 0) {
+        res.setHeader('Content-Range', 'bytes */' + total);
+        return res.status(416).end();
+      }
+      start = Math.max(0, total - suffix);
+    } else {
+      start = Number(match[1]);
+      end = match[2] ? Number(match[2]) : total - 1;
     }
-    if (!upstream.body) throw new Error('The audio source returned no audio data.');
-    const upstreamType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    if (upstreamType === 'text/html' || upstreamType === 'application/json') {
-      await upstream.body.cancel().catch(() => {});
-      throw new Error('The music provider returned a web page instead of audio.');
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= total || end < start) {
+      res.setHeader('Content-Range', 'bytes */' + total);
+      return res.status(416).end();
     }
+    end = Math.min(end, total - 1);
+    status = 206;
+    res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + total);
+  }
 
-    res.status(upstream.status);
-    res.setHeader('Content-Type', upstreamType.startsWith('audio/') ? upstreamType : mimeForMusicFormat(descriptor && descriptor.format || track.format));
-    res.setHeader('Accept-Ranges', upstream.headers.get('accept-ranges') || 'bytes');
-    res.setHeader('Cache-Control', 'no-store, max-age=0');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline; filename="shared-track.' + (String(descriptor && descriptor.format || track.format || 'audio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'audio') + '"');
-    const contentLength = upstream.headers.get('content-length');
-    const contentRange = upstream.headers.get('content-range');
-    if (contentLength && /^\d+$/.test(contentLength)) res.setHeader('Content-Length', contentLength);
-    if (contentRange && /^bytes \d+-\d+\/\d+$/.test(contentRange)) res.setHeader('Content-Range', contentRange);
+  res.status(status);
+  res.setHeader('Content-Length', String(end - start + 1));
+  if (req.method === 'HEAD') return res.end();
+  const source = fs.createReadStream(filePath, { start, end });
+  res.on('close', () => { if (!res.writableEnded) source.destroy(); });
+  source.on('error', () => { if (!res.headersSent) res.status(502).end(); else if (!res.writableEnded) res.destroy(); });
+  source.pipe(res);
+}
 
-    const source = Readable.fromWeb(upstream.body);
-    res.on('close', () => { if (!res.writableEnded) source.destroy(); });
-    source.on('error', () => { if (!res.headersSent) res.status(502).end(); else if (!res.writableEnded) res.destroy(); });
-    source.pipe(res);
-  } catch (_) {
-    console.log('[music] server-side stream relay failed');
-    if (!res.headersSent) res.status(502).json({ error: 'The server could not relay this track. It may be unavailable or use an unsupported stream format.' });
-    else if (!res.writableEnded) res.destroy();
+async function streamMusicAddonTrack(track, req, res) {
+  try {
+    await ensureAddonTrackCached(track);
+    return serveCachedAddonAudio(track, req, res);
+  } catch (error) {
+    const status = error && Number.isInteger(error.statusCode) ? error.statusCode : 502;
+    if (status === 429 && Number.isFinite(error.retryAt)) res.setHeader('Retry-After', String(Math.max(1, Math.ceil((error.retryAt - Date.now()) / 1000))));
+    console.log('[music] server-side audio preparation failed (HTTP ' + status + '): ' + safeMusicDiagnosticMessage(error));
+    if (!res.headersSent) return res.status(status).set('Cache-Control', 'no-store').json({
+      error: safeMusicDiagnosticMessage(error) || 'The server could not prepare audio from this source.'
+    });
+    if (!res.writableEnded) res.destroy();
   }
 }
 
@@ -815,35 +985,19 @@ function safeMusicDiagnosticMessage(error) {
 }
 
 async function inspectMusicAddonStream(track) {
-  let upstream = null;
-  let descriptor = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    descriptor = await resolveMusicAddonStream(track, attempt > 0);
-    upstream = await fetchRelayedAudio(descriptor.url, 'bytes=0-1');
-    if (attempt === 0 && [401, 403, 404, 410].includes(upstream.status)) {
-      if (upstream.body) await upstream.body.cancel().catch(() => {});
-      track.streamUrl = null;
-      track.streamUrlExpiresAt = 0;
-      continue;
-    }
-    break;
+  if (track.relayCacheError && track.relayCacheRetryAt > Date.now()) {
+    const error = new Error(track.relayCacheError);
+    error.statusCode = track.relayCacheStatus || 502;
+    error.retryAt = track.relayCacheRetryAt;
+    throw error;
   }
-  if (!upstream) throw new Error('The audio source did not respond.');
-  const status = upstream.status;
-  const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  const supportedContent = contentType.startsWith('audio/') ||
-    contentType === 'application/octet-stream' || contentType === 'video/webm';
-  if (upstream.body) await upstream.body.cancel().catch(() => {});
-  if ((!upstream.ok && status !== 206) || contentType === 'text/html' ||
-      contentType === 'application/json' || !supportedContent) {
-    throw new Error('The source returned HTTP ' + status + ' with content type ' +
-      (contentType || 'unknown') + ', not a direct audio stream.');
-  }
+  await ensureAddonTrackCached(track);
   return {
     ok: true,
-    status,
-    contentType,
-    rangeSupported: status === 206 || upstream.headers.get('accept-ranges') === 'bytes'
+    status: 200,
+    contentType: track.relayCacheMimeType || mimeForMusicFormat(track.format),
+    rangeSupported: true,
+    cachedBytes: track.relayCacheBytes
   };
 }
 
@@ -882,7 +1036,10 @@ app.get('/music/stream/:id', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(404).json({ error: 'This track is no longer available on the server.' });
   }
-  if (track.source === 'addon') return streamMusicAddonTrack(track, req, res);
+  if (track.source === 'addon') {
+    if (track !== musicCurrent) return res.status(409).json({ error: 'Only the current shared track can be streamed.' });
+    return streamMusicAddonTrack(track, req, res);
+  }
   if (!Buffer.isBuffer(track.audio)) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(404).json({ error: 'This track is no longer available on the server.' });
