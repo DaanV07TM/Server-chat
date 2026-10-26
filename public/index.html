@@ -602,7 +602,7 @@ function start() {
   const voiceParticipants = new Map();
 
   function renderVoiceParticipants() {
-    voiceCount.textContent = voiceParticipants.size + (voiceParticipants.size === 1 ? ' in voice' : ' in voice');
+    voiceCount.textContent = voiceParticipants.size + (voiceParticipants.size === 1 ? ' person in voice' : ' people in voice');
     voiceParticipantsEl.replaceChildren();
     if (!voiceParticipants.size) {
       const empty = document.createElement('span');
@@ -768,10 +768,17 @@ function start() {
     voiceJoining = true;
     updateVoiceUI();
     try {
-      voiceStream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: false
       });
+      // If the user cancelled while the browser permission prompt was open, stop the
+      // newly acquired microphone instead of silently joining the voice channel.
+      if (!voiceJoining || !socket.connected) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      voiceStream = stream;
       socket.emit('voice:join', { name });
     } catch (error) {
       resetVoiceLocal();
