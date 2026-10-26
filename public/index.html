@@ -370,7 +370,7 @@ button:active:not(:disabled){transform:translateY(0)}
           <strong>Waiting for the first audio track</strong>
           <p>The chat server prepares one temporary copy per selected track, then serves that cached audio to all listeners. A browser may ask you to click Play or Join before it allows sound.</p>
         </div>
-        <audio id="musicAudio" class="music-audio" controls preload="metadata" playsinline hidden></audio>
+        <audio id="musicAudio" class="music-audio" preload="metadata" playsinline hidden></audio>
       </div>
       <div id="musicCurrentLabel" class="music-current-label" aria-live="polite">No track selected yet. Search the catalogue or upload an audio file.</div>
       <div class="music-sync-controls">
@@ -380,7 +380,7 @@ button:active:not(:disabled){transform:translateY(0)}
           <button id="musicPauseAllBtn" type="button" disabled>Ⅱ Pause everyone</button>
           <button id="musicJoinSyncBtn" type="button" disabled>↻ Join / resync here</button>
         </div>
-        <p class="music-sync-help">The server shares one playback clock. A browser may require one local click to permit sound.</p>
+        <p class="music-sync-help">The first track starts automatically. Click Join / resync here to listen in this browser; only admins can pause or skip for everyone.</p>
       </div>
     </div>
     <div class="music-queue-column">
@@ -663,6 +663,19 @@ function start() {
   let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0, musicSearchSequence = 0;
   const musicPendingSyncRequests = new Map();
   musicPanel.hidden = room !== 'music';
+  musicAudio.controls = false;
+
+  function updateMusicAdminUI() {
+    const isAdmin = !!moderator;
+    musicAudio.controls = isAdmin;
+    musicPlayAllBtn.hidden = !isAdmin;
+    musicPauseAllBtn.hidden = !isAdmin;
+    musicNextBtn.hidden = !isAdmin;
+    musicPlayAllBtn.title = isAdmin ? 'Start or resume playback for everyone' : '';
+    musicPauseAllBtn.title = isAdmin ? 'Pause playback for everyone' : '';
+    musicNextBtn.title = isAdmin ? 'Skip the current track' : '';
+    updateMusicSyncUI();
+  }
 
   function musicTargetPosition() {
     const playback = sharedMusicState.playback || { isPlaying: false, position: 0 };
@@ -684,6 +697,7 @@ function start() {
     musicPlayAllBtn.disabled = !current;
     musicPauseAllBtn.disabled = !current || !playback.isPlaying;
     musicJoinSyncBtn.disabled = !current;
+    musicAudio.controls = !!moderator;
     musicSyncStatus.classList.toggle('live', !!playback.isPlaying);
     musicSyncStatus.classList.toggle('paused', !playback.isPlaying);
     if (!current) {
@@ -943,6 +957,7 @@ function start() {
   });
   musicAudio.addEventListener('play', () => {
     if (Date.now() < musicSuppressNativeEventsUntil) return;
+    if (!moderator) return;
     const current = sharedMusicState.current;
     if (!current) return musicAudio.pause();
     musicListeningEnabled = true;
@@ -950,13 +965,13 @@ function start() {
     updateMusicSyncUI();
   });
   musicAudio.addEventListener('pause', () => {
-    if (Date.now() < musicSuppressNativeEventsUntil) return;
+    if (Date.now() < musicSuppressNativeEventsUntil || !moderator) return;
     const current = sharedMusicState.current;
     if (!current || !sharedMusicState.playback.isPlaying) return;
     socket.emit('music:control', { action: 'pause', trackId: current.id });
   });
   musicAudio.addEventListener('seeked', () => {
-    if (Date.now() < musicSuppressNativeEventsUntil) return;
+    if (Date.now() < musicSuppressNativeEventsUntil || !moderator) return;
     const current = sharedMusicState.current;
     if (!current) return;
     socket.emit('music:control', { action: 'seek', trackId: current.id, position: musicAudio.currentTime || 0 });
@@ -988,9 +1003,13 @@ function start() {
     }
   };
 
-  musicNextBtn.onclick = () => socket.emit('music:next');
+  musicNextBtn.onclick = () => {
+    if (!moderator) return showToast('Only admins can skip the current track.', 'error');
+    socket.emit('music:next');
+  };
 
   musicPlayAllBtn.onclick = () => {
+    if (!moderator) return showToast('Only admins can start or resume shared playback.', 'error');
     const current = sharedMusicState.current;
     if (!current) return showToast('Search for or upload a track first.', 'error');
     if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
@@ -1012,6 +1031,7 @@ function start() {
   };
 
   musicPauseAllBtn.onclick = () => {
+    if (!moderator) return showToast('Only admins can pause shared playback.', 'error');
     const current = sharedMusicState.current;
     if (!current) return;
     suppressNativeMusicEvents(1800);
@@ -1073,7 +1093,8 @@ function start() {
         button.textContent = 'Added';
         button.disabled = true;
       }
-      musicNotice.textContent = 'Added to the shared queue. Press Play for everyone when you are ready.';
+      musicNotice.textContent = 'Added to the shared queue. The first track starts automatically; only admins can pause or skip.';
+
       showToast('Track added to the shared queue.', 'success');
       return;
     }
@@ -1081,7 +1102,7 @@ function start() {
     musicTitleInput.value = '';
     musicAddBtn.disabled = false;
     musicAddBtn.textContent = 'Upload to shared queue';
-    musicNotice.textContent = 'Added to the shared queue. Press Play for everyone when you are ready.';
+    musicNotice.textContent = 'Added to the shared queue. Only admins can pause or skip shared playback.';
     showToast('Audio uploaded to the shared queue.', 'success');
   });
   socket.on('music:error', data => {
@@ -2143,7 +2164,7 @@ function start() {
       B('Log out', '/logout', 'plain');
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
-  socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; if (!on) closeAdm(); });
+  socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; updateMusicAdminUI(); if (!on) closeAdm(); });
   socket.on('adm:state', st => {
     if (!admOpen) return;
     const a = document.activeElement;
