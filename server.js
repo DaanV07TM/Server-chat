@@ -441,6 +441,17 @@ io.on('connection', (socket) => {
     sharer.emit('screen:viewer', { viewerId: socket.id });
   });
 
+  socket.on('screen:unwatch', (d) => {
+    const screenRoom = d && typeof d.room === 'string' ? roomName(d.room) : room;
+    const share = screenSharers[screenRoom];
+    if (share && share.viewers && share.viewers.has(socket.id)) {
+      removeScreenViewer(socket.id, screenRoom);
+      const sharer = io.sockets.sockets.get(share.socketId);
+      if (sharer) sharer.emit('screen:viewer-stopped', { viewerId: socket.id });
+    }
+    socket.emit('screen:unwatched', { room: screenRoom });
+  });
+
   // Admin-only monitoring of any active room, without joining that room.
   socket.on('screen:admin:watch', (d) => {
     if (!socket.data.admin) return;
