@@ -481,8 +481,11 @@ io.on('connection', (socket) => {
 
     // Determine the stream from the authenticated sharer or registered viewer.
     let share = null, shareRoom = null, senderIsSharer = false;
+    // Match by destination first so an admin can share in one room and monitor another.
     for (const [candidateRoom, candidateShare] of Object.entries(screenSharers)) {
-      if (candidateShare.socketId === socket.id) {
+      if (candidateShare.socketId === socket.id &&
+          candidateShare.viewers && candidateShare.viewers.has(d.to) &&
+          screenViewerRooms.get(d.to) === candidateRoom) {
         share = candidateShare; shareRoom = candidateRoom; senderIsSharer = true; break;
       }
     }
