@@ -580,6 +580,30 @@ function releaseMusicTrack(track) {
   if (cachedPath) fs.promises.unlink(cachedPath).catch(() => {});
 }
 
+function musicCurrentHasFinished(now = Date.now()) {
+  if (!musicCurrent || musicPlayback.isPlaying || musicPausedByAdmin) return false;
+  const duration = Number(musicCurrent.duration);
+  return Number.isFinite(duration) && duration > 0 && getMusicPosition(now) >= duration - 0.05;
+}
+
+function queueMusicTrack(track, now = Date.now()) {
+  if (!musicCurrent || musicCurrentHasFinished(now)) {
+    if (musicCurrent) releaseMusicTrack(musicCurrent);
+    musicCurrent = track;
+    const isCatalogueTrack = track.source === 'addon';
+    musicPlayback = {
+      isPlaying: !isCatalogueTrack,
+      position: 0,
+      startedAt: isCatalogueTrack ? null : now,
+      changedBy: null
+    };
+    if (isCatalogueTrack) prepareCurrentMusicTrack(track);
+    return true;
+  }
+  musicQueue.push(track);
+  return false;
+}
+
 function advanceMusicTrack(now = Date.now(), reason = 'ended') {
   if (!musicCurrent) return;
   const previous = musicCurrent;
@@ -709,7 +733,9 @@ app.get('/api/music/search', async (req, res) => {
         if (!raw || typeof raw !== 'object') continue;
         const sourceId = (typeof raw.id === 'string' || typeof raw.id === 'number') ? String(raw.id) : '';
         const title = clean(raw.title, 120);
+        const duration = Number(raw.duration);
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(sourceId) || !title ||
+            !Number.isFinite(duration) || duration <= 0 || duration > 86400 ||
             raw.is_available === false || raw.is_streamable === false ||
             raw.is_stream_gated === true || raw.is_unlisted === true) continue;
 
@@ -721,7 +747,7 @@ app.get('/api/music/search', async (req, res) => {
           title,
           artist: clean(user.name || user.handle || raw.artist, 120),
           album: clean(album.title || raw.album_name || raw.playlist_name, 120),
-          duration: Number.isFinite(Number(raw.duration)) && Number(raw.duration) >= 0 ? Number(raw.duration) : null,
+          duration,
           format: 'MP3',
           permalink: typeof raw.permalink === 'string' ? raw.permalink : null
         };
@@ -1135,8 +1161,9 @@ app.get('/music/stream/:id', async (req, res) => {
   return res.end(audio);
 });
 
-// Send authoritative playback-clock snapshots to listeners while a song is playing.
-// The audio itself is served by this app instead of being loaded from YouTube.
+// Server-owned music scheduler: it runs regardless of how many sockets are in
+// #music (including zero). Track duration advances the queue even with no listeners;
+// browsers only attach to the current position when they join the room.
 const musicSyncTimer = setInterval(() => {
   if (!musicPlayback.isPlaying || !musicCurrent) return;
   const now = Date.now();
@@ -1498,15 +1525,9 @@ io.on('connection', (socket) => {
       streamUrlExpiresAt: 0
     };
     socket.data.musicLastAdd = now;
-    if (!musicCurrent) {
-      musicCurrent = track;
-      musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
-    } else {
-      musicQueue.push(track);
-    }
+    queueMusicTrack(track, now);
     broadcastMusicState();
     socket.emit('music:added', { id: track.id, source: 'addon', catalogId });
-    if (musicCurrent === track) prepareCurrentMusicTrack(track);
     console.log('[music] catalogue track queued by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
   });
 
@@ -1538,6 +1559,10 @@ io.on('connection', (socket) => {
     if (!mimeType) {
       return socket.emit('music:error', { message: 'Supported formats: MP3, M4A, AAC, OGG, OPUS, WAV, WEBM and FLAC.' });
     }
+    const duration = Number(d.duration);
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 86400) {
+      return socket.emit('music:error', { message: 'The browser could not read this audio file’s duration, so the shared queue cannot auto-advance it. Try a supported MP3, M4A, OGG or WAV file.' });
+    }
 
     const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
     if (sameUserCount >= MUSIC_MAX_PER_USER) {
@@ -1566,16 +1591,12 @@ io.on('connection', (socket) => {
       mimeType,
       fileName: 'track-' + musicTrackId + extension,
       hash,
+      duration,
       audio
     };
     socket.data.musicLastAdd = now;
     musicStoredBytes += audio.length;
-    if (!musicCurrent) {
-      musicCurrent = track;
-      musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: null };
-    } else {
-      musicQueue.push(track);
-    }
+    queueMusicTrack(track, now);
     broadcastMusicState();
     socket.emit('music:added', { id: track.id });
     console.log('[music] audio track added by ' + track.addedBy + '; memory ' + musicStoredBytes + ' bytes; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
