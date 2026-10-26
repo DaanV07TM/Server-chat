@@ -12,9 +12,9 @@ An anonymous, real-time chat with separate channels, optional voice chat, and pe
 - **`#help`** — ask questions and help other users.
 - **`#announcements`** — official updates from moderators. Both posts written directly in this channel and global announcements sent by moderators are copied into the channel archive. They do not expire while the server is running. Four pinned guide posts are built into the app and reappear after restarts.
 - **`#voice`** — chat by text, optionally join live voice, mute/unmute, leave voice, and share your screen.
-- **`#music`** — a shared queue for individual YouTube and YouTube Music video links. Tracks are kept in memory, with a maximum of 50 entries and 5 per user.
+- **`#music`** — a server-hosted audio queue. Upload MP3, M4A, AAC, OGG, OPUS, WAV, WEBM or FLAC tracks (8 MB per file, up to 24 MB of audio stored in memory, 20 queue entries and 5 tracks per user).
 
-To use music, open `#music`, paste an individual YouTube or YouTube Music video link, optionally enter its title, and add it to the shared queue. Everyone in `#music` sees the same current track and queue, with a server-authoritative playback clock. Use **Play for everyone**, **Pause everyone**, or **Next track** to control the room; use **Join / resync** on a device when its browser blocks remote playback or it drifts. YouTube's visible player and controls remain present. This is an embedded YouTube player, not an official YouTube Music account integration, and browser autoplay policies, advertisements, buffering, and videos that disallow embedding can prevent perfectly simultaneous playback. Some users may need to click Play/Join on their own device.
+To use music, open `#music`, choose an audio file you own or have permission to share, optionally enter its title, and upload it. The chat server keeps the audio in memory and serves it to each browser from `/music/stream/<track-id>`; the server maintains one shared playback clock and queue. Use **Play for everyone**, **Pause everyone**, or **Next track** to control the room. A browser may require a local Play/Join click before it permits sound. Playback is synchronized to the server clock, but buffering, connection speed and browser policies mean it is not guaranteed to be sample-perfect. Audio uploads are not saved to permanent disk and are cleared when the server restarts or when the current track is skipped. The service caps each file at 8 MB and total uploaded audio memory at 24 MB to reduce risk to the Render instance. Upload only content you have the legal right to distribute.
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
@@ -22,7 +22,7 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 
 - No user account is required. Display names are not identity verification.
 - Ordinary chat messages are held in server memory and expire after about one hour.
-- The shared music queue and synchronized playback clock are held in server memory and are cleared if the service restarts or redeploys.
+- The shared music queue, uploaded audio files and synchronized playback clock are held in server memory and are cleared if the service restarts or redeploys. Skipping a track releases its audio buffer from memory.
 - Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
 - The application does not maintain an account database or intentionally save IP addresses in chat history. However, the hosting provider may process connection metadata under its own policies.
 - Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
