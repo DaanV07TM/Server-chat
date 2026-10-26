@@ -2137,7 +2137,15 @@ function start() {
   socket.on('typing', n => { $('typing').textContent = n + ' is typing…'; clearTimeout(tt); tt = setTimeout(() => $('typing').textContent = '', 2500); });
 
   // photos and GIFs (photos are resized, which also removes location data)
-  $('photo').onclick = () => $('file').click();
+  $('photo').onclick = async () => {
+    const accepted = await showSiteDialog({
+      title: 'Image upload and moderation',
+      message: 'Images are not end-to-end encrypted. When you upload an image, it is sent to this server and can be viewed by moderators, including images posted in private rooms. Images from regular users stay hidden from other room participants until a moderator approves them. Review is manual and cannot guarantee that illegal images will never reach the server. Do not upload illegal, sensitive, or private images.',
+      confirmText: 'Choose image',
+      cancelText: 'Cancel'
+    });
+    if (accepted) $('file').click();
+  };
   $('file').onchange = e => {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
