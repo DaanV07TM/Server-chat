@@ -8,6 +8,15 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 2e6 });
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Voice and screen capture are allowed only for this page; the camera is not used.
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), display-capture=(self), geolocation=()');
+  next();
+});
 
 // Lightweight endpoint for external uptime checks and scheduled keep-alive probes.
 app.get('/healthz', (_req, res) => {
@@ -18,7 +27,14 @@ app.get('/healthz', (_req, res) => {
 app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
+const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
+const OFFICIAL_ANNOUNCEMENT_INFO = [
+  { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
+  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, and #voice for optional live voice chat and screen sharing. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like.' },
+  { name: 'Privacy & retention', bot: true, pinned: true, text: 'No account is required. Ordinary room messages are kept in server memory for up to one hour. Moderator posts in #announcements do not expire during normal server uptime, but custom posts are lost if the service restarts because this app has no persistent database. Hosting providers may process connection metadata.' },
+  { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
+];
 const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
 const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
 let latestAnnouncement = null, latestAnnouncementTimer = null;
@@ -103,7 +119,8 @@ function store(room, m) {
   if (!rooms[room]) console.log('[room] new room active');
   const list = (rooms[room] ||= []);
   list.push(m);
-  if (list.length > MAX_MSGS) list.shift();
+  const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : MAX_MSGS;
+  if (list.length > roomLimit) list.shift();
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; o.text = o.text || '(image removed)'; }
 }
@@ -377,7 +394,12 @@ function adminCommand(socket, c, arg, room) {
 
 setInterval(() => {
   const now = Date.now();
-  for (const r in rooms) { rooms[r] = rooms[r].filter(m => now - m.t < TTL); if (!rooms[r].length) delete rooms[r]; }
+  for (const r in rooms) {
+    // Moderator posts in #announcements are retained for the lifetime of this
+    // process; regular room history still expires after one hour.
+    if (r !== 'announcements') rooms[r] = rooms[r].filter(m => now - m.t < TTL);
+    if (!rooms[r].length) delete rooms[r];
+  }
   for (const k in timeouts) if (timeouts[k] < now) delete timeouts[k];
   for (const [k, e] of reportLog) if (now - e.t > 86400000) reportLog.delete(k);
   for (const k in reportTimes) if (!reportTimes[k].some(t => now - t < 600000)) delete reportTimes[k];
@@ -467,11 +489,20 @@ io.on('connection', (socket) => {
     socket.emit('config', { images: imagesAllowed(room) });
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
-    const history = (rooms[room] || []).filter(m => now - m.t < TTL).map(pub);
-    // Announcements are global, not tied to a room's message list. Include
-    // the latest one for new joiners while its one-minute banner is active.
+    const history = (rooms[room] || [])
+      .filter(m => room === 'announcements' || now - m.t < TTL)
+      .map(pub);
+    // Global banners remain temporary. Moderator posts written directly in
+    // #announcements have their own history and do not expire with normal chat.
     if (latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
       history.push(latestAnnouncement);
+    }
+    if (room === 'announcements') {
+      history.push(...OFFICIAL_ANNOUNCEMENT_INFO.map((m, i) => ({
+        ...m,
+        id: 'official-info-' + (i + 1),
+        t: now
+      })));
     }
     socket.emit('history', history);
     if (room === 'voice') socket.emit('voice:state', { participants: getVoiceRoster() });
