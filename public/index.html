@@ -403,14 +403,17 @@ function start() {
   const screenVideo = $('screenVideo');
   const screenPanel = $('screenPanel');
   const screenShareBtn = $('screenShareBtn');
+  const screenWatchToggle = $('screenWatchToggle');
   const screenStopBtn = $('screenStop');
   const screenTitle = $('screenTitle');
   const screenStatus = $('screenStatus');
+  const screenStatusShort = $('screenStatusShort');
   const screenPlaceholder = $('screenPlaceholder');
   const adminScreenMonitor = $('adminScreenMonitor');
   const adminMonitorTitle = $('adminMonitorTitle');
   const adminMonitorStatus = $('adminMonitorStatus');
   const adminMonitorVideo = $('adminMonitorVideo');
+  const adminMonitorPlaceholder = $('adminMonitorPlaceholder');
   const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
   function showScreenPanel(title, status) {
@@ -420,31 +423,31 @@ function start() {
   }
 
   function clearScreenPeers() {
-    for (const { pc } of screenPeers.values()) {
+    for (const [id, { pc }] of screenPeers.entries()) {
+      if (id === adminMonitoringSharerId) continue;
       try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch (_) {}
+      screenPeers.delete(id);
     }
-    screenPeers.clear();
     requestedSharerId = null;
   }
 
   function closeAdminMonitorPeer() {
     const oldSharerId = adminMonitoringSharerId;
     const oldRoom = adminMonitoringRoom;
-    const sameRoomShare = !!oldSharerId && oldSharerId === activeSharerId && oldRoom === room && oldSharerId !== socket.id;
+    const keepRoomPreview = !!oldSharerId && oldSharerId === activeSharerId &&
+      oldRoom === room && oldSharerId !== socket.id && !screenPanel.classList.contains('screen-collapsed');
     if (oldSharerId) {
       const entry = screenPeers.get(oldSharerId);
-      if (entry && sameRoomShare) {
-        // The same peer also serves the normal room viewer, so keep it alive.
+      if (entry && keepRoomPreview) {
         const stream = adminMonitorVideo.srcObject;
         if (stream) {
           screenVideo.srcObject = stream;
           screenVideo.muted = false;
           screenVideo.hidden = false;
           screenPlaceholder.hidden = true;
+          screenWatchToggle.textContent = 'Hide preview';
+          screenStatusShort.textContent = 'Preview is open';
           screenVideo.play().catch(() => {});
-        } else {
-          screenPlaceholder.hidden = false;
-          screenPlaceholder.textContent = 'Connecting to the screen in this room…';
         }
       } else if (entry) {
         try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
@@ -456,7 +459,9 @@ function start() {
     adminMonitorVideo.pause();
     adminMonitorVideo.srcObject = null;
     adminMonitorVideo.hidden = true;
+    if (adminMonitorPlaceholder) adminMonitorPlaceholder.hidden = false;
     adminMonitorStatus.textContent = 'Choose an active screen share below to monitor it.';
+    adminScreenMonitor.classList.remove('is-minimized');
     adminScreenMonitor.hidden = true;
   }
 
@@ -464,9 +469,10 @@ function start() {
     const oldSharerId = adminMonitoringSharerId;
     const oldRoom = adminMonitoringRoom;
     const hadMonitor = !!oldSharerId;
-    const isRegularRoomViewer = hadMonitor && oldSharerId === activeSharerId && oldRoom === room && oldSharerId !== socket.id;
+    const keepRoomPreview = hadMonitor && oldSharerId === activeSharerId &&
+      oldRoom === room && oldSharerId !== socket.id && !screenPanel.classList.contains('screen-collapsed');
     closeAdminMonitorPeer();
-    if (notifyServer && hadMonitor && !isRegularRoomViewer && socket.connected) {
+    if (notifyServer && hadMonitor && !keepRoomPreview && socket.connected) {
       socket.emit('screen:admin:unwatch', { sharerId: oldSharerId, room: oldRoom });
     }
   }
@@ -487,10 +493,15 @@ function start() {
     screenVideo.srcObject = null;
     screenVideo.hidden = true;
     screenPlaceholder.hidden = false;
-    screenPlaceholder.textContent = 'The live screen will appear here.';
+    screenPlaceholder.textContent = 'Screen sharing is available. Select Watch screen to preview it.';
+    screenPanel.classList.add('screen-collapsed');
     screenPanel.hidden = true;
     screenTitle.textContent = 'Screen sharing';
+    screenStatusShort.textContent = 'Live screen available';
     screenStatus.textContent = '';
+    screenWatchToggle.textContent = 'Watch screen';
+    screenWatchToggle.hidden = false;
+    screenWatchToggle.disabled = false;
     screenShareBtn.textContent = '🖥️';
     screenShareBtn.title = 'Share your screen';
     screenShareBtn.setAttribute('aria-label', 'Share your screen');
@@ -517,7 +528,8 @@ function start() {
         adminMonitorVideo.srcObject = stream;
         adminMonitorVideo.muted = false;
         adminMonitorVideo.hidden = false;
-        adminMonitorStatus.textContent = 'Monitoring live screen from #' + adminMonitoringRoom + '.';
+        if (adminMonitorPlaceholder) adminMonitorPlaceholder.hidden = true;
+        adminMonitorStatus.textContent = 'Live preview · #' + adminMonitoringRoom;
         adminMonitorVideo.play().catch(() => {});
         return;
       }
@@ -560,34 +572,33 @@ function start() {
     if (activeSharerId) resetScreenShare();
     activeSharerId = data.sharerId;
     const displayName = data.name || 'A room member';
-    showScreenPanel(displayName + ' is sharing their screen', 'Waiting for the video connection…');
+    showScreenPanel(displayName + ' is sharing their screen', 'Screen preview is off. Click Watch screen to view.');
+    screenPanel.classList.add('screen-collapsed');
+    screenStatusShort.textContent = 'Live screen available · preview off';
+    screenWatchToggle.hidden = false;
+    screenWatchToggle.disabled = false;
+    screenWatchToggle.textContent = 'Watch screen';
+    screenVideo.hidden = true;
+    screenPlaceholder.hidden = false;
+    screenPlaceholder.textContent = 'Screen sharing is available. Select Watch screen to preview it.';
 
     if (socket.id === data.sharerId && localScreenStream) {
       screenVideo.srcObject = localScreenStream;
       screenVideo.muted = true;
-      screenVideo.hidden = false;
-      screenPlaceholder.hidden = true;
-      screenVideo.play().catch(() => {});
       screenShareBtn.textContent = '⏹';
       screenShareBtn.title = 'Stop sharing';
       screenShareBtn.setAttribute('aria-label', 'Stop sharing');
       screenShareBtn.classList.add('sharing');
       screenShareBtn.disabled = false;
       screenStopBtn.hidden = false;
-      screenStatus.textContent = 'You are sharing your screen in this room.';
+      screenWatchToggle.textContent = 'Show preview';
+      screenStatusShort.textContent = 'You are sharing your screen';
     } else {
       screenShareBtn.disabled = true;
       screenShareBtn.textContent = '👀';
       screenShareBtn.title = 'Someone is already sharing in this room';
       screenShareBtn.setAttribute('aria-label', 'Someone is sharing their screen');
       screenStopBtn.hidden = true;
-      screenPlaceholder.textContent = 'Connecting to ' + displayName + '…';
-      screenVideo.hidden = true;
-      screenPlaceholder.hidden = false;
-      if (requestedSharerId !== data.sharerId) {
-        requestedSharerId = data.sharerId;
-        socket.emit('screen:watch');
-      }
     }
   }
 
@@ -627,10 +638,14 @@ function start() {
       }, { once: true });
       screenVideo.srcObject = stream;
       screenVideo.muted = true;
-      screenVideo.hidden = false;
-      screenPlaceholder.hidden = true;
-      showScreenPanel('Your screen is being shared', 'Starting screen sharing in this room…');
-      screenVideo.play().catch(() => {});
+      screenVideo.hidden = true;
+      screenPlaceholder.hidden = false;
+      screenPlaceholder.textContent = 'Your screen is being shared. Select Show preview if you want to see it here.';
+      screenPanel.classList.add('screen-collapsed');
+      showScreenPanel('Your screen is being shared', 'Preview is off.');
+      screenStatusShort.textContent = 'You are sharing your screen';
+      screenWatchToggle.textContent = 'Show preview';
+      screenWatchToggle.hidden = false;
       screenShareBtn.textContent = '⏹';
       screenShareBtn.title = 'Stop sharing';
       screenShareBtn.setAttribute('aria-label', 'Stop sharing');
@@ -647,6 +662,53 @@ function start() {
       add({ bot: true, text: message });
     }
   };
+  screenWatchToggle.onclick = () => {
+    if (!activeSharerId) return;
+    const isCollapsed = screenPanel.classList.contains('screen-collapsed');
+    if (isCollapsed) {
+      screenPanel.classList.remove('screen-collapsed');
+      screenWatchToggle.textContent = 'Hide preview';
+      if (localScreenStream) {
+        screenVideo.srcObject = localScreenStream;
+        screenVideo.muted = true;
+        screenVideo.hidden = false;
+        screenPlaceholder.hidden = true;
+        screenStatusShort.textContent = 'You are sharing your screen';
+        screenStatus.textContent = 'Only you can see this local preview here.';
+        screenVideo.play().catch(() => {});
+        return;
+      }
+      screenVideo.hidden = true;
+      screenPlaceholder.hidden = false;
+      screenPlaceholder.textContent = 'Connecting to the live screen…';
+      screenStatusShort.textContent = 'Connecting to live preview…';
+      screenStatus.textContent = 'Connecting to the live screen…';
+      if (adminMonitoringSharerId !== activeSharerId && socket.connected) {
+        requestedSharerId = activeSharerId;
+        socket.emit('screen:watch');
+      } else if (adminMonitoringSharerId === activeSharerId) {
+        screenStatus.textContent = 'This share is open in the floating moderator monitor.';
+      }
+    } else {
+      screenPanel.classList.add('screen-collapsed');
+      screenWatchToggle.textContent = localScreenStream ? 'Show preview' : 'Watch screen';
+      screenStatusShort.textContent = localScreenStream ? 'You are sharing your screen' : 'Live screen available · preview off';
+      if (!localScreenStream && activeSharerId && adminMonitoringSharerId !== activeSharerId && socket.connected) {
+        socket.emit('screen:unwatch', { room });
+        const entry = screenPeers.get(activeSharerId);
+        if (entry) {
+          try { entry.pc.onicecandidate = null; entry.pc.ontrack = null; entry.pc.close(); } catch (_) {}
+          screenPeers.delete(activeSharerId);
+        }
+      }
+      screenVideo.pause();
+      screenVideo.srcObject = null;
+      screenVideo.hidden = true;
+      screenPlaceholder.hidden = false;
+      screenPlaceholder.textContent = 'Preview is hidden. Click Watch screen whenever you want to view it.';
+    }
+  };
+
   screenStopBtn.onclick = () => stopScreenShare();
 
   socket.on('screen:state', handleScreenStarted);
@@ -753,15 +815,18 @@ function start() {
     adminMonitoringSharerId = data.sharerId;
     adminMonitoringRoom = data.room || 'unknown';
     adminScreenMonitor.hidden = false;
+    adminScreenMonitor.classList.remove('is-minimized');
     adminMonitorTitle.textContent = 'Monitoring ' + (data.name || 'user') + ' · #' + adminMonitoringRoom;
     adminMonitorStatus.textContent = 'Connecting to the live screen…';
     adminMonitorVideo.srcObject = null;
     adminMonitorVideo.hidden = true;
+    if (adminMonitorPlaceholder) adminMonitorPlaceholder.hidden = false;
   });
   socket.on('screen:admin:error', data => {
     adminScreenMonitor.hidden = false;
     adminMonitorTitle.textContent = 'Screen monitor';
     adminMonitorStatus.textContent = (data && data.message) || 'Could not open this screen share.';
+    if (adminMonitorPlaceholder) adminMonitorPlaceholder.hidden = false;
   });
   socket.on('screen:admin:action-result', data => {
     $('admmsg').textContent = (data && data.message) || 'Screen-share action completed.';
@@ -769,6 +834,13 @@ function start() {
   });
   socket.on('screen:admin:monitor-ended', () => closeAdminMonitorPeer());
   $('adminMonitorClose').onclick = () => clearAdminMonitor(true);
+  $('adminMonitorStop').onclick = () => clearAdminMonitor(true);
+  $('adminMonitorMinimize').onclick = () => {
+    const minimized = adminScreenMonitor.classList.toggle('is-minimized');
+    $('adminMonitorMinimize').textContent = minimized ? '□' : '−';
+    $('adminMonitorMinimize').title = minimized ? 'Restore monitor' : 'Minimize';
+    $('adminMonitorMinimize').setAttribute('aria-label', minimized ? 'Restore monitor' : 'Minimize monitor');
+  };
 
   function send(img) {
     const t = text.value.trim();
@@ -972,12 +1044,15 @@ function start() {
       if (action === 'monitor') {
         if (adminMonitoringSharerId === sharerId) {
           adminScreenMonitor.hidden = false;
+          adminScreenMonitor.classList.remove('is-minimized');
           return;
         }
         clearAdminMonitor(true);
         adminScreenMonitor.hidden = false;
+        adminScreenMonitor.classList.remove('is-minimized');
         adminMonitorTitle.textContent = 'Screen monitor';
         adminMonitorStatus.textContent = 'Requesting access to the active screen share…';
+        if (adminMonitorPlaceholder) adminMonitorPlaceholder.hidden = false;
         socket.emit('screen:admin:watch', { sharerId });
         return;
       }
