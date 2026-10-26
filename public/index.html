@@ -1486,7 +1486,17 @@ function start() {
   const adminMonitorStatus = $('adminMonitorStatus');
   const adminMonitorVideo = $('adminMonitorVideo');
   const adminMonitorPlaceholder = $('adminMonitorPlaceholder');
-  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  // Multiple public STUN servers improve direct WebRTC connectivity without requiring account setup.
+  // This is a best-effort improvement; some restrictive networks still require a TURN relay.
+  const rtcConfig = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ],
+    iceCandidatePoolSize: 4,
+    bundlePolicy: 'max-bundle'
+  };
 
   // Dedicated #voice channel: opt-in microphone and peer-to-peer WebRTC audio.
   const voicePanel = $('voicePanel');
@@ -1603,9 +1613,23 @@ function start() {
       audio.srcObject = stream;
       audio.play().catch(() => showToast('Your browser blocked incoming voice audio. Click the page and try again.', 'error'));
     };
+    let iceRestartAttempted = false;
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') {
-        voiceStatus.textContent = 'A voice connection failed. This network may require a TURN relay.';
+      if (pc.connectionState === 'failed' && !iceRestartAttempted && voiceActive) {
+        // Try one ICE restart before giving up; this can recover transient NAT/network failures.
+        iceRestartAttempted = true;
+        try {
+          pc.restartIce();
+          voiceStatus.textContent = 'Voice connection interrupted. Trying to reconnect…';
+        } catch (_) {
+          voiceStatus.textContent = 'Voice connection failed. Try again or switch networks.';
+        }
+      } else if (pc.connectionState === 'connected') {
+        voiceStatus.textContent = voiceMuted
+          ? 'Voice connected. Your microphone is muted.'
+          : 'Voice connected.';
+      } else if (pc.connectionState === 'failed') {
+        voiceStatus.textContent = 'Could not connect voice on this network. Try again or switch networks.';
       }
     };
     return entry;
