@@ -65,6 +65,7 @@ const MUSIC_ADDON_TIMEOUT_MS = 12000;
 const MUSIC_SEARCH_CACHE_TTL = 30 * 1000;
 const MUSIC_CATALOG_TTL = 10 * 60 * 1000;
 const MUSIC_CATALOG_LIMIT = 500;
+const MUSIC_STREAM_CHECK_TTL = 15 * 1000;
 const musicSearchCache = new Map();
 const musicCatalogCache = new Map();
 const musicStreamCheckCache = new Map();
