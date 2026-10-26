@@ -596,6 +596,7 @@ function advanceMusicTrack(now = Date.now(), reason = 'ended') {
       changedBy: null
     };
     console.log('[music] ' + reason + '; advancing shared queue' + (shouldStartNow ? '' : ' and preparing the next track'));
+    if (musicCurrent.source === 'addon' && !musicCurrent.relayCachePath) prepareCurrentMusicTrack(musicCurrent);
   } else {
     const duration = Number(previous.duration);
     const finalPosition = Number.isFinite(duration) && duration > 0 ? duration : getMusicPosition(now);
@@ -947,6 +948,14 @@ async function ensureAddonTrackCached(track) {
   } finally {
     if (track.relayCachePromise === task) track.relayCachePromise = null;
   }
+}
+
+function prepareCurrentMusicTrack(track) {
+  if (!track || track.source !== 'addon' || track.relayCachePath) return;
+  ensureAddonTrackCached(track).catch(error => {
+    console.log('[music] automatic track preparation failed: ' + safeMusicDiagnosticMessage(error));
+    if (musicCurrent === track) broadcastMusicState();
+  });
 }
 
 function serveCachedAddonAudio(track, req, res) {
@@ -1497,6 +1506,7 @@ io.on('connection', (socket) => {
     }
     broadcastMusicState();
     socket.emit('music:added', { id: track.id, source: 'addon', catalogId });
+    if (musicCurrent === track) prepareCurrentMusicTrack(track);
     console.log('[music] catalogue track queued by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
   });
 
