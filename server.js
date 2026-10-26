@@ -35,11 +35,14 @@ app.use(express.static('public'));
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
+const ADMIN_IMAGE_LIST_LIMIT = 30;
+const USER_BAN_MS = 24 * 60 * 60 * 1000;
+const userBans = new Map();
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
   { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for shared music search and playback relayed by the server. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, search the catalogue or upload audio you have permission to share, then use the shared playback controls.' },
-  { name: 'Privacy & retention', bot: true, pinned: true, text: 'No account is required. Ordinary room messages are kept in server memory for up to one hour. Moderator posts in #announcements do not expire during normal server uptime, but custom posts are lost if the service restarts because this app has no persistent database. Hosting providers may process connection metadata.' },
-  { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
+  { name: 'Privacy & retention', bot: true, pinned: true, text: 'Ordinary text messages are encrypted in the browser using a shared key in the invite-link URL fragment. Use Copy link to share that key with intended participants. Images are not end-to-end encrypted and are visible to room members immediately; moderators can also review recent images across rooms and remove posts or ban the uploader. This implementation has not been independently audited, and a compromised server could serve modified browser code. Image moderation is manual, not automated detection. Ordinary room history is held in server memory for up to one hour. Hosting providers may process connection metadata.' },
+  { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Moderators can review and remove images, but manual review cannot guarantee that illegal images will never be posted or briefly seen. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
 const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
 const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
@@ -205,6 +208,29 @@ function removeMsg(mid) {
     const i = rooms[r].findIndex(m => m.mid === mid);
     if (i >= 0) { const [m] = rooms[r].splice(i, 1); io.to(r).emit('removed', mid); return m; }
   }
+}
+function findStoredMessage(mid) {
+  for (const roomName of Object.keys(rooms)) {
+    const message = rooms[roomName].find(item => item.mid === mid);
+    if (message) return { room: roomName, message };
+  }
+  return null;
+}
+function activeUserBan(token) {
+  const ban = userBans.get(token);
+  if (!ban) return null;
+  if (ban.expiresAt && ban.expiresAt <= Date.now()) { userBans.delete(token); return null; }
+  return ban;
+}
+function getAdminImageList() {
+  const images = [];
+  for (const roomName of Object.keys(rooms)) {
+    for (const message of rooms[roomName]) {
+      if (!message.img) continue;
+      images.push({ mid: message.mid, room: roomName, name: message.name, t: message.t, img: message.img, admin: !!message.admin });
+    }
+  }
+  return images.sort((a, b) => b.t - a.t).slice(0, ADMIN_IMAGE_LIST_LIMIT);
 }
 function strike(tok) {
   strikes[tok] = (strikes[tok] || 0) + 1;
@@ -1219,7 +1245,7 @@ function removeVoiceParticipant(socketId) {
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
-  const blocked = () => offline && !socket.data.admin;
+  const blocked = () => (offline || socket.data.banned) && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
 
   socket.on('join', (d) => {
@@ -1231,6 +1257,14 @@ io.on('connection', (socket) => {
     }
     room = nextRoom;
     socket.data.tok = clean(d && d.tok, 32);
+    const existingBan = activeUserBan(socket.data.tok);
+    if (existingBan) {
+      socket.data.banned = true;
+      socket.emit('user:banned', { expiresAt: existingBan.expiresAt, reason: existingBan.reason });
+      socket.emit('sys', existingBan.expiresAt ? 'You are banned until ' + new Date(existingBan.expiresAt).toLocaleString() + '.' : 'You are banned from this server until it restarts.');
+      return;
+    }
+    socket.data.banned = false;
     socket.join(room);
     socket.emit('config', { images: imagesAllowed(room) });
     if (blocked()) return socket.emit('closed', true);
@@ -1721,11 +1755,13 @@ io.on('connection', (socket) => {
 
   socket.on('msg', (d) => {
     const now = Date.now();
+    if (socket.data.banned && !socket.data.admin) return socket.emit('sys', 'You are banned from this server.');
     const gap = socket.data.admin ? 500 : Math.max(500, slow * 1000);
     if (now - last < gap) { if (slow && !socket.data.admin && now - last >= 500) socket.emit('sys', 'Slow mode: please wait a moment.'); return; }
     const text = clean(d && d.text, 500);
 
-    if (text === '/admin' || text.startsWith('/admin ')) {   // the password is never shown or stored
+    // Login and moderator commands are control actions, not stored chat text.
+    if (text === '/admin' || text.startsWith('/admin ')) {
       last = now;
       const r = login(text.slice(6).trim());
       if (r === 'ok') { socket.data.admin = true; socket.emit('admin', true); socket.emit('sys', 'Logged in as moderator. Tap ⚙ Admin in the header (or type /help).'); }
@@ -1733,29 +1769,63 @@ io.on('connection', (socket) => {
       return;
     }
     const [cmd, ...rest] = text.split(' ');
-    if (socket.data.admin && ADMIN_CMDS.includes(cmd)) { last = now; return adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room); }
+    if (socket.data.admin && ADMIN_CMDS.includes(cmd)) {
+      last = now;
+      return adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room);
+    }
+
     if (room === 'announcements' && !socket.data.admin) {
       return socket.emit('sys', 'The #announcements channel is read-only. Only moderators can post there.');
     }
-
-    if (offline) return;
+    if (blocked()) return socket.emit('sys', 'Chat is offline or your account is banned.');
     if (silenced && !socket.data.admin) return socket.emit('sys', 'Only moderators can send messages right now.');
     if (timeouts[key()] > now) return socket.emit('sys', 'You are timed out for ' + left(timeouts[key()]) + '.');
+
+    // Slash commands are server controls, not stored as ordinary chat text.
+    if (text.startsWith('/')) {
+      if (!socket.data.admin) {
+        recent = recent.filter(t => now - t < 10000); recent.push(now);
+        if (recent.length > 6) { timeouts[key()] = now + 30000; return socket.emit('sys', 'Too fast. You are timed out for 30 seconds.'); }
+      }
+      last = now;
+      command(room, socket.data.admin ? 'Admin' : safeName(d && d.name), text);
+      return;
+    }
+    if (text) return socket.emit('sys', 'Plaintext chat messages are disabled. Reload the page and use Copy link to share the text-encryption key with participants.');
+
+    const payload = d && d.encryptedText;
+    let encryptedText = null;
+    if (payload !== undefined && payload !== null) {
+      if (!payload || typeof payload.iv !== 'string' || !/^[A-Za-z0-9_-]{16}$/.test(payload.iv) ||
+          typeof payload.data !== 'string' || payload.data.length < 22 || payload.data.length > 3000 ||
+          !/^[A-Za-z0-9_-]+$/.test(payload.data)) {
+        return socket.emit('sys', 'Message rejected because the encrypted payload is invalid. Reload the page and try again.');
+      }
+      encryptedText = { iv: payload.iv, data: payload.data };
+    }
+    const img = d && typeof d.img === 'string' && imagesAllowed(room) && d.img.length < 1.4e6 && IMG.test(d.img) ? d.img : null;
+    if (!encryptedText && !img) return;
+
     if (!socket.data.admin) {
       recent = recent.filter(t => now - t < 10000); recent.push(now);
       if (recent.length > 6) { timeouts[key()] = now + 30000; return socket.emit('sys', 'Too fast. You are timed out for 30 seconds.'); }
-      if (!links && LINK.test(text)) return socket.emit('sys', 'Links are not allowed in this chat.');
-      if (text && text === lastText && now - lastTextAt < 30000) return socket.emit('sys', "Please don't repeat yourself.");
     }
-    const img = d && typeof d.img === 'string' && imagesAllowed(room) && d.img.length < 1.4e6 && IMG.test(d.img) ? d.img : null;
-    if (!text && !img) return;
-    last = now; lastText = text; lastTextAt = now;
+    last = now;
     const isAdmin = socket.data.admin === true;
-    const m = { id: socket.id, tok: key(), name: isAdmin ? 'Admin' : safeName(d && d.name), admin: isAdmin, text: mask(text), t: now };
-    if (img) m.img = img;
-    store(room, m);
-    io.to(room).emit('msg', pub(m));
-    if (text[0] === '/') command(room, m.name, text);
+    const message = { id: socket.id, tok: key(), name: isAdmin ? 'Admin' : safeName(d && d.name), admin: isAdmin, text: '', t: now };
+    if (encryptedText) message.encryptedText = encryptedText;
+    if (img) message.img = img;
+    store(room, message);
+    io.to(room).emit('msg', pub(message));
+
+    // Moderators may inspect image posts across rooms, including private-* rooms.
+    if (img) {
+      const adminImage = { mid: message.mid, room, name: message.name, t: message.t, img, admin: isAdmin };
+      for (const [, recipient] of io.sockets.sockets) {
+        if (recipient.data.admin) recipient.emit('images:admin:posted', adminImage);
+      }
+      console.log('[image-moderation] image posted in #' + room);
+    }
   });
 
   socket.on('report', (d) => {
@@ -1770,7 +1840,7 @@ io.on('connection', (socket) => {
     reportTimes[k].push(now);
     m.rep.push(k);
     let e = reportLog.get(m.mid);
-    if (!e) { e = { mid: m.mid, name: m.name, text: m.text || '[image]', tok: m.tok, reasons: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
+    if (!e) { e = { mid: m.mid, name: m.name, text: m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]'), tok: m.tok, reasons: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
     e.reasons.push(d.reason);
     const urgent = d.reason === 'illegal' || d.reason === 'threat';
     const remove = d.reason === 'illegal' || m.rep.length >= REPORT_LIMIT;
@@ -1779,7 +1849,7 @@ io.on('connection', (socket) => {
     socket.emit('sys', 'Thank you. Your report was sent to the moderators.');
     if (remove) { removeMsg(m.mid); e.status = 'removed'; if (m.tok) strike(m.tok); console.log('[mod] message removed after report'); }
     if (notifyNow) {
-      const body = 'Report #' + m.mid + ' (' + e.reasons.length + ' so far): ' + REASONS[d.reason] + '\nAuthor: ' + m.name + '\nMessage: "' + (m.text || '[image]').slice(0, 300) + '"\nStatus: ' + (remove ? 'removed' : 'still visible, waiting for your review') +
+      const body = 'Report #' + m.mid + ' (' + e.reasons.length + ' so far): ' + REASONS[d.reason] + '\nAuthor: ' + m.name + '\nMessage: "' + (m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]')).slice(0, 300) + '"\nStatus: ' + (remove ? 'removed' : 'still visible, waiting for your review') +
         '\nTo act: open the chat, type /admin followed by your password, then /delete ' + m.mid + ' or /timeout ' + m.mid + ' 60 or /dismiss ' + m.mid;
       adminSay('⚑ ' + body.split('\nTo act')[0].replace(/\n/g, ' | '));
       notify(urgent ? 'URGENT chat report' : 'Chat report', body, urgent);
@@ -1797,6 +1867,55 @@ io.on('connection', (socket) => {
     if (i >= 0) who.splice(i, 1); else who.push(socket.id);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
     io.to(room).emit('react', { mid: m.mid, r: m.r });
+  });
+
+  socket.on('images:admin:list', () => {
+    if (!socket.data.admin) return;
+    socket.emit('images:admin:list-result', { images: getAdminImageList() });
+  });
+
+  socket.on('images:admin:delete', (d) => {
+    if (!socket.data.admin || !d || !Number.isSafeInteger(Number(d.mid))) return;
+    const found = findStoredMessage(Number(d.mid));
+    if (!found || !found.message.img) {
+      socket.emit('images:admin:action-result', { ok: false, message: 'That image post is no longer available.' });
+      socket.emit('images:admin:list-result', { images: getAdminImageList() });
+      return;
+    }
+    removeMsg(found.message.mid);
+    console.log('[image-moderation] admin deleted image post #' + found.message.mid + ' from #' + found.room);
+    socket.emit('images:admin:action-result', { ok: true, message: 'Image post deleted from #' + found.room + '.' });
+    socket.emit('images:admin:list-result', { images: getAdminImageList() });
+  });
+
+  socket.on('images:admin:ban', (d) => {
+    if (!socket.data.admin || !d || !Number.isSafeInteger(Number(d.mid))) return;
+    const found = findStoredMessage(Number(d.mid));
+    if (!found || !found.message.img || found.message.admin || !found.message.tok) {
+      socket.emit('images:admin:action-result', { ok: false, message: 'The uploader could not be identified as a regular user.' });
+      return;
+    }
+    const token = found.message.tok;
+    const permanent = d.duration === 'permanent';
+    const expiresAt = permanent ? 0 : Date.now() + USER_BAN_MS;
+    const reason = 'Banned by moderator after an image post';
+    userBans.set(token, { expiresAt, reason });
+    let affectedSessions = 0;
+    for (const [, recipient] of io.sockets.sockets) {
+      if (recipient.data.admin || recipient.data.tok !== token) continue;
+      affectedSessions++;
+      recipient.data.banned = true;
+      recipient.emit('user:banned', { expiresAt, reason });
+      recipient.emit('sys', permanent ? 'You have been banned until this server restarts.' : 'You have been banned for 24 hours.');
+      for (const joinedRoom of [...recipient.rooms]) {
+        if (joinedRoom === recipient.id) continue;
+        recipient.leave(joinedRoom);
+        io.to(joinedRoom).emit('online', io.sockets.adapter.rooms.get(joinedRoom)?.size || 0);
+      }
+    }
+    console.log('[moderation] user banned ' + (permanent ? 'until restart' : 'for 24 hours') + ' after image post #' + found.message.mid + '; active sessions ' + affectedSessions);
+    socket.emit('images:admin:action-result', { ok: true, message: permanent ? 'User banned until the server restarts.' : 'User banned for 24 hours.' });
+    socket.emit('images:admin:list-result', { images: getAdminImageList() });
   });
 
   socket.on('health:ping', (d) => {

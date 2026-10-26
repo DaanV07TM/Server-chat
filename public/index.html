@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Anonymous real-time chat with public channels, optional voice chat, and screen sharing. No account required; avoid sharing sensitive information.">
-<title>Anonymous Chat</title>
+<meta name="description" content="Anonymous chat with browser-side end-to-end encrypted text, moderator image monitoring, optional voice, and screen sharing.">
+<title>Anonymous Chat · Encrypted Text</title>
 <style>
 :root{--bad:#b3261e;--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
 @media (prefers-color-scheme:dark){:root{--bg:#10151d;--panel:#171d28;--ink:#e8edf5;--mute:#8d99ab;--accent:#7b93ff;--mine:#4b63e0;--other:#1e2633;--line:#27303f;--l:72%;--bad:#ff8a80}}
@@ -71,6 +71,7 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 #send{border:0;border-radius:20px;background:var(--accent);color:#fff;padding:0 18px;font:inherit;font-weight:600}
 @media (prefers-color-scheme:dark){#send{color:#10151d}}
 button:focus-visible,#text:focus{outline:2px solid var(--accent);outline-offset:1px}
+.privacy-notice{padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--mute)}.privacy-notice strong{color:var(--ink)}.admin-image-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:8px 0 14px}.admin-image-card{min-width:0;border:1px solid var(--line);border-radius:12px;padding:9px;background:var(--bg)}.admin-image-card img{display:block;width:100%;height:145px;object-fit:contain;background:#05070b;border-radius:8px}.admin-image-card p{margin:7px 0;color:var(--mute);font-size:12px;line-height:1.4;overflow-wrap:anywhere}.admin-image-card .admin-image-actions{display:flex;flex-wrap:wrap;gap:5px}.admin-image-card button{display:inline-block;width:auto;margin:3px 0 0;padding:6px 8px;font-size:12px}.admin-image-card .reject{background:var(--bad);color:#fff}.admin-image-card button:disabled{opacity:.45;cursor:not-allowed}.ov#adm .box{max-width:min(1100px,96vw);width:100%;max-height:94vh}#admT{position:sticky;top:-20px;padding:4px 0 12px;background:var(--panel);z-index:2;border-bottom:1px solid var(--line)}#admbody .sec{margin-top:20px;padding:8px 10px;border-radius:8px;background:var(--bg);border-left:3px solid var(--accent);color:var(--ink);letter-spacing:.03em}#admbody .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin-bottom:12px}#admbody .admin-stats .stat{display:block;margin:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:12px}#admbody .admin-stats .stat b{display:block;font-size:21px;color:var(--ink)}.admin-image-note{font-size:12px;color:var(--mute);line-height:1.5}
 /* overlays */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
   .ov .box{background:var(--panel);border-radius:16px;padding:20px;max-width:420px;max-height:90%;overflow:auto}
@@ -334,6 +335,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
+<div id="privacyNotice" class="privacy-notice" role="note"><strong>Text messages are end-to-end encrypted in your browser.</strong> Use <b>Copy link</b> to share the text-encryption key with intended participants. <b>Images are not end-to-end encrypted</b> and are immediately visible in the room; moderators can review recent images across rooms, remove image posts, and ban uploaders. Image review is manual, not automatic detection. See the public README for security limitations.</div>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
     <div class="voice-info">
@@ -442,7 +444,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <ul>
       <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, #voice for optional live voice, and #music for a shared YouTube queue.</li>
       <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
-      <li><b>Privacy:</b> No account is required. Ordinary messages expire after one hour; #announcements posts are retained while the server runs. Hosting providers may process connection metadata. Do not share passwords, private addresses, or sensitive data.</li>
+      <li><b>Privacy:</b> Text messages are encrypted in your browser with a shared invite-link key; use Copy link to share it with intended participants. Images are not end-to-end encrypted and are immediately visible in the room. Moderators can see recent images across all rooms, remove posts, and ban the uploader's browser token. Manual review is not automatic illegal-image detection. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
       <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
@@ -455,7 +457,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="welcomeGuideIntro" class="guide-intro">Here is the quick tour. You can reopen this guide with the Quick guide button in the header.</p>
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has a shared YouTube queue.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
-    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>No account is needed. Ordinary chat history expires after one hour. Official posts in #announcements remain while the server is running; fixed guide posts reappear after a restart. Do not post passwords or sensitive personal information.</span></div></div>
+    <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Text messages are encrypted in your browser; use Copy link to share the same key. Images are not end-to-end encrypted and are immediately visible in the room. Moderators can monitor recent images across rooms and remove posts or ban uploaders. This is manual review, not automatic detection. Do not post passwords or sensitive information.</span></div></div>
     <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
@@ -620,6 +622,48 @@ function start() {
   const params = new URLSearchParams(location.search);
   const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
   const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
+  const toBase64Url = bytes => {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  };
+  const fromBase64Url = value => {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid key format');
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4);
+    return Uint8Array.from(atob(padded), ch => ch.charCodeAt(0));
+  };
+  const inviteHash = new URLSearchParams(location.hash.slice(1));
+  let encryptionKeyText = inviteHash.get('k');
+  let encryptionKeyBytes = null;
+  let createdEncryptionKey = false;
+  try {
+    if (!encryptionKeyText || !/^[A-Za-z0-9_-]{43}$/.test(encryptionKeyText)) throw new Error('Missing invite key');
+    encryptionKeyBytes = fromBase64Url(encryptionKeyText);
+    if (encryptionKeyBytes.length !== 32) throw new Error('Invalid invite key length');
+  } catch (_) {
+    encryptionKeyBytes = crypto.getRandomValues(new Uint8Array(32));
+    encryptionKeyText = toBase64Url(encryptionKeyBytes);
+    inviteHash.set('k', encryptionKeyText);
+    history.replaceState(null, '', location.pathname + location.search + '#' + inviteHash.toString());
+    createdEncryptionKey = true;
+  }
+  const encryptionKeyPromise = crypto.subtle.importKey('raw', encryptionKeyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  async function encryptChatText(value) {
+    const key = await encryptionKeyPromise;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(String(value)));
+    return { iv: toBase64Url(iv), data: toBase64Url(new Uint8Array(encrypted)) };
+  }
+  async function decryptChatText(payload) {
+    const key = await encryptionKeyPromise;
+    const iv = fromBase64Url(payload.iv);
+    const encryptedBytes = fromBase64Url(payload.data);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encryptedBytes);
+    return new TextDecoder().decode(plain);
+  }
+  if (createdEncryptionKey) {
+    showToast('A new text-encryption key was created in this invite link. Share Copy link with the people who should read these messages.', 'info', 9000);
+  }
   let name = null, tok = null;
   try { name = sessionStorage.getItem('name'); } catch (e) {}
   if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
@@ -627,6 +671,7 @@ function start() {
   $('title').textContent = '#' + room;
   $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
+    link.href = '/?room=' + encodeURIComponent(link.dataset.channel) + location.hash;
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
@@ -1284,17 +1329,37 @@ function start() {
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
   socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
+  let messageRenderGeneration = 0;
+  let messageRenderQueue = Promise.resolve();
+  function queueServerMessage(message) {
+    const generation = messageRenderGeneration;
+    messageRenderQueue = messageRenderQueue.then(async () => {
+      if (generation !== messageRenderGeneration) return;
+      let displayMessage = message;
+      if (message && message.encryptedText) {
+        try {
+          displayMessage = { ...message, text: await decryptChatText(message.encryptedText) };
+        } catch (_) {
+          displayMessage = { ...message, text: '🔒 Could not decrypt this message. Open the invite link that contains the matching key.' };
+        }
+      }
+      if (generation !== messageRenderGeneration) return;
+      add(displayMessage);
+    }).catch(() => {});
+  }
   socket.on('history', l => {
     if (activeFlashTimer) clearTimeout(activeFlashTimer);
     activeFlashTimer = null;
     activeFlashBanner = null;
+    messageRenderGeneration++;
+    messageRenderQueue = Promise.resolve();
     log.innerHTML = l.length ? '' : EMPTY;
-    l.forEach(add);
+    l.forEach(queueServerMessage);
   });
   socket.on('msg', m => {
     // In #announcements use the archived copy, not the duplicate short-lived global banner.
     if (room === 'announcements' && m && m.announcement) return;
-    add(m); $('typing').textContent = '';
+    queueServerMessage(m); $('typing').textContent = '';
   });
   socket.on('online', n => $('online').textContent = n + ' online');
   socket.on('config', c => { $('photo').hidden = !c.images; });
@@ -2044,10 +2109,24 @@ function start() {
     $('adminMonitorMinimize').setAttribute('aria-label', minimized ? 'Restore monitor' : 'Minimize monitor');
   };
 
-  function send(img) {
+  async function send(img) {
     const t = text.value.trim();
     if (!t && !img) return;
-    socket.emit('msg', { name, text: t, img });
+    const payload = { name, img };
+    if (t) {
+      if (t.startsWith('/')) {
+        // Slash commands are server control actions, not chat messages.
+        payload.text = t;
+      } else {
+        try {
+          payload.encryptedText = await encryptChatText(t);
+        } catch (_) {
+          showToast('Could not encrypt this message. Use HTTPS and reload the page.', 'error');
+          return;
+        }
+      }
+    }
+    socket.emit('msg', payload);
     text.value = '';
   }
   $('send').onclick = () => send();
@@ -2097,10 +2176,13 @@ function start() {
       showToast('Display name updated.', 'success');
     }
   };
-  $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
+  $('private').onclick = () => { location.href = '/?room=private-' + rnd(9) + location.hash; };
   $('share').onclick = async ev => {
-    try { await navigator.clipboard.writeText(location.origin + '/?room=' + room); ev.target.textContent = 'Copied'; }
-    catch (e) { ev.target.textContent = 'Copy failed'; }
+    try {
+      await navigator.clipboard.writeText(location.origin + '/?room=' + room + location.hash);
+      ev.target.textContent = 'Copied';
+      showToast('Invite link copied. It includes the text-encryption key; share it only with intended participants.', 'success');
+    } catch (e) { ev.target.textContent = 'Copy failed'; }
     setTimeout(() => ev.target.textContent = 'Copy link', 2000);
   };
   // admin panel (the ⚙ button appears after typing /admin <password>)
@@ -2108,7 +2190,55 @@ function start() {
   const B = (label, cmd, cls, ask, inp) => '<button class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
   const SEL = (cmd, opts, cur) => '<select data-cmd="' + cmd + '" aria-label="' + cmd.trim().slice(1) + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
   let admOpen = false, admTimer;
+  let recentAdminImages = [];
   let pingSequence = 0, pendingPing = null, lastPingMs = null;
+
+  function renderAdminImageReview() {
+    const container = $('adminImageReview');
+    if (!container) return;
+    container.replaceChildren();
+    if (!recentAdminImages.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No recent images are available.';
+      container.append(empty);
+      return;
+    }
+    for (const item of recentAdminImages) {
+      const card = document.createElement('div');
+      card.className = 'admin-image-card';
+      const image = document.createElement('img');
+      image.src = item.img;
+      image.alt = 'Image posted in chat';
+      const meta = document.createElement('p');
+      meta.textContent = '#' + item.room + ' · ' + item.name + ' · post #' + item.mid + ' · ' + new Date(item.t).toLocaleString();
+      card.append(image, meta);
+      const actions = document.createElement('div');
+      actions.className = 'admin-image-actions';
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Delete post';
+      remove.dataset.imageAction = 'delete';
+      remove.dataset.mid = String(item.mid);
+      actions.append(remove);
+      if (!item.admin) {
+        const banDay = document.createElement('button');
+        banDay.type = 'button';
+        banDay.className = 'reject';
+        banDay.textContent = 'Ban 24 h';
+        banDay.dataset.imageAction = 'ban24';
+        banDay.dataset.mid = String(item.mid);
+        const banRuntime = document.createElement('button');
+        banRuntime.type = 'button';
+        banRuntime.className = 'reject';
+        banRuntime.textContent = 'Ban until restart';
+        banRuntime.dataset.imageAction = 'banpermanent';
+        banRuntime.dataset.mid = String(item.mid);
+        actions.append(banDay, banRuntime);
+      }
+      card.append(actions);
+      container.append(card);
+    }
+  }
 
   function pingServer() {
     if (!admOpen || !socket.connected) return;
@@ -2176,7 +2306,7 @@ function start() {
         '</div></div>';
     }).join('') : '<p>No active screen shares.</p>';
     $('admbody').innerHTML =
-      '<div><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="admin-stats"><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
       '<div class="sec">Server load</div>' +
       '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '"><b>' + levelText + '</b><span>Refreshes every 5 seconds while this panel is open.</span></div>' +
       '<div class="load-grid">' +
@@ -2193,6 +2323,10 @@ function start() {
       '</div>' +
       '<div class="sec">Active screen shares (' + screenShares.length + ')</div>' +
       '<p>Moderators can monitor a live share, stop it, or apply a temporary timeout.</p>' + screenShareRows +
+      '<div class="sec">Image activity</div>' +
+      '<p class="admin-image-note">Recent images across all rooms, including private rooms. Images are shown immediately in chat; delete a post or ban the uploader here. Bans are tied to this browser token, so they are not account-level identity bans.</p>' +
+      '<button type="button" id="refreshImageReview" class="ab plain">Refresh images</button>' +
+      '<div id="adminImageReview" class="admin-image-grid"><p>Loading recent images…</p></div>' +
       '<div class="sec">Chat</div>' +
       B(st.offline ? 'Bring chat online' : 'Take chat offline', st.offline ? '/online' : '/offline', st.offline ? '' : 'red', st.offline ? '' : 'Disconnect everyone?') +
       B(st.silenced ? 'Silence is ON (tap to end)' : 'Silence everyone', '/silence') +
@@ -2219,9 +2353,36 @@ function start() {
       '<div class="sec">Danger zone</div>' +
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
       B('Log out', '/logout', 'plain');
+    renderAdminImageReview();
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
-  socket.on('admin', on => { moderator = !!on; $('admbtn').hidden = !on; updateMusicAdminUI(); if (!on) closeAdm(); });
+  socket.on('images:admin:list-result', data => {
+    if (!moderator) return;
+    recentAdminImages = Array.isArray(data && data.images) ? data.images : [];
+    renderAdminImageReview();
+  });
+  socket.on('images:admin:posted', image => {
+    if (!moderator || !image || !image.img) return;
+    recentAdminImages = [image, ...recentAdminImages.filter(item => item.mid !== image.mid)]
+      .sort((a, b) => b.t - a.t).slice(0, 30);
+    renderAdminImageReview();
+    showToast('New image posted in #' + image.room + ' by ' + image.name + '.', 'info', 5000);
+  });
+  socket.on('images:admin:action-result', result => {
+    if (result && result.message) showToast(result.message, result.ok ? 'success' : 'error');
+    if (admOpen && moderator) socket.emit('images:admin:list');
+  });
+  socket.on('user:banned', data => {
+    const until = data && data.expiresAt ? ' until ' + new Date(data.expiresAt).toLocaleString() : ' until the server restarts';
+    const message = 'Access banned' + until + '.';
+    $('text').disabled = true;
+    $('text').placeholder = message;
+    $('send').disabled = true;
+    $('photo').disabled = true;
+    $('file').disabled = true;
+    showToast(message, 'error', 9000);
+  });
+  socket.on('admin', on => { moderator = !!on; if (!on) recentAdminImages = []; $('admbtn').hidden = !on; updateMusicAdminUI(); if (!on) closeAdm(); });
   socket.on('adm:state', st => {
     if (!admOpen) return;
     const a = document.activeElement;
@@ -2232,11 +2393,48 @@ function start() {
     $('adm').style.display = 'flex';
     $('admmsg').textContent = '';
     socket.emit('adm', '');
+    socket.emit('images:admin:list');
     pingServer();
     admTimer = setInterval(() => { socket.emit('adm', ''); pingServer(); }, 5000);
   };
   $('admX').onclick = closeAdm;
   $('admbody').onclick = async e => {
+    const imageAction = e.target.closest('button[data-image-action]');
+    if (imageAction) {
+      if (!moderator) return;
+      const mid = Number(imageAction.dataset.mid);
+      const action = imageAction.dataset.imageAction;
+      if (!Number.isSafeInteger(mid)) return;
+      if (action === 'delete') {
+        const approved = await showSiteDialog({
+          title: 'Delete this image post?',
+          message: 'The entire message containing this image will be removed from chat history in memory.',
+          confirmText: 'Delete post',
+          cancelText: 'Cancel',
+          danger: true
+        });
+        if (approved) socket.emit('images:admin:delete', { mid });
+        return;
+      }
+      if (action === 'ban24' || action === 'banpermanent') {
+        const permanent = action === 'banpermanent';
+        const approved = await showSiteDialog({
+          title: permanent ? 'Ban user until restart?' : 'Ban user for 24 hours?',
+          message: permanent
+            ? 'The uploader’s browser token will be banned until this server restarts. This does not identify the person across devices.'
+            : 'The uploader’s browser token will be banned for 24 hours. This does not identify the person across devices.',
+          confirmText: permanent ? 'Ban until restart' : 'Ban 24 h',
+          cancelText: 'Cancel',
+          danger: true
+        });
+        if (approved) socket.emit('images:admin:ban', { mid, duration: permanent ? 'permanent' : '24h' });
+        return;
+      }
+    }
+    if (e.target.closest('#refreshImageReview')) {
+      if (moderator) socket.emit('images:admin:list');
+      return;
+    }
     const screenAction = e.target.closest('button[data-screen-action]');
     if (screenAction) {
       if (!moderator) return;

@@ -1,6 +1,6 @@
 # Server-chat
 
-An anonymous, real-time chat with separate channels, optional voice chat, and peer-to-peer screen sharing.
+An anonymous, real-time chat with separate channels, browser-side end-to-end encrypted text messages, moderator image monitoring, optional voice chat, and peer-to-peer screen sharing.
 
 ## Live chat
 
@@ -21,10 +21,15 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 ## Privacy and safety
 
 - No user account is required. Display names are not identity verification.
-- Ordinary chat messages are held in server memory and expire after about one hour.
+- **Text messages:** ordinary chat text is encrypted in the browser using AES-GCM before it is sent to the server. The 256-bit key is carried in the invite-link URL fragment, which is not included in HTTP requests. Use **Copy link** to share the same key with intended participants. Anyone holding that link can decrypt messages sent with its key. Slash commands are control actions and are not ordinary chat messages.
+- **Security limitation:** this implementation has not been independently audited. Because the browser JavaScript is served by the same site, a compromised deployment could serve modified code that reads the key or plaintext. Do not treat this as equivalent to an independently audited secure messenger.
+- **Images:** images are not end-to-end encrypted. They are immediately visible in a room and stored in server memory as part of chat history. Authenticated moderators can review the latest images across public and private rooms, delete image posts, and ban the uploader's browser token for 24 hours or until the current server process restarts. These bans are memory-only and are not reliable identity-level bans; clearing browser storage or using another device may evade them.
+- **Illegal-content caveat:** image review is manual and cannot guarantee that illegal images will never be posted or briefly seen. This is not an automated image classifier. Since the server cannot read encrypted text, normal server-side text filters and report review cannot inspect the contents of messages.
+- Ordinary chat history is held in server memory and expires after about one hour.
 - The shared music queue, uploaded audio files, temporary Audius catalogue cache and synchronized playback clock are held in memory and are cleared if the service restarts or redeploys. Catalogue audio cache files are kept only in the host's temporary directory, removed when a track is skipped, and cleared at process startup.
 - Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
 - The application does not maintain an account database or intentionally save IP addresses in chat history. Requests from the browser to music search and playback go to this chat server; the external addon/media host sees the server's outgoing connection rather than each listener's IP. The hosting provider still handles visitor connection metadata under its own policies.
+- Treat invite links as secret because the URL fragment contains the text-encryption key. Share them only with intended participants.
 - Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
 - Be respectful. No harassment, hate, threats, scams, or illegal content. Use the ⚑ report control for messages that break the rules.
 
