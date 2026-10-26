@@ -638,7 +638,7 @@ function start() {
   };
   let musicPlayer = null, musicPlayerReady = false, musicApiLoading = false;
   let lastCuedMusicId = null, musicLoadedTrackId = null;
-  let musicSuppressPlayerEventsUntil = 0, musicLastAutoplayNotice = 0;
+  let musicSuppressPlayerEventsUntil = 0, musicIgnoreNativePauseUntil = 0, musicLastAutoplayNotice = 0;
   let musicStateReceivedAt = performance.now(), musicSyncRequestId = 0;
   const musicPendingSyncRequests = new Map();
   musicPanel.hidden = room !== 'music';
@@ -695,6 +695,9 @@ function start() {
       } else {
         // A remote play can be blocked by the browser; the local Join / resync button is the user gesture.
         suppressMusicPlayerEvents(1600);
+        // A blocked remote-play attempt may report PAUSED after the suppression window.
+        // Keep that local browser event from pausing the shared room; the explicit global button remains available.
+        musicIgnoreNativePauseUntil = Math.max(musicIgnoreNativePauseUntil, Date.now() + 5000);
         try {
           if (Math.abs(localTime - target) > 1.2) musicPlayer.seekTo(target, true);
           musicPlayer.playVideo();
@@ -826,6 +829,7 @@ function start() {
           if (event.data === YT.PlayerState.PLAYING) {
             socket.emit('music:control', { action: 'play', trackId: current.id, position: musicPlayer.getCurrentTime() });
           } else if (event.data === YT.PlayerState.PAUSED) {
+            if (Date.now() < musicIgnoreNativePauseUntil) return;
             socket.emit('music:control', { action: 'pause', trackId: current.id });
           } else if (event.data === YT.PlayerState.ENDED) {
             socket.emit('music:ended', { trackId: current.id, position: musicPlayer.getCurrentTime() });
@@ -835,6 +839,7 @@ function start() {
           const now = Date.now();
           musicSyncStatus.textContent = 'PLAYBACK NEEDS A CLICK · Use Join / resync or Play inside the YouTube player.';
           musicNotice.textContent = 'Your browser blocked remote autoplay. Click Join / resync or press Play in the visible YouTube player to join the shared music.';
+          musicIgnoreNativePauseUntil = Math.max(musicIgnoreNativePauseUntil, now + 8000);
           if (now - musicLastAutoplayNotice > 15000) {
             musicLastAutoplayNotice = now;
             showToast('Your browser requires a local click before it will play the shared track.', 'info', 6000);
