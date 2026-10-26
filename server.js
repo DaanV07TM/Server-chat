@@ -86,14 +86,26 @@ let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
 let musicPausedByAdmin = false;
 
-// in-memory event log (readable in chat with /log)
+// Bounded in-memory server log for the moderator dashboard and /log command.
+// Keep entries short and redact common secret-shaped values before they reach the UI.
 const events = [];
-const _log = console.log;
-console.log = (...a) => {
-  _log(...a);
-  const line = a.join(' ');
-  if (!line.startsWith('[online]')) { events.push(new Date().toISOString().slice(11, 19) + ' ' + line); if (events.length > 30) events.shift(); }
-};
+const MAX_SERVER_LOGS = 100;
+function captureConsole(original, level) {
+  return (...args) => {
+    original.apply(console, args);
+    const raw = args.map(value => typeof value === 'string' ? value : String(value)).join(' ');
+    if (raw.startsWith('[online]')) return;
+    const safe = raw
+      .replace(/(password|passwd|token|secret|api[_ -]?key|authorization|webhook)(\\s*[:=]\\s*)[^\\s,;]+/gi, '$1$2[redacted]')
+      .replace(/(Bearer\\s+)[A-Za-z0-9._~+\\/-]+/gi, '$1[redacted]')
+      .slice(0, 500);
+    events.push(new Date().toISOString() + ' [' + level + '] ' + safe);
+    if (events.length > MAX_SERVER_LOGS) events.shift();
+  };
+}
+console.log = captureConsole(console.log, 'INFO');
+console.warn = captureConsole(console.warn, 'WARN');
+console.error = captureConsole(console.error, 'ERROR');
 
 // admin: password lives in Render (ADMIN_PASSWORD), never in the code
 const ADMIN = process.env.ADMIN_PASSWORD || '';
@@ -320,6 +332,7 @@ const statsLine = () =>
   ' | memory: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB';
 const adminState = () => ({
   offline, silenced, slow, links, images, banned,
+  events: events.slice(-80),
   restartInProgress, restartSubmitted,
   online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
