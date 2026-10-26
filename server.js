@@ -18,6 +18,10 @@ const games = {};
 const ADMIN = process.env.ADMIN_PASSWORD || '';
 let offline = process.env.MAINTENANCE === '1';
 let fails = [];
+let slow = 0;               // slowmode in seconden (0 = uit)
+let maintTimers = [];
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wis', '/omroep', '/onderhoud', '/slow', '/herstart', '/uit'];
+const ADMIN_HELP = "Commando's: /status /offline /online /wis /omroep tekst /onderhoud minuten /slow seconden /herstart /uit";
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 function login(pw) {
   if (!ADMIN) return 'nopw';
@@ -78,17 +82,25 @@ function command(room, name, text) {
 const statsLine = () =>
   'online: ' + io.engine.clientsCount + ' | kamers: ' + Object.keys(rooms).length +
   ' | berichten: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
-  ' | chat: ' + (offline ? 'OFFLINE' : 'online');
+  ' | chat: ' + (offline ? 'OFFLINE' : 'online') + (slow ? ' | slowmode: ' + slow + 's' : '') + (maintTimers.length ? ' | onderhoud gepland' : '');
 
-function adminCommand(socket, c) {
+const announce = (t) => io.emit('msg', { name: '📢', bot: true, text: t, t: Date.now() });
+const cancelMaint = () => { maintTimers.forEach(clearTimeout); maintTimers = []; };
+function goOffline() {
+  offline = true;
+  console.log('[admin] chat staat nu OFFLINE');
+  for (const [, s] of io.sockets.sockets) if (!s.data.admin) s.emit('closed', true);
+}
+
+function adminCommand(socket, c, arg) {
   const say = (t) => socket.emit('sys', t);
   if (c === 'status') say(statsLine());
   else if (c === 'offline') {
-    offline = true;
-    console.log('[admin] chat staat nu OFFLINE');
-    for (const [, s] of io.sockets.sockets) if (!s.data.admin) s.emit('closed', true);
+    cancelMaint();
+    goOffline();
     say('Chat is offline. Typ /online om hem weer aan te zetten.');
   } else if (c === 'online') {
+    cancelMaint();
     offline = false;
     console.log('[admin] chat staat nu ONLINE');
     io.emit('closed', false);
@@ -98,10 +110,33 @@ function adminCommand(socket, c) {
     console.log('[admin] alle berichten gewist');
     io.emit('history', []);
     say('Alle berichten gewist.');
+  } else if (c === 'omroep') {
+    if (!arg) return say('Gebruik: /omroep je bericht');
+    announce(clean(arg, 300));
+    console.log('[admin] omroep verstuurd');
+  } else if (c === 'onderhoud') {
+    const n = parseInt(arg);
+    if (!n || n < 1 || n > 120) return say('Gebruik: /onderhoud 10 (aantal minuten, 1 tot 120). Annuleren kan met /online.');
+    cancelMaint();
+    announce('🔧 Onderhoud: de chat gaat over ' + n + (n === 1 ? ' minuut' : ' minuten') + ' offline.');
+    if (n > 1) maintTimers.push(setTimeout(() => announce('🔧 Nog 1 minuut tot de chat offline gaat.'), (n - 1) * 60000));
+    maintTimers.push(setTimeout(() => { maintTimers = []; announce('🔧 De chat gaat nu offline voor onderhoud.'); goOffline(); }, n * 60000));
+    console.log('[admin] onderhoud gepland over ' + n + ' min');
+    say('Onderhoud gepland over ' + n + ' min. Annuleren: /online');
+  } else if (c === 'slow') {
+    const n = parseInt(arg);
+    if (isNaN(n) || n < 0 || n > 60) return say('Gebruik: /slow 5 (seconden tussen berichten, 0 = uit)');
+    slow = n;
+    console.log('[admin] slowmode ' + n + 's');
+    announce(n ? '🐢 Slowmode aan: 1 bericht per ' + n + ' seconden.' : '🐢 Slowmode uit.');
+  } else if (c === 'herstart') {
+    say('Server herstart nu. Render start hem automatisch weer op (duurt ongeveer een minuut).');
+    console.log('[admin] herstart aangevraagd');
+    setTimeout(() => process.exit(0), 500);
   } else if (c === 'uit') {
     socket.data.admin = false;
     say('Uitgelogd als beheerder.');
-  } else say('Commando\'s: /status /offline /online /wis /uit');
+  } else say(ADMIN_HELP);
 }
 
 // boter-kaas-en-eieren
@@ -136,20 +171,25 @@ io.on('connection', (socket) => {
 
   socket.on('msg', (d) => {
     const now = Date.now();
-    if (now - last < 500) return;
+    const gap = socket.data.admin ? 500 : Math.max(500, slow * 1000);
+    if (now - last < gap) {
+      if (slow && !socket.data.admin && now - last >= 500) socket.emit('sys', 'Slowmode: wacht nog even.');
+      return;
+    }
     const name = clean(d && d.name, 20) || 'Anoniem';
     const text = clean(d && d.text, 500);
 
     if (text === '/admin' || text.startsWith('/admin ')) {   // wachtwoord wordt nooit getoond of opgeslagen
       last = now;
       const r = login(text.slice(6).trim());
-      if (r === 'ok') { socket.data.admin = true; socket.emit('sys', 'Ingelogd als beheerder. Commando\'s: /status /offline /online /wis /uit'); }
+      if (r === 'ok') { socket.data.admin = true; socket.emit('sys', 'Ingelogd als beheerder. ' + ADMIN_HELP); }
       else socket.emit('sys', LOGIN_MSG[r]);
       return;
     }
-    if (socket.data.admin && ['/status', '/offline', '/online', '/wis', '/uit'].includes(text)) {
+    const [cmd, ...rest] = text.split(' ');
+    if (socket.data.admin && ADMIN_CMDS.includes(cmd)) {
       last = now;
-      return adminCommand(socket, text.slice(1));
+      return adminCommand(socket, cmd.slice(1), rest.join(' ').trim());
     }
 
     if (offline) return;   // tijdens offline wordt er niets doorgestuurd, ook niet van de beheerder
