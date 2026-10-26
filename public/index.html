@@ -358,7 +358,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <div>
       <div class="music-eyebrow">SERVER-RELAYED AUDIO</div>
       <h2>🎵 Music room</h2>
-      <p class="music-subtitle">Search tracks and listen together. Search and playback requests run through this chat server.</p>
+      <p class="music-subtitle">Search Audius tracks and listen together. Search and playback requests run through this chat server.</p>
     </div>
     <span id="musicQueueCount" class="music-count">0 tracks</span>
   </div>
@@ -405,7 +405,7 @@ button:active:not(:disabled){transform:translateY(0)}
           <button id="musicAddBtn" type="submit">Upload to shared queue</button>
         </form>
       </details>
-      <p id="musicNotice" class="music-notice">The browser requests audio only from this chat server. The music addon sees the server's outbound connection, not each listener's IP. Upload only audio you have permission to share.</p>
+      <p id="musicNotice" class="music-notice">Catalog via Audius. Search and audio requests go through this chat server, so Audius sees the server connection rather than each listener IP. Tracks play only when their creator makes them streamable through the API.</p>
     </div>
   </div>
 </section>
@@ -779,6 +779,15 @@ function start() {
       }
       details.textContent = parts.filter(Boolean).join(' · ');
       info.append(title, details);
+      if (typeof track.permalink === 'string' && /^https:\/\/audius\.co\//i.test(track.permalink)) {
+        const sourceLink = document.createElement('a');
+        sourceLink.href = track.permalink;
+        sourceLink.target = '_blank';
+        sourceLink.rel = 'noopener noreferrer';
+        sourceLink.textContent = 'Open on Audius';
+        sourceLink.style.cssText = 'display:inline-block;margin-top:3px;color:var(--accent);font-size:10px;';
+        info.append(sourceLink);
+      }
       const addButton = document.createElement('button');
       addButton.type = 'button';
       addButton.dataset.trackId = track.id;
