@@ -91,7 +91,7 @@ function bot(room, text) {
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
-const announce = (t) => io.emit('msg', { name: '📢', bot: true, announcement: true, text: t, t: Date.now() });
+const announce = (t) => io.emit('msg', { name: '📢', bot: true, admin: true, announcement: true, text: t, t: Date.now() });
 const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.admin) s.emit('sys', t); };
 function removeMsg(mid) {
   for (const r in rooms) {
