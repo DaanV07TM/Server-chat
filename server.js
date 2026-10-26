@@ -941,8 +941,9 @@ io.on('connection', (socket) => {
     if (sameUserCount >= MUSIC_MAX_PER_USER) {
       return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.' });
     }
-    if ((musicCurrent && musicCurrent.hash === crypto.createHash('sha256').update(audio).digest('hex')) ||
-        musicQueue.some(track => track.hash === crypto.createHash('sha256').update(audio).digest('hex'))) {
+    const hash = crypto.createHash('sha256').update(audio).digest('hex');
+    if ((musicCurrent && musicCurrent.hash === hash) ||
+        musicQueue.some(track => track.hash === hash)) {
       return socket.emit('music:error', { message: 'That audio file is already in the current track or queue.' });
     }
     if ((musicCurrent ? 1 : 0) + musicQueue.length >= MUSIC_MAX_TRACKS) {
@@ -952,7 +953,6 @@ io.on('connection', (socket) => {
       return socket.emit('music:error', { message: 'The server audio memory limit has been reached. Skip a track or wait before uploading more.' });
     }
 
-    const hash = crypto.createHash('sha256').update(audio).digest('hex');
     const title = clean(d.title, 100) || clean(fileName.replace(/\.[^.]+$/, ''), 100) || 'Uploaded audio';
     const track = {
       id: ++musicTrackId,
