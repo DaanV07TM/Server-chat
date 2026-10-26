@@ -522,7 +522,8 @@ io.on('connection', (socket) => {
       }
     }
     if (senderIsSharer) {
-      if (!share.viewers || !share.viewers.has(d.to) || screenViewerRooms.get(d.to) !== shareRoom) return;
+      const viewerRooms = screenViewerRooms.get(d.to);
+      if (!share.viewers || !share.viewers.has(d.to) || !viewerRooms || !viewerRooms.has(shareRoom)) return;
     } else {
       const viewerRooms = screenViewerRooms.get(socket.id);
       const viewerEntry = Object.entries(screenSharers).find(([candidateRoom, candidateShare]) =>
