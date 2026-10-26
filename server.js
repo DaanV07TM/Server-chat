@@ -26,6 +26,8 @@ console.log = (...a) => {
 
 // admin: password lives in Render (ADMIN_PASSWORD), never in the code
 const ADMIN = process.env.ADMIN_PASSWORD || '';
+// Render does not expose a documented built-in region variable; set SERVER_LOCATION in the Render dashboard.
+const SERVER_LOCATION = String(process.env.SERVER_LOCATION || '').trim();
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'private';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
@@ -218,6 +220,8 @@ const adminState = () => ({
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
   memory: Math.round(process.memoryUsage().rss / 1048576),
   load: getServerLoad(),
+  serverLocation: SERVER_LOCATION || null,
+  serverHost: process.env.RENDER_EXTERNAL_HOSTNAME || null,
   timeouts: Object.values(timeouts).filter(t => t > Date.now()).length,
   channels: channels(),
   reports: [...reportLog.values()].filter(e => e.status !== 'dismissed').slice(-15).reverse()
@@ -410,6 +414,12 @@ io.on('connection', (socket) => {
     if (i >= 0) who.splice(i, 1); else who.push(socket.id);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
     io.to(room).emit('react', { mid: m.mid, r: m.r });
+  });
+
+  socket.on('health:ping', (d) => {
+    // Only authenticated moderators can use the dashboard's latency probe.
+    if (!socket.data.admin || !d || !Number.isSafeInteger(d.id)) return;
+    socket.emit('health:pong', { id: d.id, serverTime: Date.now() });
   });
 
   socket.on('adm', (text) => {      // admin panel: same commands as typing them, plus a state update
