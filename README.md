@@ -10,7 +10,7 @@ An anonymous, real-time chat with separate channels, optional voice chat, and pe
 
 - **`#general`** — casual public conversation.
 - **`#help`** — ask questions and help other users.
-- **`#announcements`** — official updates from moderators. Moderator posts do not expire while the server is running. Four pinned guide posts are built into the app and reappear after restarts.
+- **`#announcements`** — official updates from moderators. Both posts written directly in this channel and global announcements sent by moderators are copied into the channel archive. They do not expire while the server is running. Four pinned guide posts are built into the app and reappear after restarts.
 - **`#voice`** — chat by text, optionally join live voice, mute/unmute, leave voice, and share your screen.
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
