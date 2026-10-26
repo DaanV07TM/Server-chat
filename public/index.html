@@ -368,7 +368,7 @@ button:active:not(:disabled){transform:translateY(0)}
         <div id="musicAudioPlaceholder" class="music-audio-placeholder">
           <div class="music-placeholder-icon" aria-hidden="true">♫</div>
           <strong>Waiting for the first audio track</strong>
-          <p>Audio is relayed by this chat server. A browser may ask you to click Play or Join before it allows sound.</p>
+          <p>The chat server prepares one temporary copy per selected track, then serves that cached audio to all listeners. A browser may ask you to click Play or Join before it allows sound.</p>
         </div>
         <audio id="musicAudio" class="music-audio" controls preload="metadata" playsinline hidden></audio>
       </div>
@@ -712,11 +712,11 @@ function start() {
       musicAudio.src = '/music/stream/' + encodeURIComponent(String(current.id));
       musicAudio.load();
       musicAudioPlaceholder.hidden = true;
-      musicNotice.textContent = 'Track loaded through the chat server. Press Play for everyone or Join / resync here to listen.';
+      musicNotice.textContent = 'Track is being prepared by the chat server. Once cached, everyone can listen from the same server copy.';
     } else {
       musicAudio.hidden = true;
       musicAudioPlaceholder.hidden = false;
-      musicNotice.textContent = 'Search and playback are proxied through the chat server. Upload only audio you have permission to share.';
+      musicNotice.textContent = 'Search and playback are proxied through the chat server. A rate-limited source is paused for its Retry-After period; the server does not repeatedly retry it.';
     }
     updateMusicSyncUI();
   }
@@ -985,6 +985,7 @@ function start() {
     const current = sharedMusicState.current;
     if (!current) return showToast('Search for or upload a track first.', 'error');
     if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
+    if (musicAudio.error) musicAudio.load();
     musicListeningEnabled = true;
     const target = musicTargetPosition();
     suppressNativeMusicEvents(2200);
@@ -1013,6 +1014,7 @@ function start() {
     const current = sharedMusicState.current;
     if (!current) return;
     if (musicLoadedTrackId !== current.id) loadCurrentMusicTrack();
+    if (musicAudio.error) musicAudio.load();
     const target = musicTargetPosition();
     musicListeningEnabled = true;
     suppressNativeMusicEvents(2200);
