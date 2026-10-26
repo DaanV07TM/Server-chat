@@ -7,7 +7,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 2e6 });
+const io = new Server(server, { maxHttpBufferSize: 14 * 1024 * 1024 });
 app.disable('x-powered-by');
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -31,7 +31,7 @@ const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const ANNOUNCEMENT_TTL = 60 * 1000;
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
-  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for a shared YouTube link queue. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, add an individual YouTube or YouTube Music video link and press Play in the visible player.' },
+  { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for a shared server-hosted audio queue. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, upload an audio file you have permission to share, then use the shared playback controls.' },
   { name: 'Privacy & retention', bot: true, pinned: true, text: 'No account is required. Ordinary room messages are kept in server memory for up to one hour. Moderator posts in #announcements do not expire during normal server uptime, but custom posts are lost if the service restarts because this app has no persistent database. Hosting providers may process connection metadata.' },
   { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
@@ -41,10 +41,22 @@ let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
 const voiceParticipants = new Map(); // 'voice' -> Map(socket ID -> { name, joinedAt })
-const MUSIC_MAX_TRACKS = 50;
+const MUSIC_MAX_TRACKS = 20;
 const MUSIC_MAX_PER_USER = 5;
+const MUSIC_MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MUSIC_MAX_STORED_BYTES = 24 * 1024 * 1024;
+const MUSIC_TYPES = Object.freeze({
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.webm': 'audio/webm',
+  '.flac': 'audio/flac'
+});
 const musicQueue = [];
-let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0;
+let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes = 0;
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
 
 // in-memory event log (readable in chat with /log)
@@ -493,10 +505,11 @@ function parseYouTubeVideoId(raw) {
 
 const publicMusicTrack = track => track && ({
   id: track.id,
-  videoId: track.videoId,
   title: track.title,
   addedBy: track.addedBy,
-  addedAt: track.addedAt
+  addedAt: track.addedAt,
+  format: track.extension.slice(1).toUpperCase(),
+  sizeBytes: track.audio ? track.audio.length : 0
 });
 function getMusicPosition(now = Date.now()) {
   if (!musicPlayback.isPlaying || !Number.isFinite(musicPlayback.startedAt)) {
@@ -516,17 +529,79 @@ const getMusicState = () => ({
   current: publicMusicTrack(musicCurrent),
   queue: musicQueue.map(publicMusicTrack),
   maxTracks: MUSIC_MAX_TRACKS,
+  maxUploadBytes: MUSIC_MAX_FILE_BYTES,
+  maxStoredBytes: MUSIC_MAX_STORED_BYTES,
   playback: getMusicPlayback()
 });
 const broadcastMusicState = () => io.to('music').emit('music:state', getMusicState());
 
-// Send a fresh server-clock snapshot to every listening client every 4 seconds.
-// This keeps the players close to the same position without streaming audio through this server.
+function findMusicTrack(id) {
+  if (musicCurrent && musicCurrent.id === id) return musicCurrent;
+  return musicQueue.find(track => track.id === id) || null;
+}
+function releaseMusicTrack(track) {
+  if (!track || !Buffer.isBuffer(track.audio)) return;
+  musicStoredBytes = Math.max(0, musicStoredBytes - track.audio.length);
+  track.audio = null;
+}
+
+// The server hosts the uploaded audio itself. Range requests let HTMLAudioElement
+// seek and buffer normally without downloading the entire track before playback.
+app.get('/music/stream/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const track = Number.isSafeInteger(id) && id > 0 ? findMusicTrack(id) : null;
+  if (!track || !Buffer.isBuffer(track.audio)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'This track is no longer available on the server.' });
+  }
+
+  const audio = track.audio;
+  res.setHeader('Content-Type', track.mimeType);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline; filename="' + track.fileName + '"');
+
+  const rangeNotSatisfiable = () => {
+    res.setHeader('Content-Range', 'bytes */' + audio.length);
+    return res.status(416).end();
+  };
+  const rangeHeader = req.headers.range;
+  if (rangeHeader) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+    if (!match || (!match[1] && !match[2])) return rangeNotSatisfiable();
+    let start, end;
+    if (!match[1]) {
+      const suffixLength = Number(match[2]);
+      if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return rangeNotSatisfiable();
+      start = Math.max(0, audio.length - suffixLength);
+      end = audio.length - 1;
+    } else {
+      start = Number(match[1]);
+      end = match[2] ? Number(match[2]) : audio.length - 1;
+    }
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+        start < 0 || start >= audio.length || end < start) return rangeNotSatisfiable();
+    end = Math.min(end, audio.length - 1);
+    res.status(206);
+    res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + audio.length);
+    res.setHeader('Content-Length', String(end - start + 1));
+    if (req.method === 'HEAD') return res.end();
+    return res.end(audio.subarray(start, end + 1));
+  }
+
+  res.setHeader('Content-Length', String(audio.length));
+  if (req.method === 'HEAD') return res.end();
+  return res.end(audio);
+});
+
+// Send authoritative playback-clock snapshots to listeners while a song is playing.
+// The audio itself is served by this app instead of being loaded from YouTube.
 const musicSyncTimer = setInterval(() => {
   if (musicPlayback.isPlaying && musicCurrent) {
     io.to('music').emit('music:sync', getMusicPlayback());
   }
-}, 4000);
+}, 3000);
 if (typeof musicSyncTimer.unref === 'function') musicSyncTimer.unref();
 
 function removeVoiceParticipant(socketId) {
@@ -833,40 +908,66 @@ io.on('connection', (socket) => {
     if (target) target.emit('voice:signal', payload);
   });
 
-  // Shared YouTube link queue. Playback remains inside YouTube's visible embedded player.
-  socket.on('music:add', (d) => {
+  // Shared server-hosted audio queue. Only upload audio you have permission to share.
+  socket.on('music:upload', (d) => {
     const now = Date.now();
     if (room !== 'music' || !socket.rooms.has('music')) return;
     if (blocked()) return socket.emit('music:error', { message: 'The chat is offline.' });
-    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot add tracks right now.' });
-    if (!d || typeof d.url !== 'string' || now - (socket.data.musicLastAdd || 0) < 2500) {
-      return socket.emit('music:error', { message: 'Please wait a moment before adding another track.' });
+    if (timeouts[key()] > now) return socket.emit('music:error', { message: 'You are timed out and cannot upload tracks right now.' });
+    if (!d || typeof d.fileName !== 'string' || !d.audio || now - (socket.data.musicLastAdd || 0) < 2500) {
+      return socket.emit('music:error', { message: 'Please wait a moment and select an audio file.' });
     }
 
-    const videoId = parseYouTubeVideoId(d.url);
-    if (!videoId) {
-      return socket.emit('music:error', { message: 'Paste a valid YouTube or YouTube Music video link (not a search page or playlist link).' });
+    let audio;
+    if (Buffer.isBuffer(d.audio)) audio = Buffer.from(d.audio);
+    else if (d.audio instanceof ArrayBuffer) audio = Buffer.from(d.audio);
+    else if (ArrayBuffer.isView(d.audio)) audio = Buffer.from(d.audio.buffer, d.audio.byteOffset, d.audio.byteLength);
+    else return socket.emit('music:error', { message: 'The audio upload could not be read. Please try another file.' });
+
+    if (!audio.length) return socket.emit('music:error', { message: 'That audio file is empty.' });
+    if (audio.length > MUSIC_MAX_FILE_BYTES) {
+      return socket.emit('music:error', { message: 'Each audio file must be 8 MB or smaller.' });
     }
+
+    const fileName = clean(d.fileName, 180).split('/').pop();
+    const extensionMatch = /\.([a-z0-9]+)$/i.exec(fileName);
+    const extension = extensionMatch ? '.' + extensionMatch[1].toLowerCase() : '';
+    const mimeType = MUSIC_TYPES[extension];
+    if (!mimeType) {
+      return socket.emit('music:error', { message: 'Supported formats: MP3, M4A, AAC, OGG, OPUS, WAV, WEBM and FLAC.' });
+    }
+
     const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
     if (sameUserCount >= MUSIC_MAX_PER_USER) {
       return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.' });
     }
-    if ((musicCurrent && musicCurrent.videoId === videoId) || musicQueue.some(track => track.videoId === videoId)) {
-      return socket.emit('music:error', { message: 'That video is already in the current track or queue.' });
+    if ((musicCurrent && musicCurrent.hash === crypto.createHash('sha256').update(audio).digest('hex')) ||
+        musicQueue.some(track => track.hash === crypto.createHash('sha256').update(audio).digest('hex'))) {
+      return socket.emit('music:error', { message: 'That audio file is already in the current track or queue.' });
     }
     if ((musicCurrent ? 1 : 0) + musicQueue.length >= MUSIC_MAX_TRACKS) {
-      return socket.emit('music:error', { message: 'The shared list is full (maximum ' + MUSIC_MAX_TRACKS + ' tracks). Wait for a track to be skipped.' });
+      return socket.emit('music:error', { message: 'The shared list is full (maximum ' + MUSIC_MAX_TRACKS + ' tracks).' });
+    }
+    if (musicStoredBytes + audio.length > MUSIC_MAX_STORED_BYTES) {
+      return socket.emit('music:error', { message: 'The server audio memory limit has been reached. Skip a track or wait before uploading more.' });
     }
 
+    const hash = crypto.createHash('sha256').update(audio).digest('hex');
+    const title = clean(d.title, 100) || clean(fileName.replace(/\.[^.]+$/, ''), 100) || 'Uploaded audio';
     const track = {
       id: ++musicTrackId,
-      videoId,
-      title: clean(d.title, 100) || 'YouTube video',
+      title,
       addedBy: safeName(d.name),
       addedById: socket.id,
-      addedAt: now
+      addedAt: now,
+      extension,
+      mimeType,
+      fileName: 'track-' + musicTrackId + extension,
+      hash,
+      audio
     };
     socket.data.musicLastAdd = now;
+    musicStoredBytes += audio.length;
     if (!musicCurrent) {
       musicCurrent = track;
       musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: socket.id };
@@ -875,7 +976,7 @@ io.on('connection', (socket) => {
     }
     broadcastMusicState();
     socket.emit('music:added', { id: track.id });
-    console.log('[music] track added by ' + track.addedBy + '; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
+    console.log('[music] audio track added by ' + track.addedBy + '; memory ' + musicStoredBytes + ' bytes; queued total ' + ((musicCurrent ? 1 : 0) + musicQueue.length));
   });
 
   socket.on('music:control', (d) => {
@@ -894,7 +995,6 @@ io.on('connection', (socket) => {
     const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : null;
 
     if (action === 'play') {
-      // A late listener must not reset the shared clock to their local player's start.
       if (musicPlayback.isPlaying) return socket.emit('music:state', getMusicState());
       musicPlayback = {
         isPlaying: true,
@@ -936,18 +1036,19 @@ io.on('connection', (socket) => {
   socket.on('music:ended', (d) => {
     const now = Date.now();
     if (room !== 'music' || !socket.rooms.has('music') || !musicCurrent || !d ||
-        Number(d.trackId) !== musicCurrent.id || blocked()) return;
-    // Ignore duplicate "ended" events from viewers who are just a little behind.
+        Number(d.trackId) !== musicCurrent.id || blocked() || !musicPlayback.isPlaying) return;
     musicLastSkipAt = now;
     if (musicQueue.length) {
+      const previousTrack = musicCurrent;
       musicCurrent = musicQueue.shift();
+      releaseMusicTrack(previousTrack);
       musicPlayback = { isPlaying: true, position: 0, startedAt: now, changedBy: socket.id };
-      console.log('[music] ended track; advancing shared playback');
+      console.log('[music] finished track; advancing shared server audio stream');
     } else {
       const rawPosition = Number(d.position);
       const position = Number.isFinite(rawPosition) ? Math.max(0, Math.min(rawPosition, 86400)) : getMusicPosition(now);
       musicPlayback = { isPlaying: false, position, startedAt: null, changedBy: socket.id };
-      console.log('[music] current track ended; shared playback paused');
+      console.log('[music] current server audio track ended');
     }
     broadcastMusicState();
   });
@@ -965,10 +1066,12 @@ io.on('connection', (socket) => {
     }
     musicLastSkipAt = now;
     const continuePlaying = musicPlayback.isPlaying;
+    const previousTrack = musicCurrent;
     musicCurrent = musicQueue.shift();
+    releaseMusicTrack(previousTrack);
     musicPlayback = { isPlaying: continuePlaying, position: 0, startedAt: continuePlaying ? now : null, changedBy: socket.id };
     broadcastMusicState();
-    console.log('[music] current track advanced by a channel member');
+    console.log('[music] current server audio track advanced by a channel member');
   });
 
   socket.on('msg', (d) => {
