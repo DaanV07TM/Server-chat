@@ -67,6 +67,7 @@ const MUSIC_CATALOG_TTL = 10 * 60 * 1000;
 const MUSIC_CATALOG_LIMIT = 500;
 const musicSearchCache = new Map();
 const musicCatalogCache = new Map();
+const musicStreamCheckCache = new Map();
 const musicQueue = [];
 let musicCurrent = null, musicTrackId = 0, musicLastSkipAt = 0, musicStoredBytes = 0;
 let musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
@@ -800,6 +801,76 @@ async function streamMusicAddonTrack(track, req, res) {
     else if (!res.writableEnded) res.destroy();
   }
 }
+
+function safeMusicDiagnosticMessage(error) {
+  const message = error && typeof error.message === 'string' ? error.message : String(error || 'unknown error');
+  const code = error && (error.code || (error.cause && error.cause.code));
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'The chat server could not resolve the audio host in DNS.';
+  if (code === 'ETIMEDOUT' || code === 'ECONNRESET' || code === 'ECONNREFUSED') return 'The chat server could not connect to the audio host.';
+  return message
+    .replace(/https?:\/\/[^\s"'<>]+/gi, '[URL hidden]')
+    .replace(/([?&](?:token|signature|sig|key|auth|expires)=)[^&\s]*/gi, '$1[hidden]')
+    .slice(0, 200);
+}
+
+async function inspectMusicAddonStream(track) {
+  let upstream = null;
+  let descriptor = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    descriptor = await resolveMusicAddonStream(track, attempt > 0);
+    upstream = await fetchRelayedAudio(descriptor.url, 'bytes=0-1');
+    if (attempt === 0 && [401, 403, 404, 410].includes(upstream.status)) {
+      if (upstream.body) await upstream.body.cancel().catch(() => {});
+      track.streamUrl = null;
+      track.streamUrlExpiresAt = 0;
+      continue;
+    }
+    break;
+  }
+  if (!upstream) throw new Error('The audio source did not respond.');
+  const status = upstream.status;
+  const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const supportedContent = contentType.startsWith('audio/') ||
+    contentType === 'application/octet-stream' || contentType === 'video/webm';
+  if (upstream.body) await upstream.body.cancel().catch(() => {});
+  if ((!upstream.ok && status !== 206) || contentType === 'text/html' ||
+      contentType === 'application/json' || !supportedContent) {
+    throw new Error('The source returned HTTP ' + status + ' with content type ' +
+      (contentType || 'unknown') + ', not a direct audio stream.');
+  }
+  return {
+    ok: true,
+    status,
+    contentType,
+    rangeSupported: status === 206 || upstream.headers.get('accept-ranges') === 'bytes'
+  };
+}
+
+app.get('/api/music/stream-check/:id', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const id = Number(req.params.id);
+  const track = Number.isSafeInteger(id) && id > 0 ? findMusicTrack(id) : null;
+  if (!track) return res.status(404).json({ ok: false, error: 'This track is no longer in the shared queue.' });
+  if (track.source !== 'addon') {
+    return res.json({ ok: true, source: 'upload', message: 'The uploaded track is stored on this server.' });
+  }
+  const cached = musicStreamCheckCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) {
+    return res.status(cached.result.ok ? 200 : 502).json(cached.result);
+  }
+  try {
+    const result = await inspectMusicAddonStream(track);
+    musicStreamCheckCache.set(id, { expiresAt: Date.now() + MUSIC_STREAM_CHECK_TTL, result });
+    console.log('[music] server-side stream check OK: HTTP ' + result.status + ', ' + result.contentType);
+    return res.json(result);
+  } catch (error) {
+    const detail = safeMusicDiagnosticMessage(error);
+    console.log('[music] server-side stream check failed: ' + detail);
+    const result = { ok: false, error: detail || 'The server could not obtain playable audio from this provider.' };
+    musicStreamCheckCache.set(id, { expiresAt: Date.now() + 5000, result });
+    return res.status(502).json(result);
+  }
+});
 
 // The chat server serves either an uploaded track or a relayed stream. Range requests
 // are passed upstream, so listeners' browsers never connect to the music addon/media host.
