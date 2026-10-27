@@ -355,3 +355,43 @@ header button:hover:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* Interaction details for reply/edit controls and profile status indicators. */
+.m .message-status {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--mute);
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.m.me .message-status { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.12); color: rgba(255,255,255,.9); }
+.m .reply-preview {
+  display: flex;
+  width: 100%;
+  margin: 0 0 9px;
+  padding: 7px 10px;
+  border: 0;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 9px 9px 0;
+  text-align: left;
+  font: inherit;
+}
+.m .reply-preview:hover { filter: brightness(.97); }
+.m.me .reply-preview { border-left-color: rgba(255,255,255,.8); }
+.m .message-edited { display: inline-block; margin-top: 4px; color: var(--mute); font-size: 9px; font-style: italic; }
+.m.me .message-edited { color: rgba(255,255,255,.72); }
+.m.message-flash { outline: 3px solid var(--accent); outline-offset: 3px; }
+#composeContext { box-shadow: 0 -3px 12px rgba(20,35,60,.025); }
+#statusPanel { position: relative; z-index: 5; }
+#messageSearchPanel { position: sticky; top: 48px; z-index: 5; }
+#commandPalette .box { max-height: min(80vh,620px); overflow-y: auto; }
+#commandPaletteList button[hidden] { display: none; }
+@media (max-width: 680px) {
+  .m .rx { opacity: 1; }
+  .m .rx button { min-height: 29px; padding: 5px 7px; }
+  #messageSearchPanel { top: 42px; }
+  #profileStatusBtn { max-width: 98px; }
+}
