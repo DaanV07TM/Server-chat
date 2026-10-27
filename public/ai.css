@@ -25,8 +25,8 @@ body[data-room="ai"] header #installApp,
 body[data-room="ai"] header #quickGuide,
 body[data-room="ai"] header #share,
 body[data-room="ai"] header #private,
-body[data-room="ai"] header #rename,
-body[data-room="ai"] header #admbtn { display:none !important; }
+body[data-room="ai"] header #rename { display:none !important; }
+/* Keep the moderator entry point accessible while the AI workspace itself stays isolated. */
 body[data-room="ai"] header {
   width:calc(100% - 224px); margin-left:224px;
   padding:10px 22px; min-height:58px; gap:10px;
