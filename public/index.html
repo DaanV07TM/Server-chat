@@ -630,7 +630,7 @@ button:active:not(:disabled){transform:translateY(0)}
         <input id="currentPassword" type="password" maxlength="128" autocomplete="current-password" required>
         <label class="auth-label" for="newPassword">New password</label>
         <input id="newPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="At least 10 characters" required>
-        <div class="password-tools"><button id="generateNewPassword" class="auth-secondary-button" type="button">Generate random password</button><button id="toggleNewPassword" class="auth-secondary-button compact" type="button">Show</button></div>
+        <div class="password-tools"><button id="generateNewPassword" class="auth-secondary-button" type="button">Generate random password</button><button id="copyNewPassword" class="auth-secondary-button compact" type="button">Copy</button><button id="toggleNewPassword" class="auth-secondary-button compact" type="button">Show</button></div>
         <label class="auth-label" for="confirmNewPassword">Confirm new password</label>
         <input id="confirmNewPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required>
         <p id="changePasswordMessage" class="auth-message" role="status" aria-live="polite"></p>
@@ -1110,7 +1110,7 @@ function start() {
     authGate.style.display = 'flex';
     authMessage.textContent = message;
     authMessage.classList.toggle('is-error', !!message);
-    $('authUsername').focus();
+    if (authMode === 'register') authSubmit.focus(); else $('authUsername').focus();
   }
   function hideAuthGate() {
     authGate.style.display = 'none';
@@ -1337,6 +1337,11 @@ function start() {
     $('toggleNewPassword').textContent = 'Hide';
     showToast('A random password was generated. Copy it after you save it.', 'info');
   });
+  $('copyNewPassword').addEventListener('click', () => {
+    const password = $('newPassword').value;
+    if (!password) return showToast('Generate or type a new password first.', 'info');
+    copyCredentialText(password, 'New password');
+  });
   $('toggleNewPassword').addEventListener('click', () => {
     const show = $('newPassword').type === 'password';
     $('newPassword').type = show ? 'text' : 'password';
@@ -1423,7 +1428,7 @@ function start() {
     }
   });
 
-  function clearLocalAccountSession() {
+  function clearLocalAccountSession(removeAccountData = false) {
     const previousUsername = accountUsername;
     accountAuthenticated = false;
     accountSessionToken = '';
@@ -1433,7 +1438,7 @@ function start() {
       localStorage.removeItem('accountSessionToken');
       localStorage.removeItem('adminSessionToken');
       localStorage.removeItem('displayName');
-      if (previousUsername) localStorage.removeItem('displayName:' + previousUsername.toLowerCase());
+      if (removeAccountData && previousUsername) localStorage.removeItem('displayName:' + previousUsername.toLowerCase());
       sessionStorage.removeItem('name');
     } catch (_) {}
     $('accountName').textContent = 'Not signed in';
@@ -1451,11 +1456,11 @@ function start() {
     log.append(empty);
   }
   socket.on('auth:session-revoked', () => {
-    clearLocalAccountSession();
+    clearLocalAccountSession(false);
     showAuthGate('This session was signed out. Log in again with your current password.');
   });
   socket.on('auth:deleted', () => {
-    clearLocalAccountSession();
+    clearLocalAccountSession(true);
     showAuthGate('Your account and its associated data have been deleted.');
   });
 
