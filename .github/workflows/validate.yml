@@ -76,5 +76,21 @@ jobs:
           if "localStorage.setItem('generatedPassword'" in html or "localStorage.setItem('newPassword'" in html:
               raise SystemExit("Plaintext generated passwords must never be saved to browser storage.")
           PY
+      - name: Validate in-chat announcements and admin events
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          server = Path("server.js").read_text(encoding="utf-8")
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          for marker in ("const ANNOUNCEMENT_TTL = 2 * 60 * 1000;", "eventType: options.eventType", "else if (c === 'party')", "else if (c === 'partyoff')"):
+              if marker not in server:
+                  raise SystemExit(f"Missing two-minute announcement or admin event: {marker}")
+          for marker in ("const FLASH_BANNER_MS = 2 * 60 * 1000;", "party-event", "server:party-stop", "PARTY MODE · SERVER EVENT · 2 MINUTES", "Activate Party Mode"):
+              if marker not in html:
+                  raise SystemExit(f"Missing in-chat announcement or party UI: {marker}")
+          for marker in ("globalAdminAlert", "global-admin-alert", "globalAdminAlertDismiss", "showGlobalAdminAnnouncement"):
+              if marker in html:
+                  raise SystemExit(f"Floating/dismissible announcement UI must be removed: {marker}")
+          PY
       - name: Validate web app manifest
         run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
