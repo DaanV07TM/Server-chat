@@ -409,10 +409,11 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="share" type="button">Copy link</button>
   <button id="private" type="button">New private room</button>
   <button id="rename" type="button">Profile</button>
-  <div class="account-chip" id="accountChip" aria-label="Signed-in account">
+  <button class="account-chip" id="accountChip" type="button" aria-label="Open account settings">
     <span class="account-avatar" id="accountAvatar" aria-hidden="true">?</span>
     <span class="account-name" id="accountName">Not signed in</span>
-  </div>
+    <span class="account-chevron" aria-hidden="true">⌄</span>
+  </button>
   <button id="logoutBtn" class="account-logout" type="button" title="Log out of this temporary account">Log out</button>
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
@@ -571,22 +572,80 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="authIntro" class="auth-intro">Sign in to continue to your conversations.</p>
     <div class="auth-tabs" role="tablist" aria-label="Account access">
       <button id="authTabLogin" type="button" role="tab" aria-selected="true">Log in</button>
-      <button id="authTabRegister" type="button" role="tab" aria-selected="false">Create account</button>
+      <button id="authTabRegister" type="button" role="tab" aria-selected="false">New temporary account</button>
     </div>
     <form id="authForm" autocomplete="on" novalidate>
-      <label class="auth-label" for="authUsername">Username</label>
-      <input id="authUsername" name="username" type="text" minlength="3" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. daan_07" required>
-      <p class="auth-hint">3–20 characters · letters, numbers, _ or -</p>
-      <label class="auth-label" for="authPassword">Password</label>
-      <input id="authPassword" name="password" type="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="Your password" required>
-      <div id="authConfirmWrap" hidden>
-        <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
-        <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
+      <div id="authLoginFields">
+        <label class="auth-label" for="authUsername">Username</label>
+        <input id="authUsername" name="username" type="text" minlength="3" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Your generated username" required>
+        <p class="auth-hint">Enter the username that was generated for your account.</p>
+        <label class="auth-label" for="authPassword">Password</label>
+        <input id="authPassword" name="password" type="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="Your password" required>
+        <div id="authConfirmWrap" hidden>
+          <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
+          <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
+        </div>
+      </div>
+      <div id="authCreateInfo" class="auth-create-info" hidden>
+        <span class="auth-create-icon" aria-hidden="true">✦</span>
+        <strong>We’ll generate your temporary credentials</strong>
+        <p>A random username and a strong password will be created automatically. Copy and save them before you close the next screen — the password cannot be recovered later.</p>
+        <span class="auth-create-badge">No email address required</span>
       </div>
       <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="authSubmit" class="auth-submit" type="submit">Log in</button>
     </form>
-    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Your password is securely hashed. Accounts are stored in server memory and are cleared when the server restarts. Choose a password you don't use elsewhere.</span></div>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, not the plaintext password. Accounts and chat history are cleared when the server restarts.</span></div>
+  </div>
+</div>
+<div id="generatedCredentials" class="ov auth-gate credentials-gate" role="dialog" aria-modal="true" aria-labelledby="credentialsTitle" hidden>
+  <div class="auth-card credentials-card">
+    <span class="auth-eyebrow">ACCOUNT CREATED</span>
+    <h2 id="credentialsTitle">Save your login details</h2>
+    <p class="auth-intro">These credentials were generated just for you. The password is shown only now, so copy them somewhere safe before continuing.</p>
+    <label class="auth-label" for="generatedUsername">Your username</label>
+    <div class="credential-value"><code id="generatedUsername"></code><button id="copyGeneratedUsername" type="button">Copy</button></div>
+    <label class="auth-label" for="generatedPassword">Generated password</label>
+    <div class="credential-value"><code id="generatedPassword"></code><button id="copyGeneratedPassword" type="button">Copy</button></div>
+    <button id="copyGeneratedCredentials" class="auth-secondary-button" type="button">Copy username and password</button>
+    <div class="auth-note credential-warning"><span aria-hidden="true">⚠</span><span><strong>No password recovery</strong><br>If you lose this password, this temporary account cannot be recovered. You can change it later from account settings, but you will need the current password.</span></div>
+    <button id="credentialsSaved" class="auth-submit" type="button">I've saved my credentials</button>
+  </div>
+</div>
+<div id="accountSettings" class="ov auth-gate" role="dialog" aria-modal="true" aria-labelledby="accountSettingsTitle" hidden>
+  <div class="auth-card account-settings-card">
+    <div class="account-settings-heading">
+      <div><span class="auth-eyebrow">YOUR TEMPORARY ACCOUNT</span><h2 id="accountSettingsTitle">Account settings</h2></div>
+      <button id="accountSettingsClose" class="account-close" type="button" aria-label="Close account settings">×</button>
+    </div>
+    <div class="settings-identity">
+      <span class="account-avatar large" id="settingsAvatar">?</span>
+      <div><strong id="settingsUsername"></strong><span>Temporary account · no email linked</span></div>
+    </div>
+    <section class="settings-section">
+      <h3>Change your password</h3>
+      <p>Use your current password to set a new password, or generate a random one.</p>
+      <form id="changePasswordForm" autocomplete="off" novalidate>
+        <label class="auth-label" for="currentPassword">Current password</label>
+        <input id="currentPassword" type="password" maxlength="128" autocomplete="current-password" required>
+        <label class="auth-label" for="newPassword">New password</label>
+        <input id="newPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="At least 10 characters" required>
+        <div class="password-tools"><button id="generateNewPassword" class="auth-secondary-button" type="button">Generate random password</button><button id="toggleNewPassword" class="auth-secondary-button compact" type="button">Show</button></div>
+        <label class="auth-label" for="confirmNewPassword">Confirm new password</label>
+        <input id="confirmNewPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required>
+        <p id="changePasswordMessage" class="auth-message" role="status" aria-live="polite"></p>
+        <button id="changePasswordSubmit" class="auth-submit" type="submit">Update password</button>
+      </form>
+    </section>
+    <section class="settings-danger">
+      <h3>Delete account and all data</h3>
+      <p>This permanently removes your account, all messages and images you posted across channels, your report activity, and any music tracks you added. Other users’ messages are not deleted.</p>
+      <label class="auth-label" for="deleteAccountPassword">Confirm with your current password</label>
+      <input id="deleteAccountPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="Current password">
+      <p id="deleteAccountMessage" class="auth-message" role="status" aria-live="polite"></p>
+      <button id="deleteAccountButton" class="auth-danger-button" type="button">Delete account and all my data</button>
+    </section>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span>Temporary accounts and chat data exist only in server memory. A server restart also clears accounts; this is not a permanent mail.tm email inbox.</span></div>
   </div>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
