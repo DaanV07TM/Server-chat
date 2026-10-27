@@ -52,6 +52,10 @@ const AI_IMAGE_GLOBAL_REQUESTS = [];
 const AI_IMAGE_GLOBAL_MAX = 20;
 const AI_MAX_CONVERSATIONS_PER_ACCOUNT = 40;
 const AI_MAX_MESSAGES_PER_CONVERSATION = 80;
+const AI_MAX_CHARS_PER_CONVERSATION = 50000;
+const AI_MAX_CHARS_PER_ACCOUNT = 300000;
+const AI_MAX_PUBLIC_SHARES = 200;
+const AI_IMAGE_MAX_STORED_TOTAL = 200;
 const AI_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AI_IMAGE_MAX_BYTES = 800 * 1024;
 const AI_IMAGE_MAX_PER_ACCOUNT_TOTAL = 10;
@@ -145,6 +149,7 @@ app.get('/api/ai/share/:id', (req, res) => {
 
 app.get('/api/ai/conversations', (req, res) => {
   aiSetNoStore(res);
+  aiPruneShares();
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to open your private AI workspace.' });
   const conversations = aiConversationsFor(auth.accountKey);
@@ -184,6 +189,7 @@ app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), 
 
 app.get('/api/ai/conversations/:id', (req, res) => {
   aiSetNoStore(res);
+  aiPruneShares();
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to open your private AI conversation.' });
   const id = String(req.params.id || '');
@@ -227,6 +233,9 @@ app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict:
       existing.expiresAt = Date.now() + AI_SHARE_TTL_MS;
       return res.json({ id: conversation.shareId, expiresAt: existing.expiresAt });
     }
+  }
+  if (AI_PUBLIC_SHARES.size >= AI_MAX_PUBLIC_SHARES) {
+    return res.status(429).json({ error: 'The temporary limit of 200 active shared AI links has been reached. Revoke an old link or try later.' });
   }
   const shareId = crypto.randomBytes(16).toString('hex');
   const snapshot = {
@@ -304,6 +313,17 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   if (conversation.messages.length >= AI_MAX_MESSAGES_PER_CONVERSATION) {
     return res.status(429).json({ error: 'This conversation reached its limit of 80 messages. Start a new conversation to continue.' });
   }
+  globalRecent.push(now);
+  AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
+  const accountConversations = aiConversationsFor(auth.accountKey);
+  const currentConversationChars = conversation.messages.reduce((sum, message) => sum + String(message.content || '').length, 0);
+  const accountConversationChars = accountConversations
+    ? [...accountConversations.values()].reduce((sum, item) => sum + item.messages.reduce((part, message) => part + String(message.content || '').length, 0), 0)
+    : 0;
+  if (currentConversationChars + prompt.length > AI_MAX_CHARS_PER_CONVERSATION ||
+      accountConversationChars + prompt.length > AI_MAX_CHARS_PER_ACCOUNT) {
+    return res.status(429).json({ error: 'Your temporary AI history reached its storage limit. Delete an old conversation to make room.' });
+  }
 
   const userMessage = { role: 'user', content: prompt, createdAt: now };
   conversation.messages.push(userMessage);
@@ -357,8 +377,6 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
     conversation.messages.push({ role: 'assistant', content: reply.slice(0, 16000), createdAt: Date.now() });
     conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = Date.now();
-    globalRecent.push(now);
-    AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
     return res.status(200).json({ reply: reply.slice(0, 16000), conversation: aiPublicConversation(conversation) });
   } catch (error) {
     conversation.messages = conversation.messages.filter(message => message !== userMessage);
@@ -397,6 +415,12 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
   if (storedImages >= AI_IMAGE_MAX_PER_ACCOUNT_TOTAL) {
     return res.status(429).json({ error: 'This account has reached its limit of 10 stored AI images. Delete an old AI conversation to make room.' });
   }
+  const globalStoredImages = [...AI_CONVERSATIONS.values()].reduce((accountTotal, conversations) =>
+    accountTotal + [...conversations.values()].reduce((conversationTotal, item) =>
+      conversationTotal + item.messages.filter(message => message.kind === 'image').length, 0), 0);
+  if (globalStoredImages >= AI_IMAGE_MAX_STORED_TOTAL) {
+    return res.status(429).json({ error: 'The shared temporary image-storage limit is full. Delete an old AI conversation or try later.' });
+  }
 
   const now = Date.now();
   const recent = (AI_IMAGE_RATE_LIMIT.get(auth.accountKey) || []).filter(time => now - time < AI_IMAGE_WINDOW_MS);
@@ -412,6 +436,7 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
 
   recent.push(now);
   AI_IMAGE_RATE_LIMIT.set(auth.accountKey, recent);
+  globalRecent.push(now);
   AI_IMAGE_GLOBAL_REQUESTS.splice(0, AI_IMAGE_GLOBAL_REQUESTS.length, ...globalRecent);
   try {
     const upstream = await fetch('https://gen.pollinations.ai/v1/images/generations', {
@@ -453,8 +478,6 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
       conversation.title = aiCleanTitle(prompt);
     }
     conversation.updatedAt = Date.now();
-    globalRecent.push(now);
-    AI_IMAGE_GLOBAL_REQUESTS.splice(0, AI_IMAGE_GLOBAL_REQUESTS.length, ...globalRecent);
     return res.status(200).json({ image: aiPublicConversation(conversation).messages.slice(-1)[0], conversation: aiPublicConversation(conversation) });
   } catch (error) {
     console.warn('[ai-image] Request failed before a response was available.');
