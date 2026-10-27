@@ -35,6 +35,7 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 @media(prefers-reduced-motion:reduce){.m.admin-message,.m.announcement{animation:none;transform:none}}
 .m.bot span{white-space:pre-wrap}
 /* Global admin announcements float above every channel, including the isolated AI Studio. */
+.admin-quicknav{position:sticky;top:0;z-index:4;display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding:9px 0 11px;margin:0 0 12px;background:var(--panel);border-bottom:1px solid var(--line);scrollbar-width:thin}.admin-quicknav button{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--ink);background:var(--bg);font:800 11px/1.15 system-ui,sans-serif;cursor:pointer;white-space:nowrap}.admin-quicknav button:hover,.admin-quicknav button:focus-visible{border-color:var(--accent);color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.12)}#admbody .sec{scroll-margin-top:70px}
 .global-admin-alert{position:fixed;z-index:60000;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);width:min(780px,calc(100vw - 20px));padding:3px;border:1px solid rgba(255,255,255,.8);border-radius:21px;background:linear-gradient(110deg,#ffb703,#f72585,#7545ff,#00bbf9);box-shadow:0 16px 54px rgba(23,16,65,.48),0 0 0 4px rgba(247,37,133,.18);animation:globalAlertEntrance .48s cubic-bezier(.2,.85,.2,1) both;isolation:isolate}.global-admin-alert[hidden]{display:none!important}.global-admin-alert-inner{position:relative;padding:18px 20px 16px;border-radius:17px;color:white;background:linear-gradient(125deg,rgba(25,16,55,.96),rgba(80,20,95,.96),rgba(23,42,105,.96));overflow:hidden}.global-admin-alert-inner:before{content:"";position:absolute;inset:-70% -20%;z-index:-1;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.2) 49%,transparent 57%);animation:globalAlertSweep 3.2s linear infinite;pointer-events:none}.global-admin-alert.alarm{animation:globalAlertEntrance .48s cubic-bezier(.2,.85,.2,1) both,globalAlertAlarm 1.3s ease-in-out infinite}.global-admin-alert-title{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-size:11px;font-weight:1000;letter-spacing:.13em;text-transform:uppercase}.global-admin-alert-title .spark{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#fff;color:#8b1aab;font-size:18px}.global-admin-alert.alarm .spark{color:#b91c1c;background:#fff1b8}.global-admin-alert-copy{font-size:clamp(15px,2.4vw,20px);font-weight:850;line-height:1.45;overflow-wrap:anywhere;text-shadow:0 2px 10px rgba(0,0,0,.2)}.global-admin-alert-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:12px;color:rgba(255,255,255,.78);font-size:10px}.global-admin-alert-actions{display:flex;flex-wrap:wrap;gap:7px}.global-admin-alert button{border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:7px 10px;color:white;background:rgba(255,255,255,.12);font:800 11px/1.2 system-ui,sans-serif;cursor:pointer}.global-admin-alert button:hover{background:rgba(255,255,255,.24)}.global-admin-alert button.primary{color:#43104f;background:#fff;border-color:#fff}.global-admin-alert.alarm .global-admin-alert-title{color:#ffed9c}.global-admin-alert-progress{height:3px;margin-top:12px;border-radius:5px;background:rgba(255,255,255,.2);overflow:hidden}.global-admin-alert-progress span{display:block;width:100%;height:100%;background:#fff;transform-origin:left;animation:globalAlertTimer 60s linear forwards}@keyframes globalAlertEntrance{from{opacity:0;transform:translate(-50%,-18px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes globalAlertSweep{to{transform:translateX(45%)}}@keyframes globalAlertAlarm{0%,100%{filter:saturate(1);box-shadow:0 16px 54px rgba(23,16,65,.48),0 0 0 4px rgba(247,37,133,.18)}50%{filter:saturate(1.45);box-shadow:0 16px 64px rgba(239,68,68,.68),0 0 0 7px rgba(255,201,71,.35)}}@keyframes globalAlertTimer{from{transform:scaleX(1)}to{transform:scaleX(0)}}@media(prefers-reduced-motion:reduce){.global-admin-alert,.global-admin-alert.alarm,.global-admin-alert-inner:before,.global-admin-alert-progress span{animation:none!important}}@media(max-width:520px){.global-admin-alert-inner{padding:14px}.global-admin-alert-meta{align-items:flex-start}.global-admin-alert-copy{font-size:15px}}
 .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .rx button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:12px;padding:1px 8px;font:inherit;font-size:13px;cursor:pointer}
@@ -3526,6 +3527,15 @@ function start() {
         '</div></div>';
     }).join('') : '<p>No active screen shares.</p>';
     $('admbody').innerHTML =
+      '<nav class="admin-quicknav" aria-label="Admin panel sections">' +
+      '<button type="button" data-admin-jump="overview">Overview</button>' +
+      '<button type="button" data-admin-jump="server load">Performance</button>' +
+      '<button type="button" data-admin-jump="global announcement studio">Announcements</button>' +
+      '<button type="button" data-admin-jump="ai control center">AI Studio</button>' +
+      '<button type="button" data-admin-jump="reports">Reports</button>' +
+      '<button type="button" data-admin-jump="server logs">Logs</button>' +
+      '<button type="button" data-admin-jump="danger zone">Danger zone</button>' +
+      '</nav>' +
       '<div class="admin-stats"><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
       '<div class="sec">Server load</div>' +
       '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '"><b>' + levelText + '</b><span>Refreshes every 5 seconds while this panel is open.</span></div>' +
@@ -3662,6 +3672,13 @@ function start() {
   };
   $('admX').onclick = closeAdm;
   $('admbody').onclick = async e => {
+    const jump = e.target.closest('button[data-admin-jump]');
+    if (jump) {
+      const wanted = jump.dataset.adminJump;
+      const target = wanted === 'overview' ? $('admbody').querySelector('.admin-stats') : [...$('admbody').querySelectorAll('.sec')].find(el => el.textContent.toLowerCase().includes(wanted));
+      if (target) target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      return;
+    }
     const imageAction = e.target.closest('button[data-image-action]');
     if (imageAction) {
       if (!moderator) return;
