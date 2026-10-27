@@ -1092,6 +1092,7 @@ function start() {
   let accountAuthenticated = false;
   let authMode = 'login';
   let authBusy = false;
+  let newlyGeneratedPassword = '';
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
 
@@ -1200,13 +1201,22 @@ function start() {
     } catch (_) { name = accountUsername; }
     $('accountName').textContent = accountUsername;
     $('accountAvatar').textContent = accountUsername.slice(0, 1).toUpperCase();
-    $('accountChip').setAttribute('aria-label', 'Signed in as ' + accountUsername);
+    $('accountChip').setAttribute('aria-label', 'Open settings for ' + accountUsername);
     authPasswordInput.value = '';
     authConfirmInput.value = '';
     hideAuthGate();
     joinAuthenticated();
-    if (!data.resumed) {
-      showToast((authMode === 'register' ? 'Temporary account created: ' : 'Welcome back, ') + accountUsername + '.', 'success');
+
+    if (typeof data.generatedPassword === 'string' && data.generatedPassword) {
+      newlyGeneratedPassword = data.generatedPassword;
+      $('generatedUsername').textContent = accountUsername;
+      $('generatedPassword').textContent = newlyGeneratedPassword;
+      $('generatedCredentials').hidden = false;
+      $('generatedCredentials').style.display = 'flex';
+      $('copyGeneratedPassword').focus();
+      showToast('Temporary account created. Save the generated password before continuing.', 'success', 8000);
+    } else if (!data.resumed) {
+      showToast('Welcome back, ' + accountUsername + '.', 'success');
       if (!welcomeGuideSeen) showWelcomeGuide();
     }
   });
@@ -1264,6 +1274,191 @@ function start() {
   socket.on('connect_error', () => {
     showAuthGate('Cannot reach the chat server. Check your connection and try again.');
   });
+  function closeGeneratedCredentials() {
+    $('generatedCredentials').style.display = 'none';
+    $('generatedCredentials').hidden = true;
+    $('generatedPassword').textContent = '';
+    newlyGeneratedPassword = '';
+    if (!welcomeGuideSeen) showWelcomeGuide();
+  }
+  async function copyCredentialText(value, label) {
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast(label + ' copied to clipboard.', 'success');
+    } catch (_) {
+      showToast('Clipboard access was blocked. Select the text and copy it manually.', 'error');
+    }
+  }
+  $('copyGeneratedUsername').addEventListener('click', () =>
+    copyCredentialText($('generatedUsername').textContent, 'Username'));
+  $('copyGeneratedPassword').addEventListener('click', () =>
+    copyCredentialText(newlyGeneratedPassword || $('generatedPassword').textContent, 'Password'));
+  $('copyGeneratedCredentials').addEventListener('click', () =>
+    copyCredentialText('Username: ' + $('generatedUsername').textContent + '\nPassword: ' + (newlyGeneratedPassword || $('generatedPassword').textContent), 'Credentials'));
+  $('credentialsSaved').addEventListener('click', closeGeneratedCredentials);
+
+  function openAccountSettings() {
+    if (!accountAuthenticated) return showAuthGate('Sign in to manage your temporary account.');
+    $('settingsUsername').textContent = accountUsername;
+    $('settingsAvatar').textContent = accountUsername.slice(0, 1).toUpperCase();
+    $('currentPassword').value = '';
+    $('newPassword').value = '';
+    $('confirmNewPassword').value = '';
+    $('deleteAccountPassword').value = '';
+    $('changePasswordMessage').textContent = '';
+    $('changePasswordMessage').classList.remove('is-error');
+    $('deleteAccountMessage').textContent = '';
+    $('deleteAccountMessage').classList.remove('is-error');
+    $('accountSettings').hidden = false;
+    $('accountSettings').style.display = 'flex';
+    $('currentPassword').focus();
+  }
+  function closeAccountSettings() {
+    $('accountSettings').style.display = 'none';
+    $('accountSettings').hidden = true;
+    $('currentPassword').value = '';
+    $('newPassword').value = '';
+    $('confirmNewPassword').value = '';
+    $('deleteAccountPassword').value = '';
+  }
+  $('accountChip').addEventListener('click', openAccountSettings);
+  $('accountSettingsClose').addEventListener('click', closeAccountSettings);
+  $('accountSettings').addEventListener('click', event => {
+    if (event.target === $('accountSettings')) closeAccountSettings();
+  });
+
+  $('generateNewPassword').addEventListener('click', () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    const generated = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+    $('newPassword').value = generated;
+    $('confirmNewPassword').value = generated;
+    $('newPassword').type = 'text';
+    $('confirmNewPassword').type = 'text';
+    $('toggleNewPassword').textContent = 'Hide';
+    showToast('A random password was generated. Copy it after you save it.', 'info');
+  });
+  $('toggleNewPassword').addEventListener('click', () => {
+    const show = $('newPassword').type === 'password';
+    $('newPassword').type = show ? 'text' : 'password';
+    $('confirmNewPassword').type = show ? 'text' : 'password';
+    $('toggleNewPassword').textContent = show ? 'Hide' : 'Show';
+  });
+
+  $('changePasswordForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const currentPassword = $('currentPassword').value;
+    const newPassword = $('newPassword').value;
+    const confirmPassword = $('confirmNewPassword').value;
+    const message = $('changePasswordMessage');
+    message.classList.remove('is-error');
+    if (!accountAuthenticated || !socket.connected) {
+      message.textContent = 'Connect and sign in before changing your password.';
+      message.classList.add('is-error');
+      return;
+    }
+    if (newPassword.length < 10 || newPassword.length > 128) {
+      message.textContent = 'The new password must contain 10–128 characters.';
+      message.classList.add('is-error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      message.textContent = 'The new passwords do not match.';
+      message.classList.add('is-error');
+      return;
+    }
+    $('changePasswordSubmit').disabled = true;
+    $('changePasswordSubmit').textContent = 'Updating…';
+    socket.emit('auth:change-password', { currentPassword, newPassword });
+  });
+  socket.on('auth:password-changed', result => {
+    $('changePasswordSubmit').disabled = false;
+    $('changePasswordSubmit').textContent = 'Update password';
+    const message = $('changePasswordMessage');
+    message.textContent = result && result.message ? result.message : 'Could not change your password.';
+    message.classList.toggle('is-error', !result || !result.ok);
+    if (result && result.ok) {
+      $('currentPassword').value = '';
+      $('newPassword').value = '';
+      $('confirmNewPassword').value = '';
+      $('newPassword').type = 'password';
+      $('confirmNewPassword').type = 'password';
+      $('toggleNewPassword').textContent = 'Show';
+      showToast('Password updated. Keep the new password somewhere safe.', 'success', 7000);
+    }
+  });
+
+  $('deleteAccountButton').addEventListener('click', async () => {
+    const password = $('deleteAccountPassword').value;
+    const message = $('deleteAccountMessage');
+    message.classList.remove('is-error');
+    if (!password || password.length > 128) {
+      message.textContent = 'Enter your current password to confirm account deletion.';
+      message.classList.add('is-error');
+      $('deleteAccountPassword').focus();
+      return;
+    }
+    const confirmed = await showSiteDialog({
+      title: 'Delete account and all data?',
+      message: 'This cannot be undone. Your account, all messages and images you posted, reports you made or received, and music tracks you added will be removed. Other people’s messages stay.',
+      confirmText: 'Delete everything',
+      cancelText: 'Keep my account',
+      danger: true
+    });
+    if (!confirmed) return;
+    $('deleteAccountButton').disabled = true;
+    $('deleteAccountButton').textContent = 'Deleting account…';
+    message.textContent = 'Deleting your account and associated data…';
+    socket.emit('auth:delete-account', { password });
+  });
+  socket.on('auth:delete-result', result => {
+    $('deleteAccountButton').disabled = false;
+    $('deleteAccountButton').textContent = 'Delete account and all my data';
+    if (result && result.ok) {
+      closeAccountSettings();
+      $('deleteAccountMessage').textContent = '';
+      showToast('Your account and associated data were deleted.', 'success', 8000);
+    } else {
+      $('deleteAccountMessage').textContent = result && result.message ? result.message : 'Account deletion failed.';
+      $('deleteAccountMessage').classList.add('is-error');
+    }
+  });
+
+  function clearLocalAccountSession() {
+    const previousUsername = accountUsername;
+    accountAuthenticated = false;
+    accountSessionToken = '';
+    accountUsername = '';
+    adminSessionToken = '';
+    try {
+      localStorage.removeItem('accountSessionToken');
+      localStorage.removeItem('adminSessionToken');
+      localStorage.removeItem('displayName');
+      if (previousUsername) localStorage.removeItem('displayName:' + previousUsername.toLowerCase());
+      sessionStorage.removeItem('name');
+    } catch (_) {}
+    $('accountName').textContent = 'Not signed in';
+    $('accountAvatar').textContent = '?';
+    $('accountChip').setAttribute('aria-label', 'No account signed in');
+    $('accountSettings').hidden = true;
+    $('accountSettings').style.display = 'none';
+    $('authUsername').value = '';
+    $('authPassword').value = '';
+    $('authPasswordConfirm').value = '';
+    log.replaceChildren();
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'Sign in to load the chat.';
+    log.append(empty);
+  }
+  socket.on('auth:session-revoked', () => {
+    clearLocalAccountSession();
+    showAuthGate('This session was signed out. Log in again with your current password.');
+  });
+  socket.on('auth:deleted', () => {
+    clearLocalAccountSession();
+    showAuthGate('Your account and its associated data have been deleted.');
+  });
+
   setAuthMode('login');
 
   // Shared music queue. Catalogue search and audio playback use same-origin routes only.
