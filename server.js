@@ -682,10 +682,7 @@ function createPoll(room, question, options, ownerToken = '', answerIndex = null
   if (Number.isSafeInteger(answerIndex) && answerIndex >= 0 && answerIndex < cleanedOptions.length) extra.pollAnswerIndex = answerIndex;
   bot(room, '', ownerToken, extra);
   const posted = (rooms[room] || []).at(-1);
-  if (posted && posted.poll) {
-    io.to(room).emit('poll:state', { mid: posted.mid, poll: posted.poll });
-    recordServerActivity('poll', (poll.kind === 'quiz' ? 'A quick quiz' : 'A community poll') + ' started in #' + room);
-  }
+  if (posted && posted.poll) recordServerActivity('poll', (poll.kind === 'quiz' ? 'A quick quiz' : 'A community poll') + ' started in #' + room);
   return true;
 }
 function announce(t, options = {}) {
@@ -2413,7 +2410,7 @@ io.on('connection', (socket) => {
       socket.leave(room);
     }
     room = nextRoom;
-    if (!room.startsWith('private-') && room !== 'ai') recordServerActivity('channel', 'A client joined #' + room);
+    if (PUBLIC_STATUS_CHANNELS.some(channel => channel.key === room)) recordServerActivity('channel', 'A client joined #' + room);
     // Account tokens are server-issued; a standalone admin session uses its unguessable server-issued session token.
     if (hasAccount) socket.data.tok = socket.data.account.token;
     const existingBan = activeUserBan(socket.data.tok);
@@ -3018,7 +3015,7 @@ io.on('connection', (socket) => {
     }
     store(room, message);
     // The public status feed records only generic activity categories, never chat contents or private-room activity.
-    if (!isPrivateRoom) recordServerActivity(message.poll ? 'poll' : stickerId ? 'sticker' : isAdmin ? 'system' : 'chat', message.poll ? 'A poll was started in #' + room : stickerId ? 'A sticker was shared in #' + room : isAdmin ? 'A staff message was posted in #' + room : 'A message was posted in #' + room);
+    if (!isPrivateRoom && PUBLIC_STATUS_CHANNELS.some(channel => channel.key === room)) recordServerActivity(message.poll ? 'poll' : stickerId ? 'sticker' : isAdmin ? 'system' : 'chat', message.poll ? 'A poll was started in #' + room : stickerId ? 'A sticker was shared in #' + room : isAdmin ? 'A staff message was posted in #' + room : 'A message was posted in #' + room);
     // Deliver ownership hints per recipient; browser tokens remain server-only.
     emitPersonalizedRoomMessage(room, 'msg', message);
 
