@@ -131,10 +131,10 @@ jobs:
           for marker in ('class="sidebar-brand"', 'class="sidebar-section-label"', 'class="sidebar-dock"', 'class="sidebar-footer"', 'data-channel="general"', 'href="/status.html"'):
               if marker not in html:
                   raise SystemExit(f"Missing redesigned navigation item: {marker}")
-          for marker in ("--ubuntu-orange:#e95420", "--cosmic-purple:#77216f", "#channelNav{", "header::before", ".sidebar-dock", "body[data-room=\\"ai\\"] #aiStudioRoot", "@media(max-width:1000px)", "@media(prefers-reduced-motion:reduce)", "body.party-mode #log"):
+          for marker in ("--ubuntu-orange:#e95420", "--cosmic-purple:#77216f", "#channelNav{", "header::before", ".sidebar-dock", 'body[data-room="ai"] #aiStudioRoot', "@media(max-width:1000px)", "@media(prefers-reduced-motion:reduce)", "body.party-mode #log"):
               if marker not in css:
                   raise SystemExit(f"Missing responsive COSMIC design rule: {marker}")
-          for marker in ("body[data-room=\\"ai\\"] header", ".ai-brand-icon", ".ai-composer-field:focus-within"):
+          for marker in ('body[data-room="ai"] header', ".ai-brand-icon", ".ai-composer-field:focus-within"):
               if marker not in css:
                   raise SystemExit(f"AI Studio is missing the unified visual system: {marker}")
           for marker in ("--bg:#17111c", "--purple:#ff865c", "rgba(119,33,111"):
