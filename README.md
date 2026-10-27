@@ -40,7 +40,7 @@ To activate it on Render:
 3. Optionally set `OPENAI_MODEL` to a model available to your API project. If omitted, the server uses the cost-efficient `gpt-6-luna` model. As safeguards, each IP is limited to 18 requests per 10 minutes and the service has a shared rolling allowance of 300 requests per 24 hours (in-memory, so it resets on a server restart).
 4. Save the environment changes and redeploy/restart the service. The AI button will show when the endpoint is ready.
 
-**Costs:** API usage is billed separately from ChatGPT Go/Plus/Pro subscriptions and depends on model usage. Check the [current API pricing](https://openai.com/api/pricing/) and configure spending limits before enabling it for other visitors. Without `OPENAI_API_KEY`, the AI panel remains visible but politely reports that setup is required.
+**Costs:** API usage is billed separately from ChatGPT Go/Plus/Pro subscriptions and depends on model usage. Check the [current API pricing](https://developers.openai.com/api/docs/pricing) and configure spending limits before enabling it for other visitors. Without `OPENAI_API_KEY`, the AI panel remains visible but politely reports that setup is required.
 
 ## Privacy and safety
 
