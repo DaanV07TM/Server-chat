@@ -5,6 +5,7 @@
   let sending = false;
   let typingNode = null;
   let activeController = null;
+  let requestVersion = 0;
   const root = document.createElement('div');
   root.id = 'builtInAiRoot';
   root.innerHTML = `
@@ -102,9 +103,10 @@
     input.style.height = 'auto';
       messages.push({role:'user', content:prompt});
     setBusy(true);
+    let requestController = null;
     try {
-      activeController = new AbortController();
-      const requestController = activeController;
+      requestController = new AbortController();
+      activeController = requestController;
       const response = await fetch('/api/ai/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json','Accept':'application/json'},
@@ -135,9 +137,11 @@
       if (messages.length && messages[messages.length - 1].role === 'user') messages.pop();
       addMessage('assistant', error && error.message ? error.message : 'Er ging iets mis.', true);
     } finally {
-      activeController = null;
-      setBusy(false);
-      if (available) input.focus();
+      if (thisRequestVersion === requestVersion) {
+        if (activeController === requestController) activeController = null;
+        setBusy(false);
+        if (available) input.focus();
+      }
     }
   };
   launcher.addEventListener('click', () => setOpen(!panel.classList.contains('is-open')));
@@ -167,6 +171,7 @@
   });
   // AI chat history exists only in this page's memory. Clear it whenever an account session ends.
   window.addEventListener('server-chat:session-ended', () => {
+    requestVersion++;
     if (activeController) activeController.abort();
     activeController = null;
     messages.length = 0;
