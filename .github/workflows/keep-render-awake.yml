@@ -1,10 +1,8 @@
 name: Keep Render chat awake
 
 on:
-  # Render sleeps after 15 minutes without inbound traffic.
-  # Offset the schedule a few minutes from the hour to reduce queue delays.
-  schedule:
-    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+  # Manual only: let free Render services sleep while idle.
+  # Use Actions -> Keep Render chat awake -> Run workflow for a one-off health check.
   workflow_dispatch:
 
 jobs:
