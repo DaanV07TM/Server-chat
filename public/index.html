@@ -1120,15 +1120,19 @@ function start() {
     const registering = authMode === 'register';
     $('authTabLogin').setAttribute('aria-selected', String(!registering));
     $('authTabRegister').setAttribute('aria-selected', String(registering));
-    $('authTitle').textContent = registering ? 'Create your space' : 'Welcome back';
+    $('authTitle').textContent = registering ? 'Create a disposable account' : 'Welcome back';
     $('authIntro').textContent = registering
-      ? 'Create a temporary account to start chatting.'
-      : 'Sign in to continue to your conversations.';
-    authSubmit.textContent = registering ? 'Create account' : 'Log in';
-    authPasswordInput.setAttribute('autocomplete', registering ? 'new-password' : 'current-password');
-    authPasswordInput.setAttribute('placeholder', registering ? 'At least 10 characters' : 'Your password');
-    authConfirmWrap.hidden = !registering;
-    authConfirmInput.required = registering;
+      ? 'No form-filling needed. We generate your login details automatically.'
+      : 'Sign in with the username and password you saved.';
+    $('authLoginFields').hidden = registering;
+    $('authCreateInfo').hidden = !registering;
+    $('authUsername').required = !registering;
+    authPasswordInput.required = !registering;
+    authPasswordInput.setAttribute('autocomplete', 'current-password');
+    authPasswordInput.setAttribute('placeholder', 'Your password');
+    authConfirmWrap.hidden = true;
+    authConfirmInput.required = false;
+    authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
     authMessage.textContent = '';
     authMessage.classList.remove('is-error');
   }
@@ -1140,35 +1144,34 @@ function start() {
       if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
       return;
     }
-    const username = $('authUsername').value.trim();
-    const password = authPasswordInput.value;
-    if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
-      authMessage.textContent = 'Username must be 3–20 characters and use only letters, numbers, _ or -.';
-      authMessage.classList.add('is-error');
-      return;
+    if (authMode === 'login') {
+      const username = $('authUsername').value.trim();
+      const password = authPasswordInput.value;
+      if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
+        authMessage.textContent = 'Enter the generated username exactly as shown.';
+        authMessage.classList.add('is-error');
+        return;
+      }
+      if (!password || password.length > 128) {
+        authMessage.textContent = 'Enter your password.';
+        authMessage.classList.add('is-error');
+        return;
+      }
     }
-    if (authMode === 'register' && (password.length < 10 || password.length > 128)) {
-      authMessage.textContent = 'Choose a password between 10 and 128 characters.';
-      authMessage.classList.add('is-error');
-      return;
-    }
-    if (authMode === 'register' && password !== authConfirmInput.value) {
-      authMessage.textContent = 'The passwords do not match.';
-      authMessage.classList.add('is-error');
-      authConfirmInput.focus();
-      return;
-    }
-    if (authMode === 'login' && (!password || password.length > 128)) {
-      authMessage.textContent = 'Enter your password.';
-      authMessage.classList.add('is-error');
-      return;
-    }
+
     authBusy = true;
     authSubmit.disabled = true;
-    authSubmit.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
-    authMessage.textContent = 'Connecting securely…';
+    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
+    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Connecting securely…';
     authMessage.classList.remove('is-error');
-    socket.emit(authMode === 'register' ? 'auth:register' : 'auth:login', { username, password });
+    if (authMode === 'register') {
+      socket.emit('auth:register', {});
+    } else {
+      socket.emit('auth:login', {
+        username: $('authUsername').value.trim(),
+        password: authPasswordInput.value
+      });
+    }
   });
 
   socket.on('auth:result', data => {
