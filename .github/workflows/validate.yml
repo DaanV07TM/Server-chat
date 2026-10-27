@@ -1,0 +1,40 @@
+name: Validate application
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate server and service worker syntax
+        run: |
+          node --check server.js
+          node --check public/sw.js
+      - name: Validate inline browser JavaScript
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r'<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\s*>', html, flags=re.I | re.S)
+          if not scripts:
+              raise SystemExit("No inline JavaScript block was found.")
+          Path("/tmp/server-chat-inline.js").write_text("\n".join(scripts), encoding="utf-8")
+          PY
+          node --check /tmp/server-chat-inline.js
+      - name: Validate web app manifest
+        run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
