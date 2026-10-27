@@ -552,7 +552,7 @@ let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'on';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
 const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/party', '/partyoff', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aiclear', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /restart /cancelrestart /logout";
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /help /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
