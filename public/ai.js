@@ -97,7 +97,10 @@
     try {
       const status = await api('/api/ai/status');
       state.available = Boolean(status.available);
-      updateStatus(state.available ? 'AI assistant ready' : 'Text AI is not configured', state.available);
+      const statusText = !status.enabled ? 'AI paused by a server administrator' : !status.configured ? 'Text AI is not configured' : 'AI assistant ready';
+      updateStatus(statusText, state.available);
+      if (!status.enabled) showModeNotice('The server administrator has temporarily paused text AI. Your private conversation history has not been deleted.', true, 'warning');
+      else if (!status.configured) showModeNotice('Text AI is not configured on the server yet. Your prompt will not be sent until the provider is configured.', true, 'warning');
       syncComposer();
     } catch (_) {
       updateStatus('AI service unavailable', false);
