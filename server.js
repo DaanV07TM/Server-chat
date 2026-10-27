@@ -2956,7 +2956,7 @@ io.on('connection', (socket) => {
 
     // Slash commands are server controls, not stored as ordinary chat text.
     if (text.startsWith('/')) {
-      if (room.startsWith('private-') && /^\\/(poll|quiz)\\b/i.test(text)) return socket.emit('sys', 'Interactive polls and quizzes are available in public channels only. Private-room text stays end-to-end encrypted.');
+      if (room.startsWith('private-') && /^\/(poll|quiz)\b/i.test(text)) return socket.emit('sys', 'Interactive polls and quizzes are available in public channels only. Private-room text stays end-to-end encrypted.');
       if (!socket.data.admin) {
         recent = recent.filter(t => now - t < 10000); recent.push(now);
         if (recent.length > 6) { timeouts[key()] = now + 30000; return socket.emit('sys', 'Too fast. You are timed out for 30 seconds.'); }
