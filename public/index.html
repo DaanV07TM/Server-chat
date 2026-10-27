@@ -950,6 +950,12 @@ function start() {
   const isPrivateRoom = room.startsWith('private-');
   if (room === 'ai') $('title').textContent = 'AI Studio';
   const isSharedAIView = room === 'ai' && /^[a-f0-9]{32}$/.test(params.get('share') || '');
+  if (isSharedAIView) {
+    const robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex, nofollow, noarchive';
+    document.head.appendChild(robots);
+  }
   document.body.dataset.room = room;
   document.body.dataset.sharedAi = isSharedAIView ? 'true' : 'false';
   const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
