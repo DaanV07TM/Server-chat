@@ -1322,6 +1322,17 @@ function start() {
     }
   });
 
+  socket.on('auth:admin-resume-result', data => {
+    if (!data || !data.ok) {
+      clearStoredAdminSession();
+      window.dispatchEvent(new Event('server-chat:session-ended'));
+      setAuthMode('admin');
+      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Your saved admin session expired. Sign in again.');
+      return;
+    }
+    hideAuthGate();
+    joinAuthenticated();
+  });
   socket.on('auth:admin-result', data => {
     authBusy = false;
     authSubmit.disabled = false;
@@ -1373,8 +1384,8 @@ function start() {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
     } else if (adminSessionToken) {
-      hideAuthGate();
-      joinAuthenticated();
+      authMessage.textContent = 'Restoring your administrator session…';
+      socket.emit('auth:admin-resume', { sessionToken: adminSessionToken });
     } else if (!isSharedAIView) {
       showAuthGate();
     }
