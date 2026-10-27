@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A modern anonymous chat with private-room encryption, live voice, shared music, and thoughtful moderation.">
+<meta name="description" content="A modern chat with temporary username and password accounts, private-room encryption, live voice, shared music, and thoughtful moderation.">
 <meta name="theme-color" content="#5667e8">
 <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -610,7 +610,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has shared music playback.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
     <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Only private-room text is end-to-end encrypted; text in public and official channels can be read by the server. Images are not end-to-end encrypted and appear immediately in chat; moderators can review them across public and private rooms, mark them reviewed, or delete them. Review is manual and cannot guarantee that illegal images will not be seen before a moderator acts. Do not post passwords or sensitive information.</span></div></div>
-    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. The hosting provider may process connection metadata, even though the app itself has no account database.</span></div></div>
+    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. Accounts use a username and password, but they are temporary and are cleared whenever the server restarts or redeploys. Passwords are stored as secure scrypt hashes, not plain text. The hosting provider may process connection metadata.</span></div></div>
     <div class="guide-item"><span class="guide-number">5</span><div><b>Make chat yours</b><span>Reply to messages, edit text you sent within 15 minutes, delete your own posts, choose a name and status, and switch themes. Use Ctrl+K to change channels or Ctrl+F to search the current room. Install the app from your browser when supported.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
