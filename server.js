@@ -1743,7 +1743,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 5;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login']); // password changes/deletion require an account session
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'global-announcement:sync']); // login and public announcement sync can run before account auth
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -1821,6 +1821,14 @@ io.on('connection', (socket) => {
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
   const blocked = () => (offline || socket.data.banned) && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
+
+  // This sync works without joining a chat room, which keeps AI Studio private while still
+  // allowing a recently posted server-wide announcement to appear after page navigation.
+  socket.on('global-announcement:sync', () => {
+    if (latestAnnouncement && Date.now() - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
+      socket.emit('server:global-announcement', latestAnnouncement);
+    }
+  });
 
   // Every non-auth socket packet must carry a currently valid temporary-account session.
   socket.use((packet, next) => {
@@ -2181,6 +2189,7 @@ io.on('connection', (socket) => {
     const hasAdminSession = Boolean(socket.data.admin && socket.data.adminToken && adminSessions.has(socket.data.adminToken));
     const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (!hasAccount && !hasAdminSession && !( /^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken))) {
+      if (requestedAdminToken) socket.emit('admin:session-invalid');
       return socket.emit('auth:required');
     }
     if (/^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken)) {
