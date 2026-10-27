@@ -1704,18 +1704,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('auth:delete-account', async (d) => {
+  socket.on('auth:delete-account', async () => {
     const session = socket.data.account;
     const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
-    const currentPassword = typeof (d && d.password) === 'string' ? d.password : '';
-    if (!account || !currentPassword || currentPassword.length > 128) {
-      return socket.emit('auth:delete-result', { ok: false, message: 'Enter your current password to delete the account.' });
+    if (!account || !socket.data.authSessionToken || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== account.key) {
+      return socket.emit('auth:delete-result', { ok: false, message: 'Your session is no longer valid. Sign in again before deleting the account.' });
     }
     try {
-      const candidate = await scryptPassword(currentPassword, account.salt);
-      if (!crypto.timingSafeEqual(candidate, account.passwordHash)) {
-        return socket.emit('auth:delete-result', { ok: false, message: 'Your password is incorrect. Nothing has been deleted.' });
-      }
       const accountToken = account.token;
       const ownedMids = [];
       for (const roomName of Object.keys(rooms)) {
