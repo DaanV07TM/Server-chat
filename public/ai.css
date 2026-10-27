@@ -1,0 +1,61 @@
+/* Built-in AI assistant — self-contained so it never touches room/socket data. */
+.ai-launcher {
+  position: fixed; z-index: 1200; right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 10px;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 999px; padding: 13px 18px;
+  color: #fff; font: 700 14px/1 system-ui, sans-serif; letter-spacing: .01em; cursor: pointer;
+  background: linear-gradient(135deg, #7167f8, #4a67db 60%, #3e8ccf);
+  box-shadow: 0 12px 34px rgba(58,76,196,.32); transition: transform .18s ease, box-shadow .18s ease;
+}
+.ai-launcher:hover { transform: translateY(-2px); box-shadow: 0 16px 42px rgba(58,76,196,.4); }
+.ai-launcher:focus-visible, .ai-panel button:focus-visible, .ai-panel textarea:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 3px; }
+.ai-launcher-mark { display:grid; place-items:center; width:25px; height:25px; border-radius:9px; background:rgba(255,255,255,.19); font-size:16px; }
+.ai-panel {
+  position: fixed; z-index: 1201; right: max(22px, env(safe-area-inset-right)); bottom: max(84px, calc(env(safe-area-inset-bottom) + 82px));
+  width: min(410px, calc(100vw - 28px)); height: min(610px, calc(100dvh - 120px)); min-height: 360px;
+  display:none; flex-direction:column; overflow:hidden; border-radius:22px; border:1px solid var(--border, rgba(130,140,170,.28));
+  background:var(--panel, #fff); color:var(--text, #202438); box-shadow:0 26px 90px rgba(12,18,42,.28);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.ai-panel.is-open { display:flex; animation: ai-pop .18s ease-out; }
+@keyframes ai-pop { from { opacity:0; transform:translateY(8px) scale(.985) } to { opacity:1; transform:translateY(0) scale(1) } }
+.ai-header { display:flex; align-items:center; gap:12px; padding:17px 17px 14px; border-bottom:1px solid var(--border, #e7e9f2); }
+.ai-avatar { display:grid; place-items:center; flex:0 0 39px; width:39px; height:39px; border-radius:14px; color:#fff; font-size:20px; background:linear-gradient(135deg,#796ef7,#397bc9); }
+.ai-heading { flex:1; min-width:0; }
+.ai-title { margin:0; font-size:15px; font-weight:750; letter-spacing:-.02em; }
+.ai-subtitle { display:flex; align-items:center; gap:6px; margin-top:4px; color:var(--muted, #6b7286); font-size:11px; }
+.ai-dot { width:7px; height:7px; border-radius:50%; background:#9aa2b5; }
+.ai-dot.is-ready { background:#23ad76; box-shadow:0 0 0 3px rgba(35,173,118,.13); }
+.ai-icon-button { display:grid; place-items:center; width:34px; height:34px; padding:0; border-radius:10px; border:1px solid var(--border, #e7e9f2); color:var(--text, #34384b); background:transparent; cursor:pointer; font-size:17px; }
+.ai-icon-button:hover { background:var(--surface, #f4f5fb); }
+.ai-privacy { padding:9px 15px; font-size:11px; line-height:1.45; color:var(--muted, #6b7286); background:var(--surface, #f6f7fc); border-bottom:1px solid var(--border, #e7e9f2); }
+.ai-privacy strong { color:var(--text, #35394e); }
+.ai-messages { flex:1; min-height:0; overflow:auto; padding:15px; display:flex; flex-direction:column; gap:12px; scroll-behavior:smooth; }
+.ai-welcome { padding:5px 2px 2px; }
+.ai-welcome h3 { margin:0 0 6px; font-size:19px; letter-spacing:-.035em; }
+.ai-welcome p { margin:0; color:var(--muted, #6b7286); font-size:13px; line-height:1.5; }
+.ai-suggestions { display:flex; flex-wrap:wrap; gap:7px; margin-top:15px; }
+.ai-suggestion { border:1px solid var(--border, #dfe3ef); border-radius:999px; padding:8px 10px; background:transparent; color:var(--text, #34384b); font:500 11px/1.25 system-ui,sans-serif; cursor:pointer; text-align:left; }
+.ai-suggestion:hover { border-color:#8586ef; background:rgba(112,103,248,.08); }
+.ai-message { max-width:91%; align-self:flex-start; white-space:pre-wrap; overflow-wrap:anywhere; padding:10px 12px; border-radius:15px 15px 15px 5px; font-size:13px; line-height:1.55; }
+.ai-message.user { align-self:flex-end; color:#fff; background:linear-gradient(135deg,#6e67e8,#4b72d3); border-radius:15px 15px 5px 15px; }
+.ai-message.assistant { background:var(--surface, #f1f3fa); color:var(--text, #252a3e); }
+.ai-message.error { color:#a8323e; background:rgba(220,53,69,.09); }
+.ai-typing { display:inline-flex; align-items:center; gap:5px; min-height:18px; }
+.ai-typing span { width:5px; height:5px; border-radius:50%; background:#8389a0; animation:ai-dot 1s infinite ease-in-out; }
+.ai-typing span:nth-child(2) { animation-delay:.15s } .ai-typing span:nth-child(3) { animation-delay:.3s }
+@keyframes ai-dot { 0%,60%,100% { transform:translateY(0); opacity:.45 } 30% { transform:translateY(-4px); opacity:1 } }
+.ai-composer-wrap { padding:12px; border-top:1px solid var(--border, #e7e9f2); background:var(--panel, #fff); }
+.ai-composer { display:flex; align-items:flex-end; gap:8px; padding:7px; border:1px solid var(--border, #dfe3ef); border-radius:15px; background:var(--surface, #f8f9fc); }
+.ai-composer:focus-within { border-color:#8785ed; box-shadow:0 0 0 3px rgba(112,103,248,.1); }
+.ai-input { display:block; flex:1; width:100%; max-height:118px; min-height:36px; resize:none; padding:8px 5px; border:0; outline:0; background:transparent; color:var(--text, #252a3e); font:13px/1.4 system-ui,sans-serif; }
+.ai-input::placeholder { color:var(--muted, #8a90a2); }
+.ai-send { flex:0 0 36px; width:36px; height:36px; display:grid; place-items:center; border:0; border-radius:11px; color:white; background:#625fe1; cursor:pointer; font-size:17px; }
+.ai-send:disabled { opacity:.42; cursor:not-allowed; }
+.ai-footnote { margin:7px 3px 0; color:var(--muted, #858b9f); font-size:10px; line-height:1.4; text-align:center; }
+.ai-panel [hidden] { display:none !important; }
+@media (max-width:560px) {
+  .ai-launcher { right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); padding:11px 14px; }
+  .ai-panel { right:8px; bottom:calc(max(70px, env(safe-area-inset-bottom) + 70px)); width:calc(100vw - 16px); height:min(72dvh, 650px); min-height:330px; border-radius:19px; }
+}
+@media (prefers-reduced-motion:reduce) { .ai-panel.is-open { animation:none } .ai-message, .ai-launcher { transition:none } }
