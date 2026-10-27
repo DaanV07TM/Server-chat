@@ -1190,7 +1190,7 @@ function start() {
         window.dispatchEvent(new Event('server-chat:session-ended'));
         setAuthMode('login');
       }
-      showAuthGate(data && data.message ? data.message : 'Could not sign in. Please try again.');
+      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Could not sign in. Please try again.');
       return;
     }
     accountSessionToken = data.sessionToken;
@@ -1255,7 +1255,7 @@ function start() {
     }
   });
   socket.on('connect_error', () => {
-    showAuthGate('Cannot reach the chat server. Check your connection and try again.');
+    if (!isSharedAIView) showAuthGate('Cannot reach the chat server. Check your connection and try again.');
   });
   function closeGeneratedCredentials() {
     $('generatedCredentials').style.display = 'none';
