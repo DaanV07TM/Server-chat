@@ -905,14 +905,34 @@ function start() {
   if (createdEncryptionKey) {
     showToast('A new text-encryption key was created for this private room. Share Copy link with the people who should read these messages.', 'info', 9000);
   }
-    let name = null, tok = null, adminSessionToken = '';
-  try { name = sessionStorage.getItem('name'); } catch (e) {}
-  if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
+    let name = null, tok = null, adminSessionToken = '', userStatus = 'Online';
+  try { name = localStorage.getItem('displayName') || sessionStorage.getItem('name'); } catch (e) {}
+  if (!name) name = 'Anon-' + rnd(4);
+  try { sessionStorage.setItem('name', name); localStorage.setItem('displayName', name); } catch (e) {}
   try {
     tok = localStorage.getItem('tok');
     if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); }
     adminSessionToken = localStorage.getItem('adminSessionToken') || '';
+    const storedStatus = localStorage.getItem('chatStatus');
+    if (['Online', 'Gaming', 'Away', 'Do not disturb'].includes(storedStatus)) userStatus = storedStatus;
   } catch (e) { tok = rnd(16); }
+  const updateStatusUI = () => {
+    $('profileStatusBtn').textContent = (userStatus === 'Online' ? '● ' : userStatus === 'Gaming' ? '🎮 ' : userStatus === 'Away' ? '◷ ' : '⛔ ') + userStatus;
+    $('statusPanel').querySelectorAll('[data-user-status]').forEach(button => {
+      button.setAttribute('aria-pressed', button.dataset.userStatus === userStatus ? 'true' : 'false');
+    });
+  };
+  updateStatusUI();
+  $('profileStatusBtn').onclick = () => { $('statusPanel').hidden = !$('statusPanel').hidden; };
+  $('statusPanel').addEventListener('click', event => {
+    const button = event.target.closest('button[data-user-status]');
+    if (!button) return;
+    userStatus = button.dataset.userStatus;
+    try { localStorage.setItem('chatStatus', userStatus); } catch (_) {}
+    updateStatusUI();
+    $('statusPanel').hidden = true;
+    showToast('Your status is now ' + userStatus + '.', 'success');
+  });
   $('title').textContent = '#' + room;
   $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
@@ -1504,19 +1524,52 @@ function start() {
   $('repX').onclick = () => { $('rep').style.display = 'none'; };
   const EMO = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
+  let replyTarget = null, editingMessage = null;
+  function clearComposeContext(clearDraft = false) {
+    replyTarget = null;
+    editingMessage = null;
+    $('composeContext').hidden = true;
+    $('send').textContent = 'Send';
+    $('text').placeholder = 'Write a message… (/roll)';
+    if (clearDraft) text.value = '';
+  }
+  function beginReply(mid, authorName, previewText) {
+    editingMessage = null;
+    replyTarget = { mid, name: authorName || 'Anonymous' };
+    $('composeContext').hidden = false;
+    $('composeContextTitle').textContent = 'Replying to ' + replyTarget.name;
+    $('composeContextText').textContent = (previewText || 'Referenced message') || 'Referenced message';
+    $('send').textContent = 'Send';
+    text.focus();
+  }
+  function beginEdit(messageNode) {
+    const mid = Number(messageNode && messageNode.dataset.mid);
+    const content = messageNode && messageNode.querySelector('.message-content');
+    if (!mid || !content || messageNode.dataset.own !== '1' || messageNode.dataset.admin === '1' || messageNode.querySelector('img')) return;
+    editingMessage = { mid };
+    replyTarget = null;
+    $('composeContext').hidden = false;
+    $('composeContextTitle').textContent = 'Editing your message';
+    $('composeContextText').textContent = 'You can edit a message for 15 minutes after sending.';
+    text.value = content.textContent;
+    $('send').textContent = 'Save edit';
+    text.placeholder = 'Edit your message…';
+    text.focus();
+    text.setSelectionRange(text.value.length, text.value.length);
+  }
+  $('composeContextCancel').onclick = () => clearComposeContext(!!editingMessage);
+
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
+    const isOwnMessage = m.own === true || m.id === socket.id;
     const isPinnedInfo = m.pinned === true;
     const isPersistentAnnouncement = room === 'announcements' && m.persistentAnnouncement === true;
     const isPersistentAdminPost = room === 'announcements' && isAdminMessage && !isAnnouncement;
     const isFlashBanner = !isPinnedInfo && (isAnnouncement || (isAdminMessage && !isPersistentAdminPost));
     const age = Number.isFinite(Number(m.t)) ? Math.max(0, Date.now() - Number(m.t)) : 0;
 
-    // Expired admin banners must not reappear when chat history is loaded.
     if (isFlashBanner && age >= FLASH_BANNER_MS) return;
-
-    // Only the most recent admin banner stays visible.
     if (isFlashBanner && activeFlashBanner) {
       if (activeFlashTimer) clearTimeout(activeFlashTimer);
       activeFlashBanner.remove();
@@ -1524,13 +1577,18 @@ function start() {
       activeFlashTimer = null;
     }
 
-    const e = $('empty'); if (e) e.remove();
+    const empty = $('empty'); if (empty) empty.remove();
     const d = document.createElement('div');
-    d.className = 'm' + (m.bot ? ' bot' : m.id === socket.id ? ' me' : '') +
+    d.className = 'm' + (m.bot ? ' bot' : isOwnMessage ? ' me' : '') +
       (isAdminMessage && !isPersistentAdminPost ? ' admin-message' : '') +
       (isAnnouncement ? ' announcement' : '') +
       (isPersistentAdminPost ? ' official-post' : '') +
       (isPinnedInfo ? ' pinned-info' : '');
+    if (m.mid && !m.bot) {
+      d.dataset.mid = m.mid;
+      d.dataset.own = isOwnMessage && !isAdminMessage ? '1' : '';
+      d.dataset.admin = isAdminMessage ? '1' : '';
+    }
     if (isFlashBanner || isPinnedInfo || isPersistentAnnouncement) {
       const badge = document.createElement('div');
       badge.className = isPinnedInfo ? 'pinned-info-tag' : isPersistentAnnouncement ? 'persistent-announcement-tag' : 'admin-tag';
@@ -1540,18 +1598,70 @@ function start() {
       d.append(badge);
     }
     if (!m.bot) {
-      const b = document.createElement('b'); b.textContent = m.name;
-      if (m.id !== socket.id) b.style.color = 'hsl(' + hue(m.name) + ' 60% var(--l))';
-      d.append(b);
+      const author = document.createElement('div');
+      author.className = 'message-author';
+      const avatar = document.createElement('span');
+      avatar.className = 'message-avatar';
+      avatar.textContent = String(m.name || '?').trim().slice(0, 1).toUpperCase();
+      avatar.style.background = isAdminMessage ? 'linear-gradient(145deg,#7c5ce7,#4564cc)' : 'hsl(' + hue(m.name || 'anon') + ' 48% 42%)';
+      avatar.setAttribute('aria-hidden', 'true');
+      const b = document.createElement('b');
+      b.textContent = m.name || 'Anonymous';
+      if (!isOwnMessage && !isAdminMessage) b.style.color = 'hsl(' + hue(m.name || 'anon') + ' 60% var(--l))';
+      author.append(avatar, b);
+      if (m.status && m.status !== 'Online' && !isAdminMessage) {
+        const status = document.createElement('span');
+        status.className = 'message-status';
+        status.textContent = m.status;
+        author.append(status);
+      }
+      const time = document.createElement('time');
+      time.className = 'message-time';
+      const messageTime = Number.isFinite(Number(m.t)) ? new Date(Number(m.t)) : new Date();
+      time.dateTime = messageTime.toISOString();
+      time.title = messageTime.toLocaleString();
+      time.textContent = messageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      author.append(time);
+      d.append(author);
     }
-    if (m.text) { const p = document.createElement('span'); p.textContent = m.text; d.append(p); }
-    if (m.img) { const i = document.createElement('img'); i.alt = 'Image'; i.onload = down; i.src = m.img; d.append(i); }
+    if (m.replyTo && Number.isSafeInteger(Number(m.replyTo.mid))) {
+      const quote = document.createElement('button');
+      quote.type = 'button';
+      quote.className = 'reply-preview';
+      quote.dataset.replyMid = m.replyTo.mid;
+      const parent = log.querySelector('.m[data-mid="' + Number(m.replyTo.mid) + '"]');
+      const quoteTitle = document.createElement('strong');
+      quoteTitle.textContent = '↩ ' + (m.replyTo.name || 'Anonymous');
+      const quoteText = document.createElement('span');
+      quoteText.textContent = (parent && parent.querySelector('.message-content') && parent.querySelector('.message-content').textContent) || 'Jump to referenced message';
+      quote.append(quoteTitle, quoteText);
+      quote.onclick = () => {
+        const target = log.querySelector('.m[data-mid="' + Number(m.replyTo.mid) + '"]');
+        if (target) {
+          target.hidden = false;
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('message-flash');
+          setTimeout(() => target.classList.remove('message-flash'), 1100);
+        } else showToast('That referenced message is no longer in this room history.', 'info');
+      };
+      d.append(quote);
+    }
+    if (m.text) {
+      const content = document.createElement('span');
+      content.className = 'message-content';
+      content.textContent = m.text;
+      d.append(content);
+      if (m.edited) {
+        const editedTag = document.createElement('small');
+        editedTag.className = 'message-edited';
+        editedTag.textContent = 'edited';
+        d.append(editedTag);
+      }
+    }
+    if (m.img) { const img = document.createElement('img'); img.alt = 'Image'; img.loading = 'lazy'; img.onload = down; img.src = m.img; d.append(img); }
     if (m.mid && !m.bot) {
       const rx = document.createElement('div');
       rx.className = 'rx';
-      d.dataset.mid = m.mid;
-      d.dataset.own = m.id === socket.id ? '1' : '';
-      d.dataset.admin = isAdminMessage ? '1' : '';
       d.append(rx);
       drawRx(rx, m.mid, m.r || {});
     }
@@ -1560,22 +1670,48 @@ function start() {
       activeFlashBanner = d;
       activeFlashTimer = setTimeout(() => {
         if (activeFlashBanner === d) {
-          d.remove();
-          activeFlashBanner = null;
-          activeFlashTimer = null;
+          d.remove(); activeFlashBanner = null; activeFlashTimer = null;
         }
       }, Math.max(0, FLASH_BANNER_MS - age));
     }
     down();
+    updateMessageSearch();
   }
   function drawRx(box, mid, r, open) {
     box.innerHTML = '';
-    const isAdminMessage = box.parentNode.dataset.admin === '1';
-    const mk = (label, aria, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; box.append(b); };
-    for (const e in r) mk(e + ' ' + r[e], 'Reaction ' + e, () => socket.emit('react', { mid, e }));
-    if (open) EMO.forEach(e => mk(e, 'React with ' + e, () => socket.emit('react', { mid, e })));
+    const messageNode = box.parentNode;
+    const isAdminMessage = messageNode.dataset.admin === '1';
+    const own = messageNode.dataset.own === '1';
+    const mk = (label, aria, fn, cls) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.setAttribute('aria-label', aria);
+      if (cls) button.className = cls;
+      button.onclick = fn;
+      box.append(button);
+    };
+    for (const emoji in r) mk(emoji + ' ' + r[emoji], 'Reaction ' + emoji, () => socket.emit('react', { mid, e: emoji }));
+    if (open) EMO.forEach(emoji => mk(emoji, 'React with ' + emoji, () => socket.emit('react', { mid, e: emoji })));
     else mk('☺', 'Add reaction', () => drawRx(box, mid, r, true), 'add');
-    if (!isAdminMessage) mk('⚑', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
+    mk('↩ Reply', 'Reply to this message', () => {
+      const content = messageNode.querySelector('.message-content');
+      beginReply(mid, messageNode.querySelector('.message-author b')?.textContent || 'Anonymous', content?.textContent || (messageNode.querySelector('img') ? 'Image message' : 'Referenced message'));
+    }, 'add');
+    if (own && !isAdminMessage) {
+      if (!messageNode.querySelector('img')) mk('Edit', 'Edit your message', () => beginEdit(messageNode), 'add');
+      mk('Delete', 'Delete your message', async () => {
+        const confirmed = await showSiteDialog({
+          title: 'Delete your message?',
+          message: 'This removes the message from the current room for everyone. This cannot be undone.',
+          confirmText: 'Delete message',
+          cancelText: 'Keep message',
+          danger: true
+        });
+        if (confirmed) socket.emit('message:delete', { mid });
+      }, 'action-danger');
+    }
+    if (!isAdminMessage) mk('⚑ Report', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
   socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
