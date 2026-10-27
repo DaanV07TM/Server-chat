@@ -93,3 +93,10 @@ If Render restarts the service, messages in regular rooms and custom announcemen
 4. Run `npm start` and open the local URL printed or configured by your environment.
 
 Never use a real production password or webhook when testing locally.
+
+
+## In-chat admin announcements and events
+
+Admin announcements are shown as large, animated messages directly in each user's current chat, including AI Studio. They are not a floating overlay and there is no dismiss button. The card automatically disappears after two minutes; an archived copy is retained in **#announcements**. Use `/announce message` for a normal broadcast and `/announcealarm urgent message` to request the built-in alarm sound (browser autoplay policies may still prevent audio until the page has been interacted with).
+
+Admins can trigger a server-wide party event with `/party` or `/party your message`. It adds animated celebration styling to the in-chat announcement for two minutes. Use `/partyoff` to end the event early in all open chats. The admin panel also has buttons for starting and stopping Party Mode.
