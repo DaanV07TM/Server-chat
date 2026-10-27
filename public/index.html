@@ -3868,8 +3868,40 @@ function start() {
       '<div class="load-track"><div class="load-fill ' + tone + '" data-admin-metric-bar style="width:' + width + '%"></div></div>' +
       '<div class="load-detail" data-admin-metric-detail>' + h(detail) + '</div></div>';
   }
+  function formatStatusUptime(seconds) {
+    let left = Math.max(0, Math.floor(Number(seconds) || 0));
+    const days = Math.floor(left / 86400); left %= 86400;
+    const hours = Math.floor(left / 3600); left %= 3600;
+    const minutes = Math.floor(left / 60);
+    return (days ? days + 'd ' : '') + (hours ? hours + 'h ' : '') + minutes + 'm';
+  }
+  function serverCenterWarningsHtml(warnings) {
+    const list = Array.isArray(warnings) ? warnings : [];
+    if (!list.length) return '<div class="server-center-empty">No resource warnings.</div>';
+    return list.map(item => {
+      const level = ['critical','warning','healthy','info'].includes(item.level) ? item.level : 'info';
+      const icon = level === 'critical' ? '🚨' : level === 'warning' ? '⚠️' : level === 'healthy' ? '✅' : 'ℹ️';
+      return '<div class="server-center-warning ' + level + '"><span class="warning-icon" aria-hidden="true">' + icon + '</span><span><b>' + h(item.title || 'Server status') + '</b><small>' + h(item.detail || '') + '</small></span></div>';
+    }).join('');
+  }
+  function serverCenterChannelsHtml(channels) {
+    const list = Array.isArray(channels) ? channels : [];
+    if (!list.length) return '<div class="server-center-empty">No channel data yet.</div>';
+    return list.map(channel => '<div class="server-center-channel" data-center-channel="' + h(channel.key) + '" data-active="' + (channel.online > 0 ? 'true' : 'false') + '">' +
+      '<span class="server-center-channel-name"><i></i>' + h(channel.label || channel.key) + '</span>' +
+      '<span class="server-center-channel-count"><b data-center-channel-count>' + (Number(channel.online) || 0) + '</b> online</span></div>').join('');
+  }
+  function serverCenterActivityHtml(activity) {
+    const list = Array.isArray(activity) ? activity : [];
+    if (!list.length) return '<div class="server-center-empty">Recent server activity will appear here.</div>';
+    return list.map(item => {
+      const time = Number(item.t) ? new Date(Number(item.t)).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '—';
+      return '<div class="server-center-activity" data-activity-id="' + h(item.id || '') + '"><time>' + h(time) + '</time><span><b>' + h(String(item.category || 'system').toUpperCase()) + '</b> · ' + h(item.message || '') + '</span></div>';
+    }).join('');
+  }
   const ADMIN_DESKTOP_APPS = [
     { key:'overview', title:'Overview', subtitle:'Server status at a glance', icon:'📊', color:'indigo' },
+    { key:'live-center', title:'Live Server Center', subtitle:'Live users, channels and alerts', icon:'🖥️', color:'cyan' },
     { key:'performance', title:'Performance Monitor', subtitle:'CPU, RAM and load', icon:'📈', color:'green' },
     { key:'connection', title:'Connection', subtitle:'Ping and hosting details', icon:'🌐', color:'cyan' },
     { key:'screen-shares', title:'Screen Shares', subtitle:'Monitor active shares', icon:'🖥️', color:'blue' },
@@ -3923,6 +3955,7 @@ function start() {
     if (!stats) return;
     const panelKey = title => {
       const value = String(title || '').toLowerCase();
+      if (value.includes('live server center')) return 'live-center';
       if (value.includes('server load')) return 'performance';
       if (value.includes('server connection')) return 'connection';
       if (value.includes('active screen shares')) return 'screen-shares';
@@ -4006,7 +4039,7 @@ function start() {
 
     const taskbar = document.createElement('div');
     taskbar.className = 'admin-desktop-taskbar';
-    taskbar.innerHTML = '<button type="button" class="admin-taskbar-start" data-admin-desktop-home><span class="admin-windows-mark">⊞</span><span>Start</span></button><span class="admin-taskbar-divider"></span><button type="button" class="admin-taskbar-app" data-admin-desktop-app="overview" data-taskbar-app="overview" title="Overview">📊</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="announcements" data-taskbar-app="announcements" title="Announcements">📣</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="events" data-taskbar-app="events" title="Live Events">🎉</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="ai-studio" data-taskbar-app="ai-studio" title="AI Studio">✨</button><div class="admin-taskbar-spacer"></div><span class="admin-taskbar-live"><i></i> Server connected</span><span class="admin-taskbar-clock">SERVER CHAT</span>';
+    taskbar.innerHTML = '<button type="button" class="admin-taskbar-start" data-admin-desktop-home><span class="admin-windows-mark">⊞</span><span>Start</span></button><span class="admin-taskbar-divider"></span><button type="button" class="admin-taskbar-app" data-admin-desktop-app="overview" data-taskbar-app="overview" title="Overview">📊</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="live-center" data-taskbar-app="live-center" title="Live Server Center">🖥️</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="announcements" data-taskbar-app="announcements" title="Announcements">📣</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="events" data-taskbar-app="events" title="Live Events">🎉</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="ai-studio" data-taskbar-app="ai-studio" title="AI Studio">✨</button><div class="admin-taskbar-spacer"></div><span class="admin-taskbar-live"><i></i> Server connected</span><span class="admin-taskbar-clock">SERVER CHAT</span>';
     workspace.append(home, win, taskbar);
     body.replaceChildren(workspace);
     content.scrollTop = Math.max(0, Number(previousScroll) || 0);
@@ -4022,6 +4055,13 @@ function start() {
     const previousScroll = oldAdminBody?.querySelector('.admin-app-content')?.scrollTop || 0;
     const load = st.load || {};
     const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
+    const center = st.serverCenter || { online: st.online || 0, activeChannels: 0, messages: st.messages || 0, uptimeSeconds: 0, channels: [], activity: [], warnings: [], load };
+    const centerLevel = String((center.load && center.load.level) || load.level || 'unknown').toLowerCase();
+    const centerHealthLabel = centerLevel === 'critical' ? 'CRITICAL · ACTION REQUIRED' : centerLevel === 'high' ? 'WARNING · RESOURCE USE HIGH' : centerLevel === 'normal' ? 'HEALTHY · ALL SYSTEMS NORMAL' : 'COLLECTING RESOURCE DATA';
+    const centerWarnings = Array.isArray(center.warnings) ? center.warnings : [];
+    const centerActivity = Array.isArray(center.activity) ? center.activity : [];
+    const centerWarningSignature = centerWarnings.map(item => (item.level || '') + ':' + (item.title || '') + ':' + (item.detail || '')).join('|');
+    const centerActivitySignature = centerActivity.map(item => item.id || '').join(',');
     const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
     const memoryPct = hasContainerRam ? Number(load.rssPct) : Number(load.heapPct) || 0;
     const memoryTitle = hasContainerRam ? 'Process RAM' : 'JavaScript heap';
@@ -4071,6 +4111,20 @@ function start() {
       '<button type="button" data-admin-jump="danger zone">Danger zone</button>' +
       '</nav>' +
       '<div class="admin-stats admin-server-stats"><span class="stat"><b data-admin-live-value="online">' + st.online + '</b> online</span><span class="stat"><b data-admin-live-value="rooms">' + st.rooms + '</b> rooms</span><span class="stat"><b data-admin-live-value="messages">' + st.messages + '</b> messages</span><span class="stat"><b data-admin-live-value="memory">' + st.memory + '</b> MB RSS</span><span class="stat"><b data-admin-live-value="timeouts">' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="sec">🖥️ LIVE SERVER CENTER</div>' +
+      '<div class="server-center-hero"><div><h4>Live operations snapshot</h4><p>Aggregated server health, public channel activity and generic events. Private room names and message contents are never included.</p></div><a class="server-center-openpage" href="/status.html" target="_blank" rel="noopener">↗ Public status page</a></div>' +
+      '<div class="server-center-kpis">' +
+        '<div class="server-center-kpi"><strong id="serverCenterOnline">' + (center.online || 0) + '</strong><span>Online users</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterChannelsActive">' + (center.activeChannels || 0) + '</strong><span>Active channels</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterUptime">' + formatStatusUptime(center.uptimeSeconds) + '</strong><span>Server uptime</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterMessages">' + (center.messages || 0) + '</strong><span>Messages in memory</span></div>' +
+      '</div>' +
+      '<div class="server-center-health" id="serverCenterHealth" data-level="' + h(centerLevel) + '"><i></i><span id="serverCenterHealthLabel">' + h(centerHealthLabel) + '</span><span id="serverCenterUpdatedAt" style="margin-left:auto;font-size:10px;font-weight:500">Updated ' + h(new Date(center.checkedAt || Date.now()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})) + '</span></div>' +
+      '<div class="server-center-warnings" id="serverCenterWarnings" data-signature="' + h(centerWarningSignature) + '">' + serverCenterWarningsHtml(centerWarnings) + '</div>' +
+      '<div class="server-center-columns">' +
+        '<section class="server-center-column"><h4>📡 Active channels</h4><div class="server-center-channel-list" id="serverCenterChannels">' + serverCenterChannelsHtml(center.channels) + '</div></section>' +
+        '<section class="server-center-column"><h4>🧭 Recent activity</h4><div class="server-center-activity-list" id="serverCenterActivity" data-signature="' + h(centerActivitySignature) + '">' + serverCenterActivityHtml(centerActivity) + '</div></section>' +
+      '</div>' +
       '<div class="sec">Server load</div>' +
       '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '" data-admin-load-status><b>' + levelText + '</b><span>Live metrics update without rebuilding your desktop.</span></div>' +
       '<div class="load-grid">' +
@@ -4209,6 +4263,7 @@ function start() {
     const text = (selector, value) => { const node = body.querySelector(selector); if (node) node.textContent = String(value); };
     for (const key of ['online','rooms','messages','memory','timeouts']) text('[data-admin-live-value="' + key + '"]', st[key] ?? 0);
     const ai = st.ai || {};
+    const center = st.serverCenter || {};
     text('[data-admin-live-value="aiMessages"]', ai.messages || 0);
     text('[data-admin-live-value="aiRequests"]', (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300));
     const load = st.load || {};
@@ -4235,6 +4290,45 @@ function start() {
       ramAvailable ? (load.rssMB + ' MB RSS / ' + load.memoryLimitMB + ' MB container limit') : 'Container RAM limit is unavailable, so no RAM percentage is shown.',
       ramAvailable ? undefined : ((load.rssMB || 0) + ' MB'));
     updateMeter('heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit');
+
+    text('#serverCenterOnline', center.online || 0);
+    text('#serverCenterChannelsActive', center.activeChannels || 0);
+    text('#serverCenterUptime', formatStatusUptime(center.uptimeSeconds));
+    text('#serverCenterMessages', center.messages || 0);
+    text('#serverCenterUpdatedAt', 'Updated ' + (center.checkedAt ? new Date(center.checkedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '—'));
+    const centerLevel = String((center.load && center.load.level) || load.level || 'unknown').toLowerCase();
+    const centerHealthLabel = centerLevel === 'critical' ? 'CRITICAL · ACTION REQUIRED' : centerLevel === 'high' ? 'WARNING · RESOURCE USE HIGH' : centerLevel === 'normal' ? 'HEALTHY · ALL SYSTEMS NORMAL' : 'COLLECTING RESOURCE DATA';
+    const centerHealth = body.querySelector('#serverCenterHealth');
+    if (centerHealth) {
+      centerHealth.dataset.level = centerLevel;
+      const healthLabel = centerHealth.querySelector('#serverCenterHealthLabel');
+      if (healthLabel) healthLabel.textContent = centerHealthLabel;
+    }
+    const centerWarnings = Array.isArray(center.warnings) ? center.warnings : [];
+    const warningSignature = centerWarnings.map(item => (item.level || '') + ':' + (item.title || '') + ':' + (item.detail || '')).join('|');
+    const warningRoot = body.querySelector('#serverCenterWarnings');
+    if (warningRoot && warningRoot.dataset.signature !== warningSignature) {
+      warningRoot.innerHTML = serverCenterWarningsHtml(centerWarnings);
+      warningRoot.dataset.signature = warningSignature;
+    }
+    const channelRoot = body.querySelector('#serverCenterChannels');
+    const channelList = Array.isArray(center.channels) ? center.channels : [];
+    if (channelRoot) {
+      channelList.forEach(channel => {
+        const card = channelRoot.querySelector('[data-center-channel="' + String(channel.key || '').replace(/[^a-z0-9-]/g, '') + '"]');
+        if (!card) return;
+        card.dataset.active = Number(channel.online) > 0 ? 'true' : 'false';
+        const count = card.querySelector('[data-center-channel-count]');
+        if (count) count.textContent = String(Number(channel.online) || 0);
+      });
+    }
+    const activityList = Array.isArray(center.activity) ? center.activity : [];
+    const activitySignature = activityList.map(item => item.id || '').join(',');
+    const activityRoot = body.querySelector('#serverCenterActivity');
+    if (activityRoot && activityRoot.dataset.signature !== activitySignature) {
+      activityRoot.innerHTML = serverCenterActivityHtml(activityList);
+      activityRoot.dataset.signature = activitySignature;
+    }
     const aiStatus = body.querySelector('[data-admin-ai-status]');
     if (aiStatus) {
       aiStatus.classList.remove('normal','warn','high','critical','unknown');
