@@ -1747,10 +1747,12 @@ function start() {
     for (const emoji in r) mk(emoji + ' ' + r[emoji], 'Reaction ' + emoji, () => socket.emit('react', { mid, e: emoji }));
     if (open) EMO.forEach(emoji => mk(emoji, 'React with ' + emoji, () => socket.emit('react', { mid, e: emoji })));
     else mk('☺', 'Add reaction', () => drawRx(box, mid, r, true), 'add');
-    mk('↩ Reply', 'Reply to this message', () => {
-      const content = messageNode.querySelector('.message-content');
-      beginReply(mid, messageNode.querySelector('.message-author b')?.textContent || 'Anonymous', content?.textContent || (messageNode.querySelector('img') ? 'Image message' : 'Referenced message'));
-    }, 'add');
+    if (room !== 'announcements' || moderator) {
+      mk('↩ Reply', 'Reply to this message', () => {
+        const content = messageNode.querySelector('.message-content');
+        beginReply(mid, messageNode.querySelector('.message-author b')?.textContent || 'Anonymous', content?.textContent || (messageNode.querySelector('img') ? 'Image message' : 'Referenced message'));
+      }, 'add');
+    }
     if (own && !isAdminMessage) {
       const ageMs = Date.now() - Number(messageNode.dataset.timestamp || 0);
       if (!messageNode.querySelector('img') && ageMs >= 0 && ageMs <= 15 * 60 * 1000) {
