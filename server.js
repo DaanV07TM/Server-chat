@@ -53,7 +53,8 @@ const AI_IMAGE_GLOBAL_MAX = 20;
 const AI_MAX_CONVERSATIONS_PER_ACCOUNT = 40;
 const AI_MAX_MESSAGES_PER_CONVERSATION = 80;
 const AI_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const AI_IMAGE_MAX_BYTES = 1600 * 1024;
+const AI_IMAGE_MAX_BYTES = 800 * 1024;
+const AI_IMAGE_MAX_PER_ACCOUNT_TOTAL = 10;
 
 function aiAccountFromRequest(req) {
   const authHeader = String(req.headers.authorization || '');
@@ -355,17 +356,6 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
     conversation.messages.push({ role: 'assistant', content: reply.slice(0, 16000), createdAt: Date.now() });
     conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = Date.now();
-    if (conversation.shareId) {
-      const share = AI_PUBLIC_SHARES.get(conversation.shareId);
-      if (share && share.ownerKey === auth.accountKey) {
-        share.title = conversation.title;
-        share.messages = aiPublicConversation(conversation).messages;
-        share.updatedAt = Date.now();
-        share.expiresAt = Date.now() + AI_SHARE_TTL_MS;
-      } else {
-        conversation.shareId = null;
-      }
-    }
     globalRecent.push(now);
     AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
     return res.status(200).json({ reply: reply.slice(0, 16000), conversation: aiPublicConversation(conversation) });
@@ -398,6 +388,13 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
   if (!conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
   if (conversation.messages.length >= AI_MAX_MESSAGES_PER_CONVERSATION) {
     return res.status(429).json({ error: 'This conversation reached its message limit. Start a new conversation to continue.' });
+  }
+  const accountConversations = aiConversationsFor(auth.accountKey);
+  const storedImages = accountConversations
+    ? [...accountConversations.values()].reduce((total, item) => total + item.messages.filter(message => message.kind === 'image').length, 0)
+    : 0;
+  if (storedImages >= AI_IMAGE_MAX_PER_ACCOUNT_TOTAL) {
+    return res.status(429).json({ error: 'This account has reached its limit of 10 stored AI images. Delete an old AI conversation to make room.' });
   }
 
   const now = Date.now();
@@ -455,17 +452,6 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
       conversation.title = aiCleanTitle(prompt);
     }
     conversation.updatedAt = Date.now();
-    if (conversation.shareId) {
-      const share = AI_PUBLIC_SHARES.get(conversation.shareId);
-      if (share && share.ownerKey === auth.accountKey) {
-        share.title = conversation.title;
-        share.messages = aiPublicConversation(conversation).messages;
-        share.updatedAt = Date.now();
-        share.expiresAt = Date.now() + AI_SHARE_TTL_MS;
-      } else {
-        conversation.shareId = null;
-      }
-    }
     globalRecent.push(now);
     AI_IMAGE_GLOBAL_REQUESTS.splice(0, AI_IMAGE_GLOBAL_REQUESTS.length, ...globalRecent);
     return res.status(200).json({ image: aiPublicConversation(conversation).messages.slice(-1)[0], conversation: aiPublicConversation(conversation) });
@@ -2109,6 +2095,13 @@ io.on('connection', (socket) => {
         }
       }
       broadcastMusicState();
+
+      // Remove private AI conversations, generated images, share links, and AI usage metadata.
+      AI_CONVERSATIONS.delete(account.key);
+      for (const [shareId, share] of [...AI_PUBLIC_SHARES.entries()]) {
+        if (share && share.ownerKey === account.key) AI_PUBLIC_SHARES.delete(shareId);
+      }
+      AI_IMAGE_RATE_LIMIT.delete(account.key);
 
       TEMP_ACCOUNTS.delete(account.key);
       const revokedAdminTokens = new Set();
