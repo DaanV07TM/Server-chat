@@ -131,7 +131,8 @@
     $('aiSend').disabled = disabled || !$('aiInput').value.trim();
     $('aiImageToggle').disabled = state.sharedView || state.busy;
     $('aiShareBtn').hidden = state.sharedView || !state.active || !state.active.messages.length;
-    $('aiShareBtn').querySelector('span').textContent = state.active && state.active.shareId ? 'Update link' : 'Share';
+    const shareLabel = $('aiShareBtn').querySelector('span');
+    if (shareLabel) shareLabel.textContent = state.active && state.active.shareId ? 'Update link' : 'Share';
     $('aiStopShareBtn').hidden = state.sharedView || !state.active || !state.active.shareId;
     $('aiDeleteBtn').hidden = state.sharedView || !state.activeId;
     $('aiNewChat').hidden = state.sharedView;
@@ -595,6 +596,10 @@
     if (state.abortController) state.abortController.abort();
     state.abortController = null;
     state.busy = false;
+    state.imageMode = false;
+    $('aiImageToggle').classList.remove('is-selected');
+    $('aiWorking').hidden = true;
+    showModeNotice('', false);
     state.conversations = [];
     state.active = null;
     state.activeId = '';
