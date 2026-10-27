@@ -47,6 +47,7 @@
     imageMode: false,
     busy: false,
     abortController: null,
+    requestVersion: 0,
     toastTimer: null
   };
 
@@ -130,6 +131,7 @@
     $('aiSend').disabled = disabled || !$('aiInput').value.trim();
     $('aiImageToggle').disabled = state.sharedView || state.busy;
     $('aiShareBtn').hidden = state.sharedView || !state.active || !state.active.messages.length;
+    $('aiShareBtn').querySelector('span').textContent = state.active && state.active.shareId ? 'Update link' : 'Share';
     $('aiStopShareBtn').hidden = state.sharedView || !state.active || !state.active.shareId;
     $('aiDeleteBtn').hidden = state.sharedView || !state.activeId;
     $('aiNewChat').hidden = state.sharedView;
@@ -276,8 +278,10 @@
       syncComposer();
       return;
     }
+    const requestToken = sessionToken();
     try {
       const data = await api('/api/ai/conversations');
+      if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.conversations = Array.isArray(data.conversations) ? data.conversations : [];
       renderHistory();
       if (state.activeId && state.conversations.some(item => item.id === state.activeId)) {
@@ -298,8 +302,10 @@
 
   async function newConversation() {
     if (state.sharedView || !sessionToken() || state.busy) return;
+    const requestToken = sessionToken();
     try {
       const data = await api('/api/ai/conversations', { method: 'POST', body: {} });
+      if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.activeId = data.conversation.id;
       state.active = data.conversation;
       state.imageMode = false;
@@ -318,8 +324,10 @@
 
   async function refreshConversationListOnly() {
     if (state.sharedView || !sessionToken()) return;
+    const requestToken = sessionToken();
     try {
       const data = await api('/api/ai/conversations');
+      if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.conversations = Array.isArray(data.conversations) ? data.conversations : [];
       renderHistory();
     } catch (_) {}
@@ -327,8 +335,10 @@
 
   async function openConversation(id, focusInput = true) {
     if (state.sharedView || !sessionToken() || state.busy) return;
+    const requestToken = sessionToken();
     try {
       const data = await api('/api/ai/conversations/' + encodeURIComponent(id));
+      if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.activeId = data.conversation.id;
       state.active = data.conversation;
       state.imageMode = false;
@@ -428,22 +438,33 @@
     if (!state.activeId) return;
     $('aiInput').value = '';
     $('aiInput').style.height = 'auto';
+    const requestToken = sessionToken();
+    const conversationId = state.activeId;
+    const version = ++state.requestVersion;
+    const controller = new AbortController();
+    state.abortController = controller;
     setBusy(true, 'Thinking through your question…');
     showModeNotice('', false);
     try {
       const result = await api('/api/ai/chat', {
         method: 'POST',
-        body: { conversationId: state.activeId, message: prompt }
+        body: { conversationId, message: prompt },
+        signal: controller.signal
       });
+      if (version !== state.requestVersion || !requestToken || requestToken !== sessionToken() || state.activeId !== conversationId) return;
       state.active = result.conversation;
       $('aiConversationTitle').textContent = state.active.title || 'New conversation';
       await refreshConversationListOnly();
-      renderThread();
+      if (version === state.requestVersion && requestToken === sessionToken()) renderThread();
     } catch (error) {
+      if (error.name === 'AbortError' || version !== state.requestVersion || requestToken !== sessionToken()) return;
       $('aiInput').value = prompt;
       showModeNotice(error.message, true, 'error');
     } finally {
-      setBusy(false);
+      if (version === state.requestVersion) {
+        state.abortController = null;
+        setBusy(false);
+      }
     }
   }
 
@@ -452,23 +473,34 @@
     if (!state.activeId) return;
     $('aiInput').value = '';
     $('aiInput').style.height = 'auto';
+    const requestToken = sessionToken();
+    const conversationId = state.activeId;
+    const version = ++state.requestVersion;
+    const controller = new AbortController();
+    state.abortController = controller;
     setBusy(true, 'Creating your image…');
     showModeNotice('Image generation runs through the separately configured image provider. It may use credits; the app will not enable it automatically.', true, 'warning');
     try {
       const result = await api('/api/ai/image', {
         method: 'POST',
-        body: { conversationId: state.activeId, prompt }
+        body: { conversationId, prompt },
+        signal: controller.signal
       });
+      if (version !== state.requestVersion || !requestToken || requestToken !== sessionToken() || state.activeId !== conversationId) return;
       state.active = result.conversation;
       $('aiConversationTitle').textContent = state.active.title || 'Image creation';
       showModeNotice('', false);
       await refreshConversationListOnly();
-      renderThread();
+      if (version === state.requestVersion && requestToken === sessionToken()) renderThread();
     } catch (error) {
+      if (error.name === 'AbortError' || version !== state.requestVersion || requestToken !== sessionToken()) return;
       $('aiInput').value = prompt;
       showModeNotice(error.message, true, 'error');
     } finally {
-      setBusy(false);
+      if (version === state.requestVersion) {
+        state.abortController = null;
+        setBusy(false);
+      }
     }
   }
 
@@ -558,8 +590,11 @@
     }
   });
   window.addEventListener('server-chat:session-ended', () => {
+    if (state.sharedView) return;
+    state.requestVersion++;
     if (state.abortController) state.abortController.abort();
     state.abortController = null;
+    state.busy = false;
     state.conversations = [];
     state.active = null;
     state.activeId = '';
