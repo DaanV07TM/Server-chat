@@ -1003,17 +1003,17 @@ function start() {
   if (createdEncryptionKey) {
     showToast('A new text-encryption key was created for this private room. Share Copy link with the people who should read these messages.', 'info', 9000);
   }
-    let name = null, tok = null, adminSessionToken = '', userStatus = 'Online';
+    let name = null, tok = rnd(16), adminSessionToken = '', userStatus = 'Online';
   try { name = localStorage.getItem('displayName') || sessionStorage.getItem('name'); } catch (e) {}
   if (!name) name = 'Anon-' + rnd(4);
   try { sessionStorage.setItem('name', name); localStorage.setItem('displayName', name); } catch (e) {}
   try {
-    tok = localStorage.getItem('tok');
-    if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); }
+    // The legacy browser token is no longer used for identity; server-side accounts provide the authoritative token.
+    localStorage.removeItem('tok');
     adminSessionToken = localStorage.getItem('adminSessionToken') || '';
     const storedStatus = localStorage.getItem('chatStatus');
     if (['Online', 'Gaming', 'Away', 'Do not disturb'].includes(storedStatus)) userStatus = storedStatus;
-  } catch (e) { tok = rnd(16); }
+  } catch (e) {}
   const updateStatusUI = () => {
     $('profileStatusBtn').textContent = (userStatus === 'Online' ? '● ' : userStatus === 'Gaming' ? '🎮 ' : userStatus === 'Away' ? '◷ ' : '⛔ ') + userStatus;
     $('statusPanel').querySelectorAll('[data-user-status]').forEach(button => {
@@ -1236,6 +1236,7 @@ function start() {
     } catch (_) {}
     adminSessionToken = '';
     name = 'Anonymous';
+    tok = rnd(16);
     $('accountName').textContent = 'Not signed in';
     $('accountAvatar').textContent = '?';
     $('accountChip').setAttribute('aria-label', 'No account signed in');
@@ -1434,6 +1435,8 @@ function start() {
     accountSessionToken = '';
     accountUsername = '';
     adminSessionToken = '';
+    name = 'Anonymous';
+    tok = rnd(16);
     try {
       localStorage.removeItem('accountSessionToken');
       localStorage.removeItem('adminSessionToken');
