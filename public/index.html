@@ -1714,7 +1714,13 @@ function start() {
     if (!isAdminMessage) mk('⚑ Report', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
-  socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
+  socket.on('removed', mid => {
+    const el = log.querySelector('[data-mid="' + mid + '"]');
+    if (el) el.remove();
+    if (editingMessage && editingMessage.mid === Number(mid)) clearComposeContext(true);
+    if (replyTarget && replyTarget.mid === Number(mid)) clearComposeContext();
+    updateMessageSearch();
+  });
   let messageRenderGeneration = 0;
   let messageRenderQueue = Promise.resolve();
   function queueServerMessage(message) {
@@ -1741,11 +1747,39 @@ function start() {
     messageRenderQueue = Promise.resolve();
     log.innerHTML = l.length ? '' : EMPTY;
     l.forEach(queueServerMessage);
+    messageRenderQueue.then(updateMessageSearch).catch(() => {});
   });
   socket.on('msg', m => {
     // In #announcements use the archived copy, not the duplicate short-lived global banner.
     if (room === 'announcements' && m && m.announcement) return;
     queueServerMessage(m); $('typing').textContent = '';
+  });
+  socket.on('message:edited', async message => {
+    if (!message || !Number.isSafeInteger(Number(message.mid))) return;
+    const mid = Number(message.mid);
+    const node = log.querySelector('.m[data-mid="' + mid + '"]');
+    if (!node) return;
+    let nextText = message.text || '';
+    if (message.encryptedText) {
+      try { nextText = await decryptChatText(message.encryptedText); }
+      catch (_) { nextText = '🔒 Could not decrypt this edit. Open the matching private-room invite link.'; }
+    }
+    let content = node.querySelector('.message-content');
+    if (!content) {
+      content = document.createElement('span');
+      content.className = 'message-content';
+      const rx = node.querySelector('.rx');
+      node.insertBefore(content, rx || null);
+    }
+    content.textContent = nextText;
+    let editedTag = node.querySelector('.message-edited');
+    if (!editedTag) {
+      editedTag = document.createElement('small');
+      editedTag.className = 'message-edited';
+      content.after(editedTag);
+    }
+    editedTag.textContent = 'edited';
+    updateMessageSearch();
   });
   socket.on('online', n => $('online').textContent = n + ' online');
   socket.on('config', c => { $('photo').hidden = !c.images; });
@@ -2564,8 +2598,28 @@ function start() {
 
   async function send(img) {
     const t = text.value.trim();
+
+    if (editingMessage && !img) {
+      if (!t) return showToast('A message cannot be empty.', 'error');
+      const editPayload = { mid: editingMessage.mid };
+      if (isPrivateRoom) {
+        try {
+          editPayload.encryptedText = await encryptChatText(t);
+        } catch (_) {
+          showToast('Could not encrypt this private-room edit. Use HTTPS and reload the page.', 'error');
+          return;
+        }
+      } else {
+        editPayload.text = t;
+      }
+      socket.emit('message:edit', editPayload);
+      text.value = '';
+      clearComposeContext();
+      return;
+    }
+
     if (!t && !img) return;
-    const payload = { name, img };
+    const payload = { name, img, status: userStatus };
     if (t) {
       if (t.startsWith('/')) {
         // Slash commands are control actions, not stored chat messages.
@@ -2581,11 +2635,15 @@ function start() {
         payload.text = t;
       }
     }
+    if (replyTarget && (t || img) && !(t && t.startsWith('/'))) payload.replyToMid = replyTarget.mid;
     socket.emit('msg', payload);
     text.value = '';
+    if (replyTarget || editingMessage) clearComposeContext();
   }
   $('send').onclick = () => send();
-  text.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  text.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
 
   let lt = 0, tt;
   text.addEventListener('input', () => { const n = Date.now(); if (n - lt > 2000) { lt = n; socket.emit('typing', name); } });
@@ -2635,8 +2693,8 @@ function start() {
     });
     if (typeof n === 'string' && n.trim()) {
       name = n.trim().slice(0, 20);
-      try { sessionStorage.setItem('name', name); } catch (e) {}
-      showToast('Display name updated.', 'success');
+      try { sessionStorage.setItem('name', name); localStorage.setItem('displayName', name); } catch (e) {}
+      showToast('Display name saved to this browser.', 'success');
     }
   };
   $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
