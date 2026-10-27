@@ -1129,12 +1129,13 @@ function start() {
     accountUsername = data.username;
     accountAuthenticated = true;
     try { localStorage.setItem('accountSessionToken', accountSessionToken); } catch (_) {}
-    // Start each account with its own display-name default rather than reusing the previous user's name.
-    name = accountUsername;
+    // Keep optional display names separate per account on this browser.
     try {
+      const savedDisplayName = localStorage.getItem('displayName:' + accountUsername.toLowerCase()) || '';
+      name = savedDisplayName.trim().slice(0, 20) || accountUsername;
       localStorage.setItem('displayName', name);
       sessionStorage.setItem('name', name);
-    } catch (_) {}
+    } catch (_) { name = accountUsername; }
     $('accountName').textContent = accountUsername;
     $('accountAvatar').textContent = accountUsername.slice(0, 1).toUpperCase();
     $('accountChip').setAttribute('aria-label', 'Signed in as ' + accountUsername);
@@ -2968,8 +2969,8 @@ function start() {
     });
     if (typeof n === 'string' && n.trim()) {
       name = n.trim().slice(0, 20);
-      try { sessionStorage.setItem('name', name); localStorage.setItem('displayName', name); } catch (e) {}
-      showToast('Display name saved to this browser.', 'success');
+      try { sessionStorage.setItem('name', name); localStorage.setItem('displayName', name); if (accountUsername) localStorage.setItem('displayName:' + accountUsername.toLowerCase(), name); } catch (e) {}
+      showToast('Display name saved for this account in this browser.', 'success');
     }
   };
   $('private').onclick = () => { location.href = '/?room=private-' + rnd(9); };
