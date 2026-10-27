@@ -458,6 +458,9 @@ header::-webkit-scrollbar-thumb{border:0;background:color-mix(in srgb,var(--acce
 .server-center-health[data-level="critical"]{color:var(--bad)}
 .admin-live-indicator{background:#73d9a2;box-shadow:0 0 0 4px rgba(115,217,162,.13),0 0 12px rgba(115,217,162,.4)}
 
+/* Party Mode keeps its bounded animation but adopts the warm Ubuntu palette. */
+body.party-mode #log{background-image:linear-gradient(135deg,rgba(233,84,32,.06),rgba(119,33,111,.09),rgba(177,139,208,.06))}
+
 /* Shared macOS/COSMIC window surfaces; keep all current modal actions intact. */
 .ov{background:rgba(27,14,34,.58);backdrop-filter:blur(15px) saturate(1.12)}
 .ov .box{border:1px solid var(--line);border-radius:22px;background:var(--panel);color:var(--ink);box-shadow:0 32px 110px rgba(15,5,23,.3)}
