@@ -32,6 +32,14 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 - **Installable app:** Compatible browsers can install Server Chat from the browser's install action. The service worker caches only the visual shell; sending messages, voice, TURN credentials and other live features still require a network connection. If offline, the app shows a reconnect page.
 - **Moderation:** Every non-admin message can be reported, including your own. Admin messages and built-in bot notices cannot be reported. The server enforces this rule, rather than relying only on the button being hidden.
 
+## Administrator access and global alerts
+
+The login screen includes a separate **Admin** option. Enter the `ADMIN_PASSWORD` configured in the hosting environment to sign in directly as the administrator; this does **not** create a temporary user account. Admin sessions are held in memory and expire when the server process restarts. Keep `ADMIN_PASSWORD` private and use a strong value.
+
+The admin panel now has a jump navigation, a **Global Announcement Studio**, and an **AI Control Center**. Normal global announcements display an animated banner over every connected channel, including AI Studio, and are archived in `#announcements`. The alarm announcement option asks browsers to play a short alert tone and uses a brighter animated banner. Browser autoplay restrictions, muted device volume, or disabled audio can still prevent a sound from being heard; users can enable audio or replay the tone from the banner. The visual announcement does not depend on audio working.
+
+AI admin controls show provider/model status, current temporary conversation and share counts, and daily request usage. Administrators can pause or resume the text AI without deleting private conversation history, or clear all temporary AI conversations and revoke their share links. The pause setting is runtime-only; set `AI_ENABLED=0` in the hosting environment to keep AI disabled after a restart. Existing conversations and counts remain memory-only and are cleared on restart.
+
 ## Built-in AI Studio
 
 Open **AI Studio** from the channel sidebar or channel switcher. It is separate from shared chat rooms and never joins a Socket.IO room. Each signed-in temporary account has its own server-side conversation list and messages. The AI receives only the prompts and conversation context sent from that workspace; it does not automatically read normal channels, private-room messages, or account data. Text requests are sent to Groq's API, and the API key remains on the server.
