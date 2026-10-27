@@ -1181,6 +1181,7 @@ function start() {
       if (data && data.invalidSession) {
         accountSessionToken = '';
         try { localStorage.removeItem('accountSessionToken'); } catch (_) {}
+        window.dispatchEvent(new Event('server-chat:session-ended'));
         setAuthMode('login');
       }
       showAuthGate(data && data.message ? data.message : 'Could not sign in. Please try again.');
@@ -1223,6 +1224,7 @@ function start() {
     if (!accountAuthenticated) showAuthGate('Please log in with your temporary account to continue.');
   });
   socket.on('auth:logged-out', () => {
+    window.dispatchEvent(new Event('server-chat:session-ended'));
     accountAuthenticated = false;
     accountSessionToken = '';
     accountUsername = '';
@@ -1443,6 +1445,7 @@ function start() {
     $('accountChip').setAttribute('aria-label', 'No account signed in');
     $('accountSettings').hidden = true;
     $('accountSettings').style.display = 'none';
+    window.dispatchEvent(new Event('server-chat:session-ended'));
     $('authUsername').value = '';
     $('authPassword').value = '';
     $('authPasswordConfirm').value = '';
