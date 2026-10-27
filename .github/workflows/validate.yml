@@ -47,7 +47,7 @@ jobs:
           for marker in ("socket.on('auth:register'", "socket.on('auth:login'", "socket.on('auth:resume'", "socket.on('auth:logout'", "socket.on('auth:change-password'", "socket.on('auth:delete-account'", "socket.use((packet, next)", "generatedPassword = crypto.randomBytes(18).toString('base64url')", "addedByToken: key()", "reporters: []"):
               if marker not in server:
                   raise SystemExit(f"Missing server account control: {marker}")
-          for marker in ("app.get('/api/ai/conversations'", "app.post('/api/ai/conversations'", "app.post('/api/ai/chat'", "app.post('/api/ai/image'", "app.post('/api/ai/conversations/:id/share'", "AI_PUBLIC_SHARES.delete(shareId)"):
+          for marker in ("app.get('/api/ai/conversations'", "app.post('/api/ai/conversations'", "app.post('/api/ai/chat'", "app.post('/api/ai/conversations/:id/share'", "AI_PUBLIC_SHARES.delete(shareId)"):
               if marker not in server:
                   raise SystemExit(f"Missing private AI endpoint or deletion control: {marker}")
           for marker in ('id="authGate"', 'id="authForm"', 'id="authCreateInfo"', 'id="generatedCredentials"', 'id="copyGeneratedCredentials"', 'id="accountSettings"', 'id="changePasswordForm"', 'id="deleteAccountButton"', 'id="logoutBtn"', 'id="accountName"', 'data-channel="ai"', 'const isSharedAIView', "server-chat:account-ready"):
@@ -61,9 +61,11 @@ jobs:
           for marker in (".ai-workspace", 'body[data-room="ai"]', ".ai-share-banner"):
               if marker not in ai_css:
                   raise SystemExit(f"Missing AI Studio style: {marker}")
-          for marker in ("api('/api/ai/conversations'", "api('/api/ai/share/'", "api('/api/ai/image'", "server-chat:account-ready"):
+          for marker in ("api('/api/ai/conversations'", "api('/api/ai/share/'", 'https://www.bing.com/images/create', 'id="aiImageLink"', "server-chat:account-ready"):
               if marker not in ai_js:
                   raise SystemExit(f"Missing AI Studio client feature: {marker}")
+          if "POLLINATIONS_API_KEY" in server or "app.post('/api/ai/image'" in server or "api('/api/ai/image'" in ai_js:
+              raise SystemExit("Built-in AI image-generation API must remain removed; use the external generator link.")
           if "localStorage.setItem('generatedPassword'" in html or "localStorage.setItem('newPassword'" in html:
               raise SystemExit("Plaintext generated passwords must never be saved to browser storage.")
           PY
