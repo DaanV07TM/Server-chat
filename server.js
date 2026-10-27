@@ -56,10 +56,23 @@ function aiAccountFromRequest(req) {
   const authHeader = String(req.headers.authorization || '');
   const match = /^Bearer ([a-f0-9]{64})$/.exec(authHeader);
   if (!match) return null;
-  const accountKey = ACCOUNT_SESSIONS.get(match[1]);
-  if (!accountKey) return null;
-  const account = TEMP_ACCOUNTS.get(accountKey);
-  return account ? { accountKey, account, sessionToken: match[1] } : null;
+  const token = match[1];
+  const accountKey = ACCOUNT_SESSIONS.get(token);
+  if (accountKey) {
+    const account = TEMP_ACCOUNTS.get(accountKey);
+    if (account) return { accountKey, account, sessionToken: token, admin: false };
+  }
+  // Direct admin sign-in has its own fixed AI workspace, without manufacturing a user account.
+  // It is still gated by a current server-issued admin session token.
+  if (typeof adminSessions !== 'undefined' && adminSessions.has(token)) {
+    return {
+      accountKey: '__server_chat_admin_workspace__',
+      account: { key: '__server_chat_admin_workspace__', username: 'Server Admin' },
+      sessionToken: token,
+      admin: true
+    };
+  }
+  return null;
 }
 
 function aiConversationsFor(accountKey, create = false) {
