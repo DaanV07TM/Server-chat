@@ -1390,8 +1390,13 @@ function start() {
     if (m.text) { const p = document.createElement('span'); p.textContent = m.text; d.append(p); }
     if (m.img) { const i = document.createElement('img'); i.alt = 'Image'; i.onload = down; i.src = m.img; d.append(i); }
     if (m.mid && !m.bot) {
-      const rx = document.createElement('div'); rx.className = 'rx'; d.dataset.mid = m.mid; d.dataset.own = m.id === socket.id ? '1' : '';
-      d.append(rx); drawRx(rx, m.mid, m.r || {});
+      const rx = document.createElement('div');
+      rx.className = 'rx';
+      d.dataset.mid = m.mid;
+      d.dataset.own = m.id === socket.id ? '1' : '';
+      d.dataset.admin = isAdminMessage ? '1' : '';
+      d.append(rx);
+      drawRx(rx, m.mid, m.r || {});
     }
     log.append(d);
     if (isFlashBanner) {
@@ -1408,12 +1413,12 @@ function start() {
   }
   function drawRx(box, mid, r, open) {
     box.innerHTML = '';
-    const own = box.parentNode.dataset.own === '1';
+    const isAdminMessage = box.parentNode.dataset.admin === '1';
     const mk = (label, aria, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; box.append(b); };
     for (const e in r) mk(e + ' ' + r[e], 'Reaction ' + e, () => socket.emit('react', { mid, e }));
     if (open) EMO.forEach(e => mk(e, 'React with ' + e, () => socket.emit('react', { mid, e })));
     else mk('☺', 'Add reaction', () => drawRx(box, mid, r, true), 'add');
-    if (!own) mk('⚑', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
+    if (!isAdminMessage) mk('⚑', 'Report this message', () => { repMid = mid; $('rep').style.display = 'flex'; }, 'add');
   }
   socket.on('react', d => { const box = log.querySelector('[data-mid="' + d.mid + '"] .rx'); if (box) drawRx(box, d.mid, d.r); });
   socket.on('removed', mid => { const el = log.querySelector('[data-mid="' + mid + '"]'); if (el) el.remove(); });
