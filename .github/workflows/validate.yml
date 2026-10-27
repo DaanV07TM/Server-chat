@@ -85,9 +85,9 @@ jobs:
           for marker in ("const ANNOUNCEMENT_TTL = 2 * 60 * 1000;", "eventType: options.eventType", "else if (c === 'party')", "else if (c === 'partyoff')"):
               if marker not in server:
                   raise SystemExit(f"Missing two-minute announcement or admin event: {marker}")
-          for marker in ("const FLASH_BANNER_MS = 2 * 60 * 1000;", "party-event", "server:party-stop", "PARTY MODE · SERVER EVENT · 2 MINUTES", "Activate Party Mode", "body.party-mode #log", "partyScreenShake", "partyChatDance", "partyConfettiLayer", "i < 24", "prefers-reduced-motion", "function startPartyMode(message)", "function stopPartyMode()"):
+          for marker in ("const FLASH_BANNER_MS = 2 * 60 * 1000;", "party-event", "server:party-stop", "PARTY MODE · SERVER EVENT · 2 MINUTES", "Activate Party Mode", "body.party-mode #log", "partyScreenShake", "partyChatDance", "partyConfettiLayer", "i < 24", "prefers-reduced-motion", "function startPartyMode(message)", "function stopPartyMode()", "function layoutAdminDesktop(", "admin-desktop-sidebar", "admin-desktop-main", "Server Chat · Admin Console", "adminMessageShine", "SERVER ADMIN · OFFICIAL MESSAGE", "const isFlashBanner = !isPinnedInfo && isAnnouncement;"):
               if marker not in html:
-                  raise SystemExit(f"Missing in-chat announcement or performant party effect: {marker}")
+                  raise SystemExit(f"Missing desktop admin workspace or colorful regular admin messages: {marker}")
           for marker in ("globalAdminAlert", "global-admin-alert", "globalAdminAlertDismiss", "showGlobalAdminAnnouncement"):
               if marker in html:
                   raise SystemExit(f"Floating/dismissible announcement UI must be removed: {marker}")
