@@ -63,7 +63,7 @@
     available = !!ready;
     input.placeholder = ready ? 'Vraag iets aan de AI…' : 'AI nog niet geconfigureerd';
     sendButton.disabled = !ready || sending;
-    if (!ready) footnote.textContent = 'De beheerder moet OPENAI_API_KEY instellen op de server. De sleutel hoort nooit in je browser.';
+    if (!ready) footnote.textContent = 'De beheerder moet GROQ_API_KEY instellen op de server. De sleutel hoort nooit in je browser.';
     else footnote.textContent = 'AI-antwoorden kunnen fouten bevatten. Deel geen wachtwoorden of gevoelige gegevens.';
   };
   const checkStatus = async () => {
@@ -91,7 +91,7 @@
     const prompt = String(text || input.value || '').trim();
     if (!prompt || sending) return;
     if (!available) {
-      addMessage('assistant', 'De ingebouwde AI is nog niet geactiveerd. De beheerder moet eerst een OpenAI API-sleutel instellen op de server.', true);
+      addMessage('assistant', 'De ingebouwde AI is nog niet geactiveerd. De beheerder moet eerst een Groq API-sleutel instellen op de server.', true);
       return;
     }
     if (prompt.length > 2500) return;
