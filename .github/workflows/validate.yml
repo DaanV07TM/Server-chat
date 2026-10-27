@@ -113,7 +113,7 @@ jobs:
           for marker in ("const API = '/api/server-status'", "setInterval(refresh, 15000)", "function renderWarnings(warnings)", "function renderChannels(channels)", "function renderActivity(activity)"):
               if marker not in status_js:
                   raise SystemExit(f"Missing status page polling / rendering: {marker}")
-          if "private-" in status_js or "message.text" in status_js or "username" in status_js:
+          if "private-" in status_js or "item.text" in status_js or "username" in status_js:
               raise SystemExit("The public status page must not show private room data, usernames or message text.")
           PY
       - name: Validate web app manifest
