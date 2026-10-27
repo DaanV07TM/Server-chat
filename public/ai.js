@@ -19,11 +19,11 @@
       '<section class="ai-main">' +
         '<header class="ai-topbar">' +
           '<div class="ai-topbar-title"><span class="ai-workspace-eyebrow" id="aiBreadcrumb">PERSONAL WORKSPACE</span><h1 id="aiConversationTitle">Your AI assistant</h1><div class="ai-status-line"><span id="aiStatusDot" class="ai-status-dot"></span><span id="aiStatusText">Connecting to AI…</span><span class="ai-private-badge" id="aiPrivateBadge">🔒 Private</span></div></div>' +
-          '<div class="ai-top-actions"><button id="aiImageToggle" class="ai-secondary-btn" type="button" title="Create an image from a prompt">▧ <span>Image</span></button><button id="aiShareBtn" class="ai-primary-btn" type="button">↗ <span>Share</span></button><button id="aiStopShareBtn" class="ai-secondary-btn" type="button" hidden>Stop sharing</button><button id="aiDeleteBtn" class="ai-icon-btn" type="button" aria-label="Delete conversation" title="Delete conversation">⌫</button></div>' +
+          '<div class="ai-top-actions"><a id="aiImageLink" class="ai-secondary-btn ai-external-image-link" href="https://www.bing.com/images/create" target="_blank" rel="noopener noreferrer" title="Open the free Bing Image Creator">▧ <span>Create image</span></a><button id="aiShareBtn" class="ai-primary-btn" type="button">↗ <span>Share</span></button><button id="aiStopShareBtn" class="ai-secondary-btn" type="button" hidden>Stop sharing</button><button id="aiDeleteBtn" class="ai-icon-btn" type="button" aria-label="Delete conversation" title="Delete conversation">⌫</button></div>' +
         '</header>' +
         '<div id="aiShareBanner" class="ai-share-banner" hidden><span>↗</span><div><strong>Shared read-only conversation</strong><p>This is a snapshot shared by someone with the link. You cannot see their private chat history or send messages to their account.</p></div><a href="/?room=ai">Open your AI Studio</a></div>' +
         '<div id="aiModeNotice" class="ai-mode-notice" hidden></div>' +
-        '<div id="aiThread" class="ai-thread" aria-live="polite"><div class="ai-empty-state"><span class="ai-empty-orb">✦</span><h2>What are we working on?</h2><p>Ask a question, explore an idea, improve some writing or create an image from a description.</p><div class="ai-starter-grid"><button type="button" data-starter="Explain a difficult topic to me in simple steps."><span>✧</span><b>Learn something</b><small>Clear explanations and examples</small></button><button type="button" data-starter="Help me brainstorm five original ideas for a project."><span>◇</span><b>Brainstorm ideas</b><small>Get unstuck and explore options</small></button><button type="button" data-starter="Help me write a clear, friendly message."><span>↗</span><b>Write something</b><small>Messages, emails and more</small></button><button type="button" data-starter="Help me create a detailed image prompt for a cinematic fantasy scene."><span>▧</span><b>Imagine a scene</b><small>Draft a visual idea</small></button></div></div></div>' +
+        '<div id="aiThread" class="ai-thread" aria-live="polite"><div class="ai-empty-state"><span class="ai-empty-orb">✦</span><h2>What are we working on?</h2><p>Ask a question, explore an idea or improve some writing. Use Create image above to open the free image generator.</p><div class="ai-starter-grid"><button type="button" data-starter="Explain a difficult topic to me in simple steps."><span>✧</span><b>Learn something</b><small>Clear explanations and examples</small></button><button type="button" data-starter="Help me brainstorm five original ideas for a project."><span>◇</span><b>Brainstorm ideas</b><small>Get unstuck and explore options</small></button><button type="button" data-starter="Help me write a clear, friendly message."><span>↗</span><b>Write something</b><small>Messages, emails and more</small></button><button type="button" data-starter="Help me create a detailed image prompt for a cinematic fantasy scene."><span>▧</span><b>Imagine a scene</b><small>Draft a visual idea</small></button></div></div></div>' +
         '<div id="aiWorking" class="ai-working" hidden><span class="ai-working-orb">✦</span><span id="aiWorkingText">Thinking…</span><span class="ai-thinking-dots"><i></i><i></i><i></i></span></div>' +
         '<form id="aiComposer" class="ai-composer">' +
           '<div class="ai-composer-tools"><span id="aiComposerMode">✦ Message the AI</span><span>Enter to send · Shift+Enter for a new line</span></div>' +
@@ -41,10 +41,8 @@
     activeId: '',
     active: null,
     available: false,
-    imageAvailable: false,
     sharedView,
     share: null,
-    imageMode: false,
     busy: false,
     abortController: null,
     requestVersion: 0,
@@ -87,7 +85,6 @@
     return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
   };
   const escapeText = value => String(value == null ? '' : value);
-  const imageUrl = value => typeof value === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : '';
 
   function updateStatus(text, ready) {
     $('aiStatusText').textContent = text;
@@ -100,20 +97,11 @@
     try {
       const status = await api('/api/ai/status');
       state.available = Boolean(status.available);
-      state.imageAvailable = Boolean(status.imageAvailable);
       updateStatus(state.available ? 'AI assistant ready' : 'Text AI is not configured', state.available);
-      $('aiImageToggle').title = state.imageAvailable
-        ? 'Generate an image (uses the configured image provider)'
-        : 'Image generation is not configured and remains disabled';
-      $('aiImageToggle').classList.toggle('is-unavailable', !state.imageAvailable);
-      if (!state.imageAvailable) {
-        $('aiImageToggle').setAttribute('aria-description', 'Image generation needs an optional provider key and may consume credits.');
-      }
       syncComposer();
     } catch (_) {
       updateStatus('AI service unavailable', false);
       state.available = false;
-      state.imageAvailable = false;
       syncComposer();
     }
   }
@@ -126,23 +114,18 @@
   }
 
   function syncComposer() {
-    const disabled = state.sharedView || state.busy || (state.imageMode ? !state.imageAvailable : !state.available) || !sessionToken();
+    const disabled = state.sharedView || state.busy || !state.available || !sessionToken();
     $('aiInput').disabled = disabled;
     $('aiSend').disabled = disabled || !$('aiInput').value.trim();
-    $('aiImageToggle').disabled = state.sharedView || state.busy;
     $('aiShareBtn').hidden = state.sharedView || !state.active || !state.active.messages.length;
     const shareLabel = $('aiShareBtn').querySelector('span');
     if (shareLabel) shareLabel.textContent = state.active && state.active.shareId ? 'Update link' : 'Share';
     $('aiStopShareBtn').hidden = state.sharedView || !state.active || !state.active.shareId;
     $('aiDeleteBtn').hidden = state.sharedView || !state.activeId;
     $('aiNewChat').hidden = state.sharedView;
-    $('aiComposerMode').textContent = state.sharedView ? 'Read-only shared conversation' : state.imageMode ? '▧ Create an image' : '✦ Message the AI';
-    $('aiComposerHint').textContent = state.sharedView ? 'Read only' : state.imageMode ? (state.imageAvailable ? 'Image generation enabled' : 'Image generation disabled') : 'Private to your account';
-    $('aiInput').placeholder = state.sharedView
-      ? 'This conversation is read-only.'
-      : state.imageMode
-        ? (state.imageAvailable ? 'Describe the image you want to create…' : 'Image generation needs optional provider setup…')
-        : 'Ask anything…';
+    $('aiComposerMode').textContent = state.sharedView ? 'Read-only shared conversation' : '✦ Message the AI';
+    $('aiComposerHint').textContent = state.sharedView ? 'Read only' : 'Private to your account';
+    $('aiInput').placeholder = state.sharedView ? 'This conversation is read-only.' : 'Ask anything…';
   }
 
   function appendTextContent(container, text) {
@@ -166,39 +149,7 @@
     meta.className = 'ai-message-meta';
     meta.textContent = role === 'user' ? 'You' : 'Server Chat AI';
     body.appendChild(meta);
-    if (message.kind === 'image') {
-      const src = imageUrl(message.imageData);
-      if (src) {
-        const caption = document.createElement('p');
-        caption.className = 'ai-image-caption';
-        caption.textContent = 'Image created from: ' + escapeText(message.imagePrompt || 'your prompt');
-        body.appendChild(caption);
-        const link = document.createElement('a');
-        link.className = 'ai-generated-image-link';
-        link.href = src;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.title = 'Open generated image';
-        const image = document.createElement('img');
-        image.src = src;
-        image.alt = 'AI-generated image';
-        image.loading = 'lazy';
-        link.appendChild(image);
-        body.appendChild(link);
-        const tools = document.createElement('div');
-        tools.className = 'ai-message-tools';
-        const download = document.createElement('a');
-        download.href = src;
-        download.download = 'server-chat-ai-image.png';
-        download.textContent = '↓ Download image';
-        tools.appendChild(download);
-        body.appendChild(tools);
-      } else {
-        appendTextContent(body, message.content || 'An image was created, but its data is unavailable.');
-      }
-    } else {
-      appendTextContent(body, message.content);
-    }
+    appendTextContent(body, message.content);
     row.appendChild(body);
     return row;
   }
@@ -212,7 +163,7 @@
     if (!messages.length) {
       const empty = document.createElement('div');
       empty.className = 'ai-empty-state';
-      empty.innerHTML = '<span class="ai-empty-orb">✦</span><h2>What are we working on?</h2><p>Ask a question, explore an idea, improve some writing or create an image from a description.</p>' +
+      empty.innerHTML = '<span class="ai-empty-orb">✦</span><h2>What are we working on?</h2><p>Ask a question, explore an idea or improve some writing. Use Create image above to open the free image generator.</p>' +
         '<div class="ai-starter-grid"><button type="button" data-starter="Explain a difficult topic to me in simple steps."><span>✧</span><b>Learn something</b><small>Clear explanations and examples</small></button><button type="button" data-starter="Help me brainstorm five original ideas for a project."><span>◇</span><b>Brainstorm ideas</b><small>Get unstuck and explore options</small></button><button type="button" data-starter="Help me write a clear, friendly message."><span>↗</span><b>Write something</b><small>Messages, emails and more</small></button><button type="button" data-starter="Help me create a detailed image prompt for a cinematic fantasy scene."><span>▧</span><b>Imagine a scene</b><small>Draft a visual idea</small></button></div>';
       thread.appendChild(empty);
       return;
@@ -309,7 +260,6 @@
       if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.activeId = data.conversation.id;
       state.active = data.conversation;
-      state.imageMode = false;
       $('aiConversationTitle').textContent = state.active.title || 'New conversation';
       $('aiInput').value = '';
       $('aiInput').style.height = 'auto';
@@ -342,7 +292,6 @@
       if (!requestToken || requestToken !== sessionToken() || state.sharedView) return;
       state.activeId = data.conversation.id;
       state.active = data.conversation;
-      state.imageMode = false;
       $('aiConversationTitle').textContent = state.active.title || 'New conversation';
       $('aiInput').value = '';
       $('aiInput').style.height = 'auto';
@@ -361,7 +310,7 @@
     if (state.sharedView || !sessionToken() || state.busy) return;
     const item = state.conversations.find(entry => entry.id === id);
     const label = item && item.title ? item.title : 'this conversation';
-    if (!window.confirm('Delete "' + label + '" and its generated images? Any share link for this conversation will also stop working. This cannot be undone.')) return;
+    if (!window.confirm('Delete "' + label + '"? Any share link for this conversation will also stop working. This cannot be undone.')) return;
     try {
       await api('/api/ai/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
       if (state.activeId === id) {
@@ -379,7 +328,7 @@
 
   async function shareConversation() {
     if (state.sharedView || !state.active || !state.active.messages.length) return;
-    if (!window.confirm('Anyone who receives this link can read the shared snapshot, including its messages and generated images. The rest of your private AI history stays private. Share this conversation?')) return;
+    if (!window.confirm('Anyone who receives this link can read the messages in this shared snapshot. The rest of your private AI history stays private. Share this conversation?')) return;
     try {
       const result = await api('/api/ai/conversations/' + encodeURIComponent(state.active.id) + '/share', { method: 'POST', body: {} });
       state.active.shareId = result.id;
@@ -424,13 +373,6 @@
       toast('Sign in to use your private AI workspace.', 'error');
       return;
     }
-    if (state.imageMode) {
-      if (!state.imageAvailable) {
-        showModeNotice('Image generation is off by default. It needs a separate POLLINATIONS_API_KEY in the server environment and may consume Pollen credits. No image request was sent.', true, 'warning');
-        return;
-      }
-      return generateImage(prompt);
-    }
     if (!state.available) {
       showModeNotice('Text AI is not configured on the server. Your prompt was not sent.', true, 'error');
       return;
@@ -469,59 +411,6 @@
     }
   }
 
-  async function generateImage(prompt) {
-    if (!state.activeId) await newConversation();
-    if (!state.activeId) return;
-    $('aiInput').value = '';
-    $('aiInput').style.height = 'auto';
-    const requestToken = sessionToken();
-    const conversationId = state.activeId;
-    const version = ++state.requestVersion;
-    const controller = new AbortController();
-    state.abortController = controller;
-    setBusy(true, 'Creating your image…');
-    showModeNotice('Image generation runs through the separately configured image provider. It may use credits; the app will not enable it automatically.', true, 'warning');
-    try {
-      const result = await api('/api/ai/image', {
-        method: 'POST',
-        body: { conversationId, prompt },
-        signal: controller.signal
-      });
-      if (version !== state.requestVersion || !requestToken || requestToken !== sessionToken() || state.activeId !== conversationId) return;
-      state.active = result.conversation;
-      $('aiConversationTitle').textContent = state.active.title || 'Image creation';
-      showModeNotice('', false);
-      await refreshConversationListOnly();
-      if (version === state.requestVersion && requestToken === sessionToken()) renderThread();
-    } catch (error) {
-      if (error.name === 'AbortError' || version !== state.requestVersion || requestToken !== sessionToken()) return;
-      $('aiInput').value = prompt;
-      showModeNotice(error.message, true, 'error');
-    } finally {
-      if (version === state.requestVersion) {
-        state.abortController = null;
-        setBusy(false);
-      }
-    }
-  }
-
-  function toggleImageMode() {
-    if (state.sharedView) return;
-    state.imageMode = !state.imageMode;
-    $('aiImageToggle').classList.toggle('is-selected', state.imageMode);
-    if (state.imageMode) {
-      if (state.imageAvailable) {
-        showModeNotice('Image mode: describe the picture you want to generate. The provider may consume credits.', true, 'warning');
-      } else {
-        showModeNotice('Image generation is currently disabled to avoid unexpected costs. To enable it, configure POLLINATIONS_API_KEY on the server. This provider may consume Pollen credits, so do not add a key unless you accept that.', true, 'warning');
-      }
-    } else {
-      showModeNotice('', false);
-    }
-    syncComposer();
-    $('aiInput').focus();
-  }
-
   async function loadSharedConversation() {
     $('aiSidebar').hidden = true;
   }
@@ -534,7 +423,7 @@
     $('aiShareBtn').hidden = true;
     $('aiStopShareBtn').hidden = true;
     $('aiDeleteBtn').hidden = true;
-    $('aiImageToggle').hidden = true;
+    $('aiImageLink').hidden = true;
     $('aiComposer').hidden = true;
     $('aiBreadcrumb').textContent = 'SHARED CONVERSATION';
     $('aiComposerHint').textContent = 'Read only';
@@ -561,7 +450,6 @@
   $('aiShareBtn').addEventListener('click', () => shareConversation());
   $('aiStopShareBtn').addEventListener('click', () => stopSharing());
   $('aiDeleteBtn').addEventListener('click', () => { if (state.activeId) deleteConversation(state.activeId); });
-  $('aiImageToggle').addEventListener('click', toggleImageMode);
   $('aiComposer').addEventListener('submit', event => { event.preventDefault(); submitPrompt(); });
   $('aiInput').addEventListener('input', () => {
     $('aiInput').style.height = 'auto';
@@ -573,7 +461,6 @@
       event.preventDefault();
       $('aiComposer').requestSubmit();
     }
-    if (event.key === 'Escape' && state.imageMode) toggleImageMode();
   });
   $('aiThread').addEventListener('click', event => {
     const starter = event.target.closest('[data-starter]');
@@ -596,8 +483,6 @@
     if (state.abortController) state.abortController.abort();
     state.abortController = null;
     state.busy = false;
-    state.imageMode = false;
-    $('aiImageToggle').classList.remove('is-selected');
     $('aiWorking').hidden = true;
     showModeNotice('', false);
     state.conversations = [];
