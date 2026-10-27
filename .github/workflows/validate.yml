@@ -47,12 +47,23 @@ jobs:
           for marker in ("socket.on('auth:register'", "socket.on('auth:login'", "socket.on('auth:resume'", "socket.on('auth:logout'", "socket.on('auth:change-password'", "socket.on('auth:delete-account'", "socket.use((packet, next)", "generatedPassword = crypto.randomBytes(18).toString('base64url')", "addedByToken: key()", "reporters: []"):
               if marker not in server:
                   raise SystemExit(f"Missing server account control: {marker}")
-          for marker in ('id="authGate"', 'id="authForm"', 'id="authCreateInfo"', 'id="generatedCredentials"', 'id="copyGeneratedCredentials"', 'id="accountSettings"', 'id="changePasswordForm"', 'id="deleteAccountButton"', 'id="logoutBtn"', 'id="accountName"'):
+          for marker in ("app.get('/api/ai/conversations'", "app.post('/api/ai/conversations'", "app.post('/api/ai/chat'", "app.post('/api/ai/image'", "app.post('/api/ai/conversations/:id/share'", "AI_PUBLIC_SHARES.delete(shareId)"):
+              if marker not in server:
+                  raise SystemExit(f"Missing private AI endpoint or deletion control: {marker}")
+          for marker in ('id="authGate"', 'id="authForm"', 'id="authCreateInfo"', 'id="generatedCredentials"', 'id="copyGeneratedCredentials"', 'id="accountSettings"', 'id="changePasswordForm"', 'id="deleteAccountButton"', 'id="logoutBtn"', 'id="accountName"', 'data-channel="ai"', 'const isSharedAIView', "server-chat:account-ready"):
               if marker not in html:
-                  raise SystemExit(f"Missing account UI control: {marker}")
+                  raise SystemExit(f"Missing account or AI UI control: {marker}")
           for marker in (".auth-card", "#channelNav", ".account-chip", ".credentials-card", ".settings-danger", "#siteDialog"):
               if marker not in css:
                   raise SystemExit(f"Missing account/workspace style: {marker}")
+          ai_css = Path("public/ai.css").read_text(encoding="utf-8")
+          ai_js = Path("public/ai.js").read_text(encoding="utf-8")
+          for marker in (".ai-workspace", 'body[data-room="ai"]', ".ai-share-banner"):
+              if marker not in ai_css:
+                  raise SystemExit(f"Missing AI Studio style: {marker}")
+          for marker in ("api('/api/ai/conversations'", "api('/api/ai/share/'", "api('/api/ai/image'", "server-chat:account-ready"):
+              if marker not in ai_js:
+                  raise SystemExit(f"Missing AI Studio client feature: {marker}")
           if "localStorage.setItem('generatedPassword'" in html or "localStorage.setItem('newPassword'" in html:
               raise SystemExit("Plaintext generated passwords must never be saved to browser storage.")
           PY
