@@ -108,3 +108,8 @@ Party Mode additionally runs lightweight visual effects in each connected browse
 ## Admin desktop workspace and staff messages
 
 The admin console uses a desktop-style workspace with a title bar, a navigable sidebar on wider screens, grouped cards, and a compact horizontal navigation on phones. Its selected section and scroll position are preserved during live status refreshes. Messages sent by an authenticated admin in regular chat receive a distinctive animated gradient staff card and a staff label, but behave like normal chat messages and are not automatically removed after two minutes. Global announcements remain time-limited and visually separate.
+
+
+## Windows-style admin desktop
+
+The admin console opens to an app desktop with separate windows for overview, performance, connection, screen shares, image review, chat controls, announcements, live events, reports, blocked words, notifications, AI, logs, restart and danger-zone actions. An app window can return to the desktop via its own toolbar or the taskbar. The console overlay is fixed to the full viewport above channel navigation. Five-second live polling updates summary and load values in place rather than replacing the app DOM; explicit actions and the app Refresh button can rebuild content while preserving the selected app and scroll position.
