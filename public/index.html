@@ -2438,10 +2438,64 @@ function start() {
   }
   $('composeContextCancel').onclick = () => clearComposeContext(!!editingMessage);
 
+  function renderPollCard(mid, poll) {
+    const card = document.createElement('section');
+    card.className = 'poll-card';
+    const kicker = document.createElement('div');
+    kicker.className = 'poll-kicker';
+    kicker.textContent = poll.kind === 'quiz' ? '🧠 QUICK QUIZ' : '📊 COMMUNITY POLL';
+    const question = document.createElement('div');
+    question.className = 'poll-question';
+    question.textContent = String(poll.question || 'Community poll');
+    const options = document.createElement('div');
+    options.className = 'poll-options';
+    const optionList = Array.isArray(poll.options) ? poll.options : [];
+    const totalVotes = Math.max(Number(poll.totalVotes) || 0, optionList.reduce((sum, option) => sum + (Number(option.votes) || 0), 0));
+    optionList.forEach((option, index) => {
+      const votes = Math.max(0, Number(option.votes) || 0);
+      const percent = totalVotes ? Math.round(votes / totalVotes * 100) : 0;
+      const selected = poll.myVote !== null && poll.myVote !== undefined && Number(poll.myVote) === index;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'poll-option' + (selected ? ' is-selected' : '');
+      button.disabled = !!poll.closed;
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.setAttribute('aria-label', 'Vote for ' + String(option.label || 'option'));
+      const top = document.createElement('span');
+      top.className = 'poll-option-top';
+      const label = document.createElement('span');
+      label.textContent = String(option.label || 'Option ' + (index + 1));
+      const count = document.createElement('span');
+      count.className = 'poll-option-count';
+      count.textContent = votes + ' · ' + percent + '%';
+      top.append(label, count);
+      const track = document.createElement('span');
+      track.className = 'poll-option-track';
+      const fill = document.createElement('span');
+      fill.style.width = percent + '%';
+      track.appendChild(fill);
+      button.append(top, track);
+      button.addEventListener('click', () => {
+        if (!poll.closed) socket.emit('poll:vote', { mid: Number(mid), optionIndex: index });
+      });
+      options.appendChild(button);
+    });
+    const footer = document.createElement('div');
+    footer.className = 'poll-footer';
+    const status = document.createElement('span');
+    status.textContent = (poll.closed ? 'Poll closed' : 'Click to vote · you can change your choice') + ' · ' + totalVotes + (totalVotes === 1 ? ' vote' : ' votes');
+    const kind = document.createElement('span');
+    kind.textContent = poll.kind === 'quiz' ? 'Quiz answer stays private until you vote' : 'Community vote';
+    footer.append(status, kind);
+    card.append(kicker, question, options, footer);
+    return card;
+  }
+
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isPartyEvent = m.eventType === 'party';
     if (isPartyEvent) startPartyMode(m);
+    const sticker = m.stickerId ? STICKER_LIBRARY.find(item => item.id === m.stickerId) : null;
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
     const isOwnMessage = m.own === true || m.id === socket.id;
     const isPinnedInfo = m.pinned === true;
@@ -2464,9 +2518,11 @@ function start() {
       (isAdminMessage && !isPersistentAdminPost ? ' admin-message' : '') +
       (isAnnouncement ? ' announcement' : '') +
       (isPartyEvent ? ' party-event' : '') +
+      (sticker ? ' sticker-message sticker-' + sticker.theme : '') +
+      (m.poll ? ' poll-message' : '') +
       (isPersistentAdminPost ? ' official-post' : '') +
       (isPinnedInfo ? ' pinned-info' : '');
-    if (m.mid && !m.bot) {
+    if (m.mid && (!m.bot || m.poll)) {
       d.dataset.mid = m.mid;
       d.dataset.own = isOwnMessage && !isAdminMessage ? '1' : '';
       d.dataset.admin = isAdminMessage ? '1' : '';
@@ -2480,6 +2536,16 @@ function start() {
         isPartyEvent ? '🎉 PARTY MODE · SERVER EVENT · 2 MINUTES' :
         isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT · DISAPPEARS IN 2 MINUTES' : '✦ SERVER ADMIN · OFFICIAL MESSAGE';
       d.append(badge);
+    }
+    if (sticker) {
+      const art = document.createElement('div');
+      art.className = 'sticker-art';
+      art.textContent = sticker.emoji;
+      art.setAttribute('aria-label', sticker.label);
+      const caption = document.createElement('span');
+      caption.className = 'sticker-caption';
+      caption.textContent = sticker.caption;
+      d.append(art, caption);
     }
     if (!m.bot) {
       const author = document.createElement('div');
@@ -2541,6 +2607,10 @@ function start() {
         editedTag.textContent = 'edited';
         d.append(editedTag);
       }
+    }
+    if (m.poll) {
+      d._pollState = { ...m.poll };
+      d.append(renderPollCard(m.mid, d._pollState));
     }
     if (m.img) { const img = document.createElement('img'); img.alt = 'Image'; img.loading = 'lazy'; img.onload = down; img.src = m.img; d.append(img); }
     if (m.mid && !m.bot) {
@@ -2660,6 +2730,30 @@ function start() {
       notifyIncomingMessage(m);
     }
     queueServerMessage(m); $('typing').textContent = '';
+  });
+  socket.on('poll:state', data => {
+    const mid = Number(data && data.mid);
+    if (!Number.isSafeInteger(mid) || !data.poll) return;
+    const node = log.querySelector('.m[data-mid="' + mid + '"]');
+    if (!node) return;
+    const previous = node._pollState || {};
+    const selected = previous.myVote !== undefined ? previous.myVote : null;
+    node._pollState = { ...data.poll, myVote: selected };
+    const oldCard = node.querySelector('.poll-card');
+    if (oldCard) oldCard.replaceWith(renderPollCard(mid, node._pollState));
+  });
+  socket.on('poll:vote-result', data => {
+    const mid = Number(data && data.mid);
+    if (!Number.isSafeInteger(mid)) return;
+    const node = log.querySelector('.m[data-mid="' + mid + '"]');
+    if (node && node._pollState) {
+      node._pollState.myVote = data.myVote === null ? null : Number(data.myVote);
+      const oldCard = node.querySelector('.poll-card');
+      if (oldCard) oldCard.replaceWith(renderPollCard(mid, node._pollState));
+    }
+    if (data.quiz && !data.unchanged) {
+      showToast(data.correct ? '✅ Correct answer! Nice one.' : '🧠 Not quite — the answer is ' + String(data.correctAnswer || 'hidden') + '.', data.correct ? 'success' : 'info', 4500);
+    }
   });
   socket.on('message:edited', async message => {
     if (!message || !Number.isSafeInteger(Number(message.mid))) return;
@@ -3547,6 +3641,67 @@ function start() {
     text.value = '';
     if (replyTarget || editingMessage) clearComposeContext();
   }
+  function renderStickerPicker(tab = 'emoji') {
+    const picker = $('stickerPicker'), grid = $('stickerPickerGrid');
+    if (!picker || !grid) return;
+    grid.replaceChildren();
+    document.querySelectorAll('[data-sticker-tab]').forEach(button => button.classList.toggle('is-active', button.dataset.stickerTab === tab));
+    if (tab === 'emoji') {
+      CHAT_EMOJI_LIBRARY.forEach(emoji => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'picker-emoji'; button.textContent = emoji;
+        button.dataset.pickerEmoji = emoji; button.setAttribute('aria-label', 'Insert ' + emoji); button.title = 'Insert ' + emoji;
+        grid.appendChild(button);
+      });
+    } else {
+      STICKER_LIBRARY.forEach(sticker => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'picker-sticker';
+        button.dataset.pickerSticker = sticker.id; button.setAttribute('aria-label', 'Send sticker: ' + sticker.label);
+        const art = document.createElement('span'); art.textContent = sticker.emoji;
+        const label = document.createElement('small'); label.textContent = sticker.label;
+        button.append(art, label); grid.appendChild(button);
+      });
+    }
+  }
+  function closeStickerPicker() { $('stickerPicker').hidden = true; $('stickerButton').setAttribute('aria-expanded', 'false'); }
+  $('stickerButton').setAttribute('aria-expanded', 'false');
+  $('stickerButton').onclick = () => {
+    const picker = $('stickerPicker');
+    picker.hidden = !picker.hidden;
+    $('stickerButton').setAttribute('aria-expanded', picker.hidden ? 'false' : 'true');
+    if (!picker.hidden) renderStickerPicker('emoji');
+  };
+  $('stickerPickerClose').onclick = closeStickerPicker;
+  document.querySelectorAll('[data-sticker-tab]').forEach(button => button.addEventListener('click', () => renderStickerPicker(button.dataset.stickerTab)));
+  $('stickerPicker').addEventListener('click', event => {
+    const emojiButton = event.target.closest('button[data-picker-emoji]');
+    if (emojiButton) {
+      const emoji = emojiButton.dataset.pickerEmoji;
+      const start = Number.isInteger(text.selectionStart) ? text.selectionStart : text.value.length;
+      const end = Number.isInteger(text.selectionEnd) ? text.selectionEnd : start;
+      text.setRangeText(emoji, start, end, 'end');
+      text.focus();
+      text.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+    const stickerButton = event.target.closest('button[data-picker-sticker]');
+    if (stickerButton) {
+      const id = stickerButton.dataset.pickerSticker;
+      if (!STICKER_LIBRARY.some(item => item.id === id)) return;
+      const payload = { name, status: userStatus, stickerId: id };
+      if (replyTarget) payload.replyToMid = replyTarget.mid;
+      socket.emit('msg', payload);
+      closeStickerPicker();
+      if (replyTarget) clearComposeContext();
+      showToast('Sticker sent ✨', 'success', 1800);
+    }
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!$('stickerPicker').hidden && !event.target.closest('#stickerPicker') && !event.target.closest('#stickerButton')) closeStickerPicker();
+  }, { passive: true });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('stickerPicker').hidden) closeStickerPicker(); });
+
   $('send').onclick = () => send();
   text.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
