@@ -116,5 +116,34 @@ jobs:
           if "private-" in status_js or "item.text" in status_js or "username" in status_js:
               raise SystemExit("The public status page must not show private room data, usernames or message text.")
           PY
+      - name: Validate Ubuntu COSMIC app redesign
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          css = Path("public/ubuntu-cosmic.css").read_text(encoding="utf-8")
+          ai_css = Path("public/ai.css").read_text(encoding="utf-8")
+          status_html = Path("public/status.html").read_text(encoding="utf-8")
+          sw = Path("public/sw.js").read_text(encoding="utf-8")
+          manifest = Path("public/manifest.webmanifest").read_text(encoding="utf-8")
+          if html.find('href="/ubuntu-cosmic.css"') < html.find('href="/accounts.css"'):
+              raise SystemExit("The new design stylesheet must load after the legacy styles.")
+          for marker in ('class="sidebar-brand"', 'class="sidebar-section-label"', 'class="sidebar-dock"', 'class="sidebar-footer"', 'data-channel="general"', 'href="/status.html"'):
+              if marker not in html:
+                  raise SystemExit(f"Missing redesigned navigation item: {marker}")
+          for marker in ("--ubuntu-orange:#e95420", "--cosmic-purple:#77216f", "#channelNav{", "header::before", ".sidebar-dock", "body[data-room=\\"ai\\"] #aiStudioRoot", "@media(max-width:1000px)", "@media(prefers-reduced-motion:reduce)", "body.party-mode #log"):
+              if marker not in css:
+                  raise SystemExit(f"Missing responsive COSMIC design rule: {marker}")
+          for marker in ("body[data-room=\\"ai\\"] header", ".ai-brand-icon", ".ai-composer-field:focus-within"):
+              if marker not in css:
+                  raise SystemExit(f"AI Studio is missing the unified visual system: {marker}")
+          for marker in ("--bg:#17111c", "--purple:#ff865c", "rgba(119,33,111"):
+              if marker not in status_html:
+                  raise SystemExit(f"Status page is missing COSMIC colors: {marker}")
+          if "server-chat-shell-v2" not in sw or "'/ubuntu-cosmic.css'" not in sw:
+              raise SystemExit("The service worker must cache the updated theme under a new cache version.")
+          if '"theme_color": "#77216f"' not in manifest:
+              raise SystemExit("PWA theme color does not match the app branding.")
+          PY
       - name: Validate web app manifest
         run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
