@@ -131,6 +131,12 @@ jobs:
           for marker in ('class="sidebar-brand"', 'class="sidebar-section-label"', 'class="sidebar-dock"', 'class="sidebar-footer"', 'data-channel="general"', 'href="/status.html"'):
               if marker not in html:
                   raise SystemExit(f"Missing redesigned navigation item: {marker}")
+          for marker in ('id="accentPaletteToggle"', 'id="accentPalettePanel"', "const ACCENT_PALETTES =", "localStorage.setItem('chatAccentPalette'"):
+              if marker not in html:
+                  raise SystemExit(f"Missing local accent theme picker: {marker}")
+          for marker in ('html[data-accent="ubuntu"]', 'html[data-accent="arctic"]', 'html[data-accent="matrix"]', 'html[data-accent="rose"]', '--brand-gradient', '.accent-palette-panel'):
+              if marker not in css:
+                  raise SystemExit(f"Missing selectable accent palette styling: {marker}")
           for marker in ("--ubuntu-orange:#e95420", "--cosmic-purple:#77216f", "#channelNav{", "header::before", ".sidebar-dock", 'body[data-room="ai"] #aiStudioRoot', "@media(max-width:1000px)", "@media(prefers-reduced-motion:reduce)", "body.party-mode #log"):
               if marker not in css:
                   raise SystemExit(f"Missing responsive COSMIC design rule: {marker}")
