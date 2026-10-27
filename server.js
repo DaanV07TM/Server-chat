@@ -215,7 +215,7 @@ const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Images appear in chat immediately and moderators can review them, but manual review cannot prevent harmful or illegal images from being seen before a moderator acts. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
 const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
-const rooms = {}, timeouts = {}, strikes = {};   // everything lives in memory only; no IPs, no accounts
+const rooms = {}, timeouts = {}, strikes = {};   // chat history, moderation state and temporary accounts live in memory only
 let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
@@ -1497,7 +1497,9 @@ function scryptPassword(password, salt) {
 }
 
 function allowAuthAttempt(socket) {
-  const key = String(socket.handshake.address || 'unknown').slice(0, 100);
+  const forwardedFor = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
+  const forwardedAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : '';
+  const key = String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100);
   const now = Date.now();
   const attempts = (AUTH_ATTEMPTS.get(key) || []).filter(time => now - time < AUTH_WINDOW_MS);
   if (attempts.length >= AUTH_MAX_ATTEMPTS) {
@@ -1516,7 +1518,9 @@ function allowAuthAttempt(socket) {
 }
 
 function clearAuthAttempts(socket) {
-  AUTH_ATTEMPTS.delete(String(socket.handshake.address || 'unknown').slice(0, 100));
+  const forwardedFor = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
+  const forwardedAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : '';
+  AUTH_ATTEMPTS.delete(String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100));
 }
 
 function issueTemporaryAccountSession(socket, account, sessionToken = '') {
@@ -1653,7 +1657,7 @@ io.on('connection', (socket) => {
     const sessionToken = socket.data.authSessionToken;
     const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
     if (sessionToken) ACCOUNT_SESSIONS.delete(sessionToken);
-    if (accountKey) console.log('[accounts] temporary account logged out: ' + accountKey);
+    if (accountKey) console.log('[accounts] temporary account logged out.');
 
     const tokensToRevoke = new Set();
     for (const client of io.sockets.sockets.values()) {
