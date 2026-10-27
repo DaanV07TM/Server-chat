@@ -1087,7 +1087,7 @@ function start() {
   });
   $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
-    link.href = '/?room=' + encodeURIComponent(link.dataset.channel) + location.hash;
+    link.href = '/?room=' + encodeURIComponent(link.dataset.channel) + (link.dataset.channel === 'ai' ? '' : location.hash);
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
