@@ -26,13 +26,13 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 .m.me b{color:rgba(255,255,255,.75)}
 .m.bot{align-self:center;background:none;border:1px dashed var(--line);color:var(--mute);font-size:14px}
 .m.admin-message,.m.announcement{align-self:center;width:min(96%,760px);max-width:100%;position:relative;border:3px solid #fff;color:#fff;background:linear-gradient(110deg,#f97316 0%,#dc2626 42%,#7e22ce 100%);border-radius:14px;box-shadow:0 0 0 3px rgba(249,115,22,.3),0 0 24px rgba(239,68,68,.75),0 0 46px rgba(147,51,234,.45);animation:adminAlert .8s ease-in-out 4;overflow-wrap:anywhere}
-.m.announcement{border-color:#fff4a3;background:linear-gradient(110deg,#db2777 0%,#9333ea 50%,#2563eb 100%);box-shadow:0 0 0 3px rgba(244,114,182,.35),0 0 28px rgba(217,70,239,.8),0 0 50px rgba(59,130,246,.48);padding:14px 16px 18px;animation:announcementPulse 1.7s ease-in-out infinite}.m.announcement::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:5px;transform-origin:left;background:linear-gradient(90deg,#fff36b,#fff,#67e8f9);animation:announcementCountdown var(--banner-life,120s) linear forwards}.m.party-event{border-color:#fff;background:linear-gradient(120deg,#7c3aed,#db2777,#f59e0b,#06b6d4,#7c3aed);background-size:300% 300%;box-shadow:0 0 0 4px rgba(250,204,21,.35),0 0 34px rgba(217,70,239,.75),0 0 58px rgba(6,182,212,.45);animation:partyColors 3s ease infinite,partyPulse 1.25s ease-in-out infinite}.m.party-event::before{content:"🎉 ✨ 🎊 🪩 🎉";display:block;text-align:center;margin:0 0 7px;font-size:clamp(20px,3vw,30px);letter-spacing:.08em;animation:partyDance .75s ease-in-out infinite alternate}.m.party-event .admin-tag{background:#fff36b;border-color:#fff;color:#3b0764}.m.party-event .message-content{display:block;text-align:center;font-size:clamp(16px,2.6vw,21px);font-weight:950;line-height:1.5;text-shadow:0 2px 4px rgba(0,0,0,.28)}
+.m.announcement{border-color:#fff4a3;background:linear-gradient(110deg,#db2777 0%,#9333ea 50%,#2563eb 100%);box-shadow:0 0 0 3px rgba(244,114,182,.35),0 0 28px rgba(217,70,239,.8),0 0 50px rgba(59,130,246,.48);padding:14px 16px 18px;animation:announcementPulse 1.7s ease-in-out infinite}.m.announcement::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:5px;transform-origin:left;background:linear-gradient(90deg,#fff36b,#fff,#67e8f9);animation:announcementCountdown var(--banner-life,120s) linear forwards}.m.party-event{border-color:#fff;background:linear-gradient(120deg,#7c3aed,#db2777,#f59e0b,#06b6d4,#7c3aed);background-size:300% 300%;box-shadow:0 0 0 4px rgba(250,204,21,.35),0 0 34px rgba(217,70,239,.75),0 0 58px rgba(6,182,212,.45);animation:partyColors 3s ease infinite,partyPulse 1.25s ease-in-out infinite}.m.party-event::before{content:"🎉 ✨ 🎊 🪩 🎉";display:block;text-align:center;margin:0 0 7px;font-size:clamp(20px,3vw,30px);letter-spacing:.08em;animation:partyDance .75s ease-in-out infinite alternate}.m.party-event .admin-tag{background:#fff36b;border-color:#fff;color:#3b0764}.m.party-event .message-content{display:block;text-align:center;font-size:clamp(16px,2.6vw,21px);font-weight:950;line-height:1.5;text-shadow:0 2px 4px rgba(0,0,0,.28)};body.party-mode #log{background-image:linear-gradient(135deg,rgba(217,70,239,.07),rgba(34,211,238,.09),rgba(250,204,21,.06));animation:partyScreenShake 1.7s ease-in-out infinite;transform-origin:center center}body.party-mode #log>.m:not(.party-event):not(.pinned-info){animation:partyChatDance 1.25s ease-in-out infinite}body.party-mode #log>.m:nth-child(3n){animation-delay:-.37s}body.party-mode #log>.m:nth-child(3n+1){animation-delay:-.72s}.party-confetti-layer{position:fixed;inset:0;z-index:1000;overflow:hidden;pointer-events:none;contain:layout paint}.party-confetti-piece{position:absolute;top:-24px;width:9px;height:14px;border-radius:2px;background:hsl(var(--confetti-hue),92%,62%);opacity:.96;will-change:transform;animation:partyConfettiFall var(--confetti-duration,5s) cubic-bezier(.2,.65,.4,1) forwards}.party-confetti-piece:nth-child(3n){width:6px;height:8px;border-radius:50%}.party-confetti-piece:nth-child(4n){width:5px;height:18px}@keyframes partyScreenShake{0%,100%{transform:translate3d(0,0,0) rotate(0)}12%{transform:translate3d(-2px,1px,0) rotate(-.12deg)}24%{transform:translate3d(2px,-1px,0) rotate(.12deg)}36%{transform:translate3d(-1px,-1px,0) rotate(0)}48%{transform:translate3d(1px,2px,0) rotate(-.08deg)}60%{transform:translate3d(-2px,0,0) rotate(.08deg)}72%{transform:translate3d(2px,1px,0) rotate(0)}84%{transform:translate3d(-1px,0,0) rotate(-.06deg)}}@keyframes partyChatDance{0%,100%{transform:translate3d(0,0,0) rotate(0)}25%{transform:translate3d(0,-3px,0) rotate(-.65deg)}50%{transform:translate3d(0,1px,0) rotate(.55deg)}75%{transform:translate3d(0,-2px,0) rotate(-.35deg)}}@keyframes partyConfettiFall{0%{transform:translate3d(0,-5vh,0) rotate(0deg);opacity:0}8%{opacity:1}100%{transform:translate3d(var(--confetti-drift,40px),110vh,0) rotate(720deg);opacity:.1}}@keyframes partyDance{from{transform:rotate(-3deg) scale(.96)}to{transform:rotate(3deg) scale(1.06)}}
 .admin-tag{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:0 0 9px;padding:7px 10px;border:2px solid #fff;border-radius:8px;background:#fff200;color:#171717;font-size:14px;font-weight:1000;letter-spacing:.07em;line-height:1.4;text-align:center;text-transform:uppercase;text-shadow:none;box-shadow:0 2px 0 rgba(0,0,0,.22)}
 .m.admin-message b{color:#fff;font-size:13px}
 .m.admin-message>span,.m.announcement>span{display:block;font-size:17px;font-weight:700;line-height:1.5;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .m.announcement .admin-tag{background:#fff4a3;border-color:#fff;color:#3b0764}
 @keyframes adminAlert{0%,100%{filter:saturate(1);transform:scale(1);box-shadow:0 0 0 3px rgba(249,115,22,.3),0 0 24px rgba(239,68,68,.75),0 0 46px rgba(147,51,234,.45)}50%{filter:saturate(1.6);transform:scale(1.012);box-shadow:0 0 0 5px rgba(255,242,0,.7),0 0 34px rgba(255,80,50,1),0 0 58px rgba(147,51,234,.8)}}@keyframes announcementPulse{0%,100%{transform:scale(1);filter:saturate(1);box-shadow:0 0 0 3px rgba(244,114,182,.35),0 0 28px rgba(217,70,239,.8),0 0 50px rgba(59,130,246,.48)}50%{transform:scale(1.01);filter:saturate(1.35);box-shadow:0 0 0 5px rgba(255,242,0,.38),0 0 36px rgba(217,70,239,.92),0 0 60px rgba(59,130,246,.62)}}@keyframes announcementCountdown{to{transform:scaleX(0)}}@keyframes partyColors{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes partyPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.012)}}@keyframes partyDance{from{transform:rotate(-2deg) scale(.98)}to{transform:rotate(2deg) scale(1.04)}}
-@media(prefers-reduced-motion:reduce){.m.admin-message,.m.announcement,.m.party-event,.m.party-event::before{animation:none;transform:none}}
+@media(prefers-reduced-motion:reduce){.m.admin-message,.m.announcement,.m.party-event,.m.party-event::before,body.party-mode #log,body.party-mode #log>.m:not(.party-event):not(.pinned-info){animation:none!important;transform:none!important}.party-confetti-piece{animation:none!important;display:none}}
 .m.bot span{white-space:pre-wrap}
 /* Global admin announcements float above every channel, including the isolated AI Studio. */
 .admin-quicknav{position:sticky;top:0;z-index:4;display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding:9px 0 11px;margin:0 0 12px;background:var(--panel);border-bottom:1px solid var(--line);scrollbar-width:thin}.admin-quicknav button{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--ink);background:var(--bg);font:800 11px/1.15 system-ui,sans-serif;cursor:pointer;white-space:nowrap}.admin-quicknav button:hover,.admin-quicknav button:focus-visible{border-color:var(--accent);color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.12)}#admbody .sec{scroll-margin-top:70px}
@@ -1100,6 +1100,44 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+  // Party effects are local, CSS-driven and strictly bounded: max 24 confetti pieces, no animation loops in JS.
+  const partyConfettiLayer = document.createElement('div');
+  partyConfettiLayer.className = 'party-confetti-layer';
+  partyConfettiLayer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(partyConfettiLayer);
+  let partyModeTimer = null, activePartyId = '';
+  const prefersReducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function stopPartyMode() {
+    if (partyModeTimer) clearTimeout(partyModeTimer);
+    partyModeTimer = null;
+    activePartyId = '';
+    document.body.classList.remove('party-mode');
+    partyConfettiLayer.replaceChildren();
+  }
+  function startPartyMode(message) {
+    if (!message || message.eventType !== 'party') return;
+    const id = String(message.announcementId || message.t || 'party-event');
+    if (id === activePartyId && document.body.classList.contains('party-mode')) return;
+    if (partyModeTimer) clearTimeout(partyModeTimer);
+    activePartyId = id;
+    document.body.classList.add('party-mode');
+    partyModeTimer = setTimeout(stopPartyMode, Math.max(1000, FLASH_BANNER_MS - Math.max(0, Date.now() - Number(message.t || Date.now()))));
+    partyConfettiLayer.replaceChildren();
+    if (prefersReducedMotion()) return;
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < 24; i++) {
+      const piece = document.createElement('i');
+      piece.className = 'party-confetti-piece';
+      piece.style.left = (2 + Math.random() * 96) + '%';
+      piece.style.setProperty('--confetti-hue', String(Math.floor(Math.random() * 360)));
+      piece.style.setProperty('--confetti-drift', (Math.round(Math.random() * 180 - 90)) + 'px');
+      piece.style.setProperty('--confetti-duration', (4.5 + Math.random() * 2.5) + 's');
+      piece.style.animationDelay = (Math.random() * 0.8) + 's';
+      piece.addEventListener('animationend', () => piece.remove(), { once: true });
+      fragment.appendChild(piece);
+    }
+    partyConfettiLayer.appendChild(fragment);
+  }
   // Admin announcements are rendered in the chat log, never in a dismissible floating overlay.
   let alertAudioContext = null, lastPlayedAlarmId = '';
   function playAdminAlarm(message) {
@@ -2181,6 +2219,7 @@ function start() {
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isPartyEvent = m.eventType === 'party';
+    if (isPartyEvent) startPartyMode(m);
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
     const isOwnMessage = m.own === true || m.id === socket.id;
     const isPinnedInfo = m.pinned === true;
@@ -2379,6 +2418,7 @@ function start() {
     messageRenderQueue.then(updateMessageSearch).catch(() => {});
   });
   socket.on('server:party-stop', () => {
+    stopPartyMode();
     log.querySelectorAll('.m.party-event').forEach(node => node.remove());
     if (activeFlashBanner && activeFlashBanner.classList.contains('party-event')) {
       if (activeFlashTimer) clearTimeout(activeFlashTimer);
@@ -2387,6 +2427,8 @@ function start() {
     updateMessageSearch();
   });
   socket.on('msg', m => {
+    if (m && m.eventType === 'party') startPartyMode(m);
+    if (m && m.eventType === 'party-end') stopPartyMode();
     if (m && m.announcement) playAdminAlarm(m);
     // In #announcements use the archived copy, not the duplicate short-lived global banner.
     if (room === 'announcements' && m && m.announcement) return;
