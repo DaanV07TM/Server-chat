@@ -102,6 +102,7 @@
       updateStatus(statusText, state.available);
       if (!status.enabled) showModeNotice('The server administrator has temporarily paused text AI. Your private conversation history has not been deleted.', true, 'warning');
       else if (!status.configured) showModeNotice('Text AI is not configured on the server yet. Your prompt will not be sent until the provider is configured.', true, 'warning');
+      else if ($('aiModeNotice').classList.contains('warning')) showModeNotice('', false);
       syncComposer();
     } catch (_) {
       updateStatus('AI service unavailable', false);
@@ -474,6 +475,9 @@
       $('aiInput').dispatchEvent(new Event('input'));
     }
   });
+
+  // Keep the status current when an administrator pauses/resumes AI from another panel or tab.
+  setInterval(() => { if (!state.sharedView) checkStatus(); }, 20000);
 
   window.addEventListener('server-chat:account-ready', () => {
     if (!state.sharedView) {
