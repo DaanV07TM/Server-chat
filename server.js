@@ -3121,6 +3121,7 @@ io.on('connection', (socket) => {
     if (!Number.isSafeInteger(mid) || !Number.isSafeInteger(optionIndex)) return;
     const message = (rooms[room] || []).find(item => item.mid === mid && item.poll);
     if (!message || message.poll.closed || optionIndex < 0 || optionIndex >= message.poll.options.length) return;
+    socket.data.lastPollVoteAt = now;
     const voterKey = key();
     message.pollVotes ||= Object.create(null);
     const hadVote = Object.prototype.hasOwnProperty.call(message.pollVotes, voterKey);
@@ -3137,7 +3138,6 @@ io.on('connection', (socket) => {
     message.pollVotes[voterKey] = optionIndex;
     message.poll.options[optionIndex].votes = (message.poll.options[optionIndex].votes || 0) + 1;
     message.poll.totalVotes = Object.keys(message.pollVotes).length;
-    socket.data.lastPollVoteAt = now;
     io.to(room).emit('poll:state', { mid, poll: message.poll });
     const quiz = message.poll.kind === 'quiz';
     const correct = quiz && Number(message.pollAnswerIndex) === optionIndex;
