@@ -34,7 +34,7 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 
 ## Administrator access and global alerts
 
-The login screen includes a separate **Admin** option. Enter the `ADMIN_PASSWORD` configured in the hosting environment to sign in directly as the administrator; this does **not** create a temporary user account. Admin sessions are held in memory and expire when the server process restarts. Keep `ADMIN_PASSWORD` private and use a strong value.
+There is no separate Admin button. Use the ordinary **Log in** form and enter the configured `ADMIN_PASSWORD` into the password field (the username field can contain a valid placeholder such as `admin`). The server recognizes that password before looking up a temporary account and creates an administrator session directly; it does **not** create a temporary user account. Admin sessions are held in memory and expire when the server process restarts. Keep `ADMIN_PASSWORD` private and use a strong value.
 
 The admin panel now has a jump navigation, a **Global Announcement Studio**, and an **AI Control Center**. Normal global announcements display an animated banner over every connected channel, including AI Studio, and are archived in `#announcements`. The alarm announcement option asks browsers to play a short alert tone and uses a brighter animated banner. Browser autoplay restrictions, muted device volume, or disabled audio can still prevent a sound from being heard; users can enable audio or replay the tone from the banner. The visual announcement does not depend on audio working.
 
