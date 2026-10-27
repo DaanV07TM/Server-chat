@@ -319,8 +319,12 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   const accountConversationChars = accountConversations
     ? [...accountConversations.values()].reduce((sum, item) => sum + item.messages.reduce((part, message) => part + String(message.content || '').length, 0), 0)
     : 0;
-  if (currentConversationChars + prompt.length > AI_MAX_CHARS_PER_CONVERSATION ||
-      accountConversationChars + prompt.length > AI_MAX_CHARS_PER_ACCOUNT) {
+  const replyCharBudget = Math.min(
+    16000,
+    AI_MAX_CHARS_PER_CONVERSATION - currentConversationChars - prompt.length,
+    AI_MAX_CHARS_PER_ACCOUNT - accountConversationChars - prompt.length
+  );
+  if (replyCharBudget < 256) {
     return res.status(429).json({ error: 'Your temporary AI history reached its storage limit. Delete an old conversation to make room.' });
   }
   globalRecent.push(now);
@@ -375,7 +379,7 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
       conversation.messages = conversation.messages.filter(message => message !== userMessage);
       return res.status(502).json({ error: 'The AI returned an empty answer. Please try again.' });
     }
-    conversation.messages.push({ role: 'assistant', content: reply.slice(0, 16000), createdAt: Date.now() });
+    conversation.messages.push({ role: 'assistant', content: reply.slice(0, replyCharBudget), createdAt: Date.now() });
     conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = Date.now();
     return res.status(200).json({ reply: reply.slice(0, 16000), conversation: aiPublicConversation(conversation) });
@@ -421,6 +425,14 @@ app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (r
       conversationTotal + item.messages.filter(message => message.kind === 'image').length, 0), 0);
   if (globalStoredImages >= AI_IMAGE_MAX_STORED_TOTAL) {
     return res.status(429).json({ error: 'The shared temporary image-storage limit is full. Delete an old AI conversation or try later.' });
+  }
+  const currentConversationChars = conversation.messages.reduce((sum, message) => sum + String(message.content || '').length, 0);
+  const accountConversationChars = [...accountConversations.values()].reduce((sum, item) =>
+    sum + item.messages.reduce((part, message) => part + String(message.content || '').length, 0), 0);
+  const imageTextCost = prompt.length * 2 + 80;
+  if (currentConversationChars + imageTextCost > AI_MAX_CHARS_PER_CONVERSATION ||
+      accountConversationChars + imageTextCost > AI_MAX_CHARS_PER_ACCOUNT) {
+    return res.status(429).json({ error: 'Your temporary AI history reached its storage limit. Delete an old conversation to make room.' });
   }
 
   const now = Date.now();
