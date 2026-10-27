@@ -462,6 +462,70 @@ button:active:not(:disabled){transform:translateY(0)}
 @keyframes adminMessageShine{0%,35%{transform:translateX(-50%)}70%,100%{transform:translateX(45%)}}
 @keyframes adminChatGlow{0%,100%{box-shadow:0 8px 26px rgba(91,33,182,.24),0 0 0 2px rgba(103,232,249,.1)}50%{box-shadow:0 10px 30px rgba(190,24,93,.28),0 0 0 3px rgba(103,232,249,.18)}}
 @media(prefers-reduced-motion:reduce){.m.admin-message:not(.announcement),.m.admin-message:not(.announcement)::before{animation:none!important}}
+
+/* Admin console viewport overlay: always above the app's fixed channel navigation. */
+#adm.admin-window-overlay{position:fixed!important;inset:0!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;margin:0!important;padding:clamp(8px,1.4vh,18px)!important;z-index:2147483000!important;transform:none!important;box-sizing:border-box;align-items:center;justify-content:center}
+#adm.admin-window-overlay[hidden]{display:none!important}body.admin-console-open{overflow:hidden!important}
+#adm .box.admin-window{width:min(1530px,97vw)!important;max-width:min(1530px,97vw)!important;height:min(94vh,1060px)!important;height:min(94dvh,1060px)!important;max-height:96dvh!important;padding:0!important;margin:auto!important;overflow:hidden!important;position:relative;flex:0 1 auto}
+#adm #admbody{min-width:0;min-height:0;flex:1 1 auto;width:100%;overflow:hidden!important}
+#adm .admin-windows-desktop{position:relative;isolation:isolate;display:grid;grid-template-rows:minmax(0,1fr) 47px;flex:1;min-width:0;min-height:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(ellipse at 80% 20%,rgba(99,102,241,.3),transparent 35%),radial-gradient(ellipse at 15% 90%,rgba(8,145,178,.22),transparent 35%),linear-gradient(135deg,#0d1429,#172344 46%,#182f4b);color:#eef2ff}
+#adm .admin-desktop-home{position:relative;min-height:0;overflow:auto;padding:clamp(18px,3vw,36px);background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:34px 34px}
+#adm .admin-desktop-home[hidden],#adm .admin-app-window[hidden],#adm .admin-app-panel[hidden]{display:none!important}
+#adm .admin-desktop-welcome{max-width:900px;margin:2px 0 24px;text-shadow:0 2px 14px rgba(0,0,0,.25)}
+#adm .admin-desktop-eyebrow{font:900 10px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.17em;color:#a5b4fc}
+#adm .admin-desktop-welcome h3{margin:8px 0 6px;color:#fff;font-size:clamp(26px,3vw,39px);font-weight:850;letter-spacing:-.045em}
+#adm .admin-desktop-welcome>p{margin:0;color:#cbd5e1;font-size:13px}
+#adm .admin-desktop-tip{display:flex;align-items:center;gap:10px;max-width:660px;margin-top:17px;padding:11px 13px;border:1px solid rgba(191,219,254,.2);border-radius:11px;background:rgba(15,23,42,.35);color:#cbd5e1;font-size:11px;line-height:1.5}
+#adm .admin-desktop-tip>span:first-child{display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border-radius:8px;background:rgba(129,140,248,.2);color:#c4b5fd;font-weight:900}
+#adm .admin-desktop-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px;align-content:start;max-width:1090px}
+#adm .admin-desktop-icon-button{display:flex!important;flex-direction:column;align-items:center;gap:8px;min-width:0;min-height:138px;margin:0!important;padding:13px 8px 11px!important;border:1px solid transparent!important;border-radius:13px!important;background:rgba(15,23,42,.13)!important;color:#f8fafc!important;text-align:center;box-shadow:none!important;font:inherit!important;transition:background .15s,border-color .15s,transform .15s!important}
+#adm .admin-desktop-icon-button:hover,#adm .admin-desktop-icon-button:focus-visible{background:rgba(255,255,255,.085)!important;border-color:rgba(191,219,254,.35)!important;transform:translateY(-2px)!important;outline:2px solid transparent;box-shadow:0 5px 20px rgba(0,0,0,.15)!important}
+#adm .admin-desktop-icon{display:grid;place-items:center;width:54px;height:54px;flex:0 0 54px;border:1px solid rgba(255,255,255,.3);border-radius:16px;background:linear-gradient(145deg,#6366f1,#8b5cf6);color:#fff;font-size:27px;box-shadow:0 9px 22px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.25)}
+#adm .admin-desktop-icon.indigo,#adm .admin-active-app-icon.indigo{background:linear-gradient(145deg,#6366f1,#8b5cf6)}
+#adm .admin-desktop-icon.green,#adm .admin-active-app-icon.green{background:linear-gradient(145deg,#059669,#34d399)}
+#adm .admin-desktop-icon.cyan,#adm .admin-active-app-icon.cyan{background:linear-gradient(145deg,#0891b2,#22d3ee)}
+#adm .admin-desktop-icon.blue,#adm .admin-active-app-icon.blue{background:linear-gradient(145deg,#2563eb,#38bdf8)}
+#adm .admin-desktop-icon.pink,#adm .admin-active-app-icon.pink{background:linear-gradient(145deg,#db2777,#fb7185)}
+#adm .admin-desktop-icon.violet,#adm .admin-active-app-icon.violet{background:linear-gradient(145deg,#6d28d9,#a78bfa)}
+#adm .admin-desktop-icon.orange,#adm .admin-active-app-icon.orange{background:linear-gradient(145deg,#c2410c,#fb923c)}
+#adm .admin-desktop-icon.fuchsia,#adm .admin-active-app-icon.fuchsia{background:linear-gradient(145deg,#a21caf,#e879f9)}
+#adm .admin-desktop-icon.red,#adm .admin-active-app-icon.red{background:linear-gradient(145deg,#b91c1c,#fb7185)}
+#adm .admin-desktop-icon.slate,#adm .admin-active-app-icon.slate{background:linear-gradient(145deg,#334155,#94a3b8)}
+#adm .admin-desktop-icon.amber,#adm .admin-active-app-icon.amber{background:linear-gradient(145deg,#b45309,#fbbf24)}
+#adm .admin-desktop-icon.purple,#adm .admin-active-app-icon.purple{background:linear-gradient(145deg,#7c3aed,#c084fc)}
+#adm .admin-desktop-icon.gray,#adm .admin-active-app-icon.gray{background:linear-gradient(145deg,#374151,#9ca3af)}
+#adm .admin-desktop-icon-label{display:block;width:100%;font-size:12px;font-weight:800;line-height:1.25;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+#adm .admin-desktop-icon-button small{display:block;color:#cbd5e1;font-size:9px;line-height:1.35;max-width:100%;overflow-wrap:anywhere}
+#adm .admin-app-window{display:flex;flex-direction:column;min-width:0;min-height:0;margin:clamp(9px,1.5vw,18px);overflow:hidden;border:1px solid rgba(191,219,254,.28);border-radius:15px;background:var(--bg);color:var(--ink);box-shadow:0 22px 70px rgba(0,0,0,.3)}
+#adm .admin-app-titlebar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;padding:10px 13px;border-bottom:1px solid rgba(148,163,184,.26);background:var(--panel)}
+#adm .admin-active-app-identity{display:flex;align-items:center;gap:10px;min-width:0}
+#adm .admin-active-app-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:11px;color:#fff;font-size:19px;box-shadow:0 4px 13px rgba(0,0,0,.14)}
+#adm .admin-active-app-copy{min-width:0}#adm .admin-active-app-title,#adm .admin-active-app-subtitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#adm .admin-active-app-title{font-size:13px;font-weight:900;color:var(--ink)}#adm .admin-active-app-subtitle{margin-top:3px;font-size:10px;color:var(--mute)}
+#adm .admin-app-window-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#adm .admin-window-toolbar-button{display:inline-flex!important;align-items:center;justify-content:center;width:auto!important;min-height:32px;margin:0!important;padding:7px 10px!important;border:1px solid var(--line)!important;border-radius:8px!important;background:var(--bg)!important;color:var(--ink)!important;font:800 10px/1.2 system-ui,sans-serif!important;box-shadow:none!important}
+#adm .admin-window-toolbar-button.refresh{color:var(--accent)!important}#adm .admin-window-toolbar-button.close{width:32px!important;padding:5px!important;color:var(--mute)!important;font-size:18px!important}
+#adm .admin-window-toolbar-button:hover{border-color:var(--accent)!important;background:rgba(99,102,241,.08)!important}
+#adm .admin-app-content{min-width:0;min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:clamp(12px,2vw,22px);scrollbar-gutter:stable}
+#adm .admin-app-panel{max-width:1250px;margin:0 auto;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+#adm .admin-app-panel>.sec{margin:0 0 13px;padding:11px 13px;border:1px solid rgba(99,102,241,.17);border-left:3px solid #6366f1;border-radius:9px;background:linear-gradient(100deg,rgba(99,102,241,.09),rgba(139,92,246,.025));color:var(--ink);font-size:11px;letter-spacing:.1em}
+#adm .admin-app-panel>p{line-height:1.55}
+#adm .admin-app-overview .admin-overview-heading{margin:0 0 18px;padding:2px 2px 15px;border-bottom:1px solid var(--line)}
+#adm .admin-app-overview .admin-overview-heading h3{font-size:clamp(19px,2.2vw,27px)}
+#adm .admin-app-overview .admin-stats{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:0}
+#adm .admin-app-overview .admin-stats .stat{padding:13px;border-radius:12px;background:var(--panel)}
+#adm .admin-app-overview .admin-stats .stat b{font-size:clamp(20px,2vw,27px)}
+#adm .admin-desktop-taskbar{display:flex;align-items:center;gap:7px;min-width:0;padding:6px 12px;border-top:1px solid rgba(255,255,255,.13);background:rgba(10,16,34,.78);box-shadow:0 -4px 18px rgba(0,0,0,.12);backdrop-filter:blur(16px)}
+#adm .admin-taskbar-start{display:flex!important;align-items:center;gap:7px;width:auto!important;min-height:33px;margin:0!important;padding:6px 11px!important;border:1px solid rgba(165,180,252,.28)!important;border-radius:8px!important;background:rgba(99,102,241,.19)!important;color:#eef2ff!important;font-size:11px!important;font-weight:850!important}
+#adm .admin-windows-mark{font-size:20px;line-height:1;color:#a5b4fc}
+#adm .admin-taskbar-divider{height:25px;width:1px;margin:0 2px;background:rgba(255,255,255,.15)}
+#adm .admin-taskbar-app{display:grid!important;place-items:center;width:33px!important;height:33px;min-height:33px;padding:0!important;margin:0!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:#fff!important;font-size:17px!important}
+#adm .admin-taskbar-app:hover,#adm .admin-taskbar-app.is-active{border-color:rgba(165,180,252,.2)!important;background:rgba(255,255,255,.13)!important}
+#adm .admin-taskbar-spacer{flex:1}#adm .admin-taskbar-live{display:flex;align-items:center;gap:7px;white-space:nowrap;color:#bbf7d0;font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace}
+#adm .admin-taskbar-live i{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 9px rgba(74,222,128,.6)}
+#adm .admin-taskbar-clock{margin-left:10px;padding-left:10px;border-left:1px solid rgba(255,255,255,.14);color:#cbd5e1;font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.1em;white-space:nowrap}
+#adm #admmsg.admin-window-statusbar{min-height:31px;padding:7px 14px;font-size:10px}
+@media(max-width:720px){#adm .box.admin-window{width:98vw!important;max-width:98vw!important;height:96dvh!important;max-height:96dvh!important}#adm .admin-desktop-home{padding:16px}#adm .admin-desktop-welcome{margin-bottom:17px}#adm .admin-desktop-tip{font-size:10px}#adm .admin-desktop-icons{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}#adm .admin-desktop-icon-button{min-height:120px;padding:10px 5px!important}#adm .admin-desktop-icon{width:45px;height:45px;flex-basis:45px;font-size:23px;border-radius:13px}#adm .admin-desktop-icon-button small{font-size:8px}#adm .admin-app-window{margin:7px}#adm .admin-active-app-subtitle{max-width:130px}#adm .admin-window-toolbar-button{padding:7px!important;font-size:9px!important}#adm .admin-taskbar-live{display:none}#adm .admin-taskbar-clock{margin-left:auto}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -3563,133 +3627,166 @@ function start() {
         ? 'Moderate round-trip latency from this browser to the server.'
         : 'High round-trip latency from this browser to the server.';
   });
-  function meterHtml(label, percent, detail) {
+  function meterHtml(label, percent, detail, metricKey) {
     const value = Number.isFinite(Number(percent)) ? Math.max(0, Number(percent)) : 0;
     const width = Math.min(100, value);
     const tone = value >= 95 ? 'critical' : value >= 80 ? 'warn' : '';
-    return '<div class="load-card"><div class="load-head"><b>' + h(label) + '</b><strong>' + Math.round(value) + '%</strong></div>' +
-      '<div class="load-track"><div class="load-fill ' + tone + '" style="width:' + width + '%"></div></div>' +
-      '<div class="load-detail">' + h(detail) + '</div></div>';
+    return '<div class="load-card" data-admin-metric="' + h(metricKey) + '"><div class="load-head"><b>' + h(label) + '</b><strong data-admin-metric-value>' + Math.round(value) + '%</strong></div>' +
+      '<div class="load-track"><div class="load-fill ' + tone + '" data-admin-metric-bar style="width:' + width + '%"></div></div>' +
+      '<div class="load-detail" data-admin-metric-detail>' + h(detail) + '</div></div>';
   }
-  function layoutAdminDesktop(previousPanel = 'overview', previousMainScroll = 0, previousSideScroll = 0) {
+  const ADMIN_DESKTOP_APPS = [
+    { key:'overview', title:'Overview', subtitle:'Server status at a glance', icon:'📊', color:'indigo' },
+    { key:'performance', title:'Performance Monitor', subtitle:'CPU, RAM and load', icon:'📈', color:'green' },
+    { key:'connection', title:'Connection', subtitle:'Ping and hosting details', icon:'🌐', color:'cyan' },
+    { key:'screen-shares', title:'Screen Shares', subtitle:'Monitor active shares', icon:'🖥️', color:'blue' },
+    { key:'image-review', title:'Image Review', subtitle:'Review uploaded images', icon:'🖼️', color:'pink' },
+    { key:'chat', title:'Chat Controls', subtitle:'Moderation and room settings', icon:'💬', color:'violet' },
+    { key:'announcements', title:'Announcements', subtitle:'Broadcast to every channel', icon:'📣', color:'orange' },
+    { key:'events', title:'Live Events', subtitle:'Party Mode and maintenance', icon:'🎉', color:'fuchsia' },
+    { key:'reports', title:'Reports', subtitle:'Review user reports', icon:'🚩', color:'red' },
+    { key:'blocked-words', title:'Blocked Words', subtitle:'Manage chat filters', icon:'🛡️', color:'slate' },
+    { key:'alerts', title:'Notifications', subtitle:'Test external alerts', icon:'🔔', color:'amber' },
+    { key:'ai-studio', title:'AI Studio', subtitle:'Manage private AI chats', icon:'✨', color:'purple' },
+    { key:'logs', title:'Server Logs', subtitle:'Recent events and errors', icon:'📋', color:'gray' },
+    { key:'restart', title:'Restart Manager', subtitle:'Controlled server restart', icon:'↻', color:'blue' },
+    { key:'danger', title:'Danger Zone', subtitle:'Clear data and sign out', icon:'⚠️', color:'red' }
+  ];
+  function openAdminDesktopApp(key) {
+    const body = $('admbody');
+    const app = ADMIN_DESKTOP_APPS.find(item => item.key === key);
+    const panel = body && body.querySelector('.admin-app-panel[data-admin-panel="' + key + '"]');
+    const home = body && body.querySelector('.admin-desktop-home');
+    const win = body && body.querySelector('.admin-app-window');
+    if (!app || !panel || !home || !win) return;
+    home.hidden = true;
+    win.hidden = false;
+    win.dataset.activeApp = key;
+    body.querySelectorAll('.admin-app-panel').forEach(item => { item.hidden = item !== panel; });
+    const icon = win.querySelector('.admin-active-app-icon');
+    const title = win.querySelector('.admin-active-app-title');
+    const subtitle = win.querySelector('.admin-active-app-subtitle');
+    if (icon) { icon.textContent = app.icon; icon.className = 'admin-active-app-icon ' + app.color; }
+    if (title) title.textContent = app.title;
+    if (subtitle) subtitle.textContent = app.subtitle;
+    body.querySelectorAll('[data-taskbar-app]').forEach(button => button.classList.toggle('is-active', button.dataset.taskbarApp === key));
+  }
+  function showAdminDesktopHome() {
+    const body = $('admbody');
+    if (!body) return;
+    const home = body.querySelector('.admin-desktop-home');
+    const win = body.querySelector('.admin-app-window');
+    if (home) home.hidden = false;
+    if (win) { win.hidden = true; win.dataset.activeApp = ''; }
+    body.querySelectorAll('.admin-app-panel').forEach(item => { item.hidden = true; });
+    body.querySelectorAll('[data-taskbar-app]').forEach(button => button.classList.remove('is-active'));
+  }
+  function layoutAdminDesktop(previousPanel = 'home', previousScroll = 0) {
     const body = $('admbody');
     if (!body) return;
     const originalNodes = [...body.childNodes];
-    const oldQuickNav = body.querySelector('.admin-quicknav');
+    const quickNav = body.querySelector('.admin-quicknav');
     const stats = body.querySelector('.admin-stats');
     if (!stats) return;
-
-    const panelForTitle = title => {
+    const panelKey = title => {
       const value = String(title || '').toLowerCase();
-      if (value.includes('server load')) return 'server load';
-      if (value.includes('server connection')) return 'server connection';
-      if (value.includes('active screen shares')) return 'active screen shares';
-      if (value.includes('image activity')) return 'image activity';
+      if (value.includes('server load')) return 'performance';
+      if (value.includes('server connection')) return 'connection';
+      if (value.includes('active screen shares')) return 'screen-shares';
+      if (value.includes('image activity')) return 'image-review';
       if (value === 'chat') return 'chat';
-      if (value.includes('global announcement studio')) return 'global announcement studio';
-      if (value.includes('admin events')) return 'admin events';
+      if (value.includes('global announcement studio')) return 'announcements';
+      if (value.includes('admin events')) return 'events';
       if (value.includes('reports')) return 'reports';
-      if (value.includes('blocked words')) return 'blocked words';
+      if (value.includes('blocked words')) return 'blocked-words';
       if (value === 'alerts') return 'alerts';
-      if (value.includes('ai control center')) return 'ai control center';
-      if (value.includes('server logs')) return 'server logs';
-      if (value.includes('server reboot')) return 'server reboot';
-      if (value.includes('danger zone')) return 'danger zone';
+      if (value.includes('ai control center')) return 'ai-studio';
+      if (value.includes('server logs')) return 'logs';
+      if (value.includes('server reboot')) return 'restart';
+      if (value.includes('danger zone')) return 'danger';
       return 'overview';
     };
 
-    const workspace = document.createElement('div');
-    workspace.className = 'admin-desktop-shell';
-    const sidebar = document.createElement('aside');
-    sidebar.className = 'admin-desktop-sidebar';
-    const sidebarBrand = document.createElement('div');
-    sidebarBrand.className = 'admin-sidebar-brand';
-    sidebarBrand.innerHTML = '<span class="admin-sidebar-brand-icon">SC</span><span><b>CONTROL DESK</b><small>SERVER ADMINISTRATION</small></span>';
-    sidebar.appendChild(sidebarBrand);
-    const navCaption = document.createElement('div');
-    navCaption.className = 'admin-sidebar-caption';
-    navCaption.textContent = 'WORKSPACE';
-    sidebar.appendChild(navCaption);
-    const nav = document.createElement('nav');
-    nav.className = 'admin-desktop-nav';
-    nav.setAttribute('aria-label', 'Admin workspace');
-    const items = [
-      ['overview', 'Overview', '▦'],
-      ['server load', 'Performance', '◴'],
-      ['server connection', 'Connection', '⌁'],
-      ['active screen shares', 'Screen shares', '▣'],
-      ['image activity', 'Image review', '▧'],
-      ['chat', 'Chat controls', '☷'],
-      ['global announcement studio', 'Announcements', '✦'],
-      ['admin events', 'Live events', '✷'],
-      ['reports', 'Reports', '⚑'],
-      ['blocked words', 'Blocked words', '⊘'],
-      ['alerts', 'Alerts', '♢'],
-      ['ai control center', 'AI Studio', '✧'],
-      ['server logs', 'Server logs', '≡'],
-      ['server reboot', 'Restart', '↻'],
-      ['danger zone', 'Danger zone', '⚠']
-    ];
-    for (const [key, label, icon] of items) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'admin-nav-item' + (key === previousPanel ? ' is-active' : '');
-      button.dataset.adminJump = key;
-      const glyph = document.createElement('span');
-      glyph.className = 'admin-nav-glyph';
-      glyph.textContent = icon;
-      const name = document.createElement('span');
-      name.className = 'admin-nav-label';
-      name.textContent = label;
-      button.append(glyph, name);
-      nav.appendChild(button);
-    }
-    sidebar.appendChild(nav);
-    const sidebarFooter = document.createElement('div');
-    sidebarFooter.className = 'admin-sidebar-footer';
-    sidebarFooter.innerHTML = '<span class="admin-live-indicator"></span><span><b>SERVER LINK ACTIVE</b><small>Live status refresh · 5 sec</small></span>';
-    sidebar.appendChild(sidebarFooter);
-
-    const main = document.createElement('main');
-    main.className = 'admin-desktop-main';
     const overview = document.createElement('section');
-    overview.className = 'admin-desktop-card admin-overview-card';
+    overview.className = 'admin-app-panel admin-app-overview';
     overview.dataset.adminPanel = 'overview';
-    const overviewHeader = document.createElement('div');
-    overviewHeader.className = 'admin-overview-heading';
-    overviewHeader.innerHTML = '<div><span class="admin-overview-kicker">SERVER CONTROL CENTER / OVERVIEW</span><h3>Good to see you, Admin.</h3><p>Monitor service health, manage your community and launch server-wide events.</p></div><span class="admin-overview-orb" aria-hidden="true">✦</span>';
-    overview.appendChild(overviewHeader);
-    overview.appendChild(stats);
-    main.appendChild(overview);
-
+    const welcome = document.createElement('div');
+    welcome.className = 'admin-overview-heading';
+    welcome.innerHTML = '<div><span class="admin-overview-kicker">SERVER CONTROL CENTER / DESKTOP</span><h3>Welcome back, Admin.</h3><p>Open an app to manage the server. Live metrics update without rebuilding this workspace.</p></div><span class="admin-overview-orb" aria-hidden="true">✦</span>';
+    overview.append(welcome, stats);
+    const panels = [overview];
     let activePanel = null;
     for (const node of originalNodes) {
-      if (node === oldQuickNav || node === stats) continue;
+      if (node === quickNav || node === stats) continue;
       if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) continue;
       if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('sec')) {
         activePanel = document.createElement('section');
-        activePanel.className = 'admin-desktop-card';
-        activePanel.dataset.adminPanel = panelForTitle(node.textContent);
+        activePanel.className = 'admin-app-panel';
+        activePanel.dataset.adminPanel = panelKey(node.textContent);
         activePanel.appendChild(node);
-        main.appendChild(activePanel);
+        panels.push(activePanel);
       } else {
         (activePanel || overview).appendChild(node);
       }
     }
 
-    workspace.append(sidebar, main);
+    const workspace = document.createElement('div');
+    workspace.className = 'admin-windows-desktop';
+    const home = document.createElement('section');
+    home.className = 'admin-desktop-home';
+    home.setAttribute('aria-label', 'Admin apps desktop');
+    home.innerHTML = '<div class="admin-desktop-welcome"><div class="admin-desktop-eyebrow">SERVER CHAT OPERATING ENVIRONMENT</div><h3>Admin Desktop</h3><p>Choose an app to manage your server and community.</p><div class="admin-desktop-tip"><span>⌘</span><span>Open apps with one click. Your current app stays open while status updates arrive.</span></div></div>';
+    const icons = document.createElement('div');
+    icons.className = 'admin-desktop-icons';
+    icons.setAttribute('role', 'list');
+    for (const app of ADMIN_DESKTOP_APPS) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'admin-desktop-icon-button';
+      tile.dataset.adminDesktopApp = app.key;
+      tile.setAttribute('role', 'listitem');
+      tile.setAttribute('aria-label', 'Open ' + app.title);
+      const tileIcon = document.createElement('span');
+      tileIcon.className = 'admin-desktop-icon ' + app.color;
+      tileIcon.textContent = app.icon;
+      const label = document.createElement('span');
+      label.className = 'admin-desktop-icon-label';
+      label.textContent = app.title;
+      const sub = document.createElement('small');
+      sub.textContent = app.subtitle;
+      tile.append(tileIcon, label, sub);
+      icons.appendChild(tile);
+    }
+    home.appendChild(icons);
+
+    const win = document.createElement('section');
+    win.className = 'admin-app-window';
+    win.hidden = true;
+    win.dataset.activeApp = '';
+    const titlebar = document.createElement('div');
+    titlebar.className = 'admin-app-titlebar';
+    titlebar.innerHTML = '<div class="admin-active-app-identity"><span class="admin-active-app-icon indigo">📊</span><span class="admin-active-app-copy"><b class="admin-active-app-title">Overview</b><small class="admin-active-app-subtitle">Server status at a glance</small></span></div><div class="admin-app-window-actions"><button type="button" class="admin-window-toolbar-button" data-admin-desktop-home>▦ Desktop</button><button type="button" class="admin-window-toolbar-button refresh" data-admin-desktop-refresh title="Refresh app data">↻ Refresh</button><button type="button" class="admin-window-toolbar-button close" data-admin-desktop-home aria-label="Close app" title="Back to desktop">×</button></div>';
+    const content = document.createElement('div');
+    content.className = 'admin-app-content';
+    panels.forEach(panel => { panel.hidden = true; content.appendChild(panel); });
+    win.append(titlebar, content);
+
+    const taskbar = document.createElement('div');
+    taskbar.className = 'admin-desktop-taskbar';
+    taskbar.innerHTML = '<button type="button" class="admin-taskbar-start" data-admin-desktop-home><span class="admin-windows-mark">⊞</span><span>Start</span></button><span class="admin-taskbar-divider"></span><button type="button" class="admin-taskbar-app" data-admin-desktop-app="overview" data-taskbar-app="overview" title="Overview">📊</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="announcements" data-taskbar-app="announcements" title="Announcements">📣</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="events" data-taskbar-app="events" title="Live Events">🎉</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="ai-studio" data-taskbar-app="ai-studio" title="AI Studio">✨</button><div class="admin-taskbar-spacer"></div><span class="admin-taskbar-live"><i></i> Server connected</span><span class="admin-taskbar-clock">SERVER CHAT</span>';
+    workspace.append(home, win, taskbar);
     body.replaceChildren(workspace);
-    const activeNav = [...nav.querySelectorAll('.admin-nav-item')].find(button => button.dataset.adminJump === previousPanel);
-    if (activeNav) activeNav.classList.add('is-active');
-    main.scrollTop = Math.max(0, Number(previousMainScroll) || 0);
-    sidebar.scrollTop = Math.max(0, Number(previousSideScroll) || 0);
+    content.scrollTop = Math.max(0, Number(previousScroll) || 0);
+    if (previousPanel && previousPanel !== 'home') openAdminDesktopApp(previousPanel);
+    else showAdminDesktopHome();
   }
 
   function renderAdmin(st) {
     const oldAdminBody = $('admbody');
-    const previousPanel = oldAdminBody?.querySelector('.admin-nav-item.is-active')?.dataset.adminJump || 'overview';
-    const previousMainScroll = oldAdminBody?.querySelector('.admin-desktop-main')?.scrollTop || 0;
-    const previousSideScroll = oldAdminBody?.querySelector('.admin-desktop-sidebar')?.scrollTop || 0;
+    const oldHome = oldAdminBody?.querySelector('.admin-desktop-home');
+    const oldWindow = oldAdminBody?.querySelector('.admin-app-window');
+    const previousPanel = oldHome && !oldHome.hidden ? 'home' : (oldWindow?.dataset.activeApp || 'home');
+    const previousScroll = oldAdminBody?.querySelector('.admin-app-content')?.scrollTop || 0;
     const load = st.load || {};
     const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
     const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
@@ -3740,15 +3837,15 @@ function start() {
       '<button type="button" data-admin-jump="server logs">Logs</button>' +
       '<button type="button" data-admin-jump="danger zone">Danger zone</button>' +
       '</nav>' +
-      '<div class="admin-stats"><span class="stat"><b>' + st.online + '</b> online</span><span class="stat"><b>' + st.rooms + '</b> rooms</span><span class="stat"><b>' + st.messages + '</b> messages</span><span class="stat"><b>' + st.memory + '</b> MB RSS</span><span class="stat"><b>' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="admin-stats admin-server-stats"><span class="stat"><b data-admin-live-value="online">' + st.online + '</b> online</span><span class="stat"><b data-admin-live-value="rooms">' + st.rooms + '</b> rooms</span><span class="stat"><b data-admin-live-value="messages">' + st.messages + '</b> messages</span><span class="stat"><b data-admin-live-value="memory">' + st.memory + '</b> MB RSS</span><span class="stat"><b data-admin-live-value="timeouts">' + st.timeouts + '</b> timeouts</span></div>' +
       '<div class="sec">Server load</div>' +
-      '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '"><b>' + levelText + '</b><span>Refreshes every 5 seconds while this panel is open.</span></div>' +
+      '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '" data-admin-load-status><b>' + levelText + '</b><span>Live metrics update without rebuilding your desktop.</span></div>' +
       '<div class="load-grid">' +
-        meterHtml('CPU (one core = 100%)', load.cpuPct || 0, 'Node.js process CPU usage') +
+        meterHtml('CPU (one core = 100%)', load.cpuPct || 0, 'Node.js process CPU usage', 'cpu') +
         (hasContainerRam
-          ? meterHtml(memoryTitle, memoryPct, memoryDetail)
-          : '<div class="load-card"><div class="load-head"><b>Process RAM (RSS)</b><strong>' + (load.rssMB || 0) + ' MB</strong></div><div class="load-detail">Container RAM limit is unavailable, so no RAM percentage is shown.</div></div>') +
-        meterHtml('JavaScript heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit') +
+          ? meterHtml(memoryTitle, memoryPct, memoryDetail, 'ram')
+          : '<div class="load-card" data-admin-metric="ram"><div class="load-head"><b>Process RAM (RSS)</b><strong data-admin-metric-value>' + (load.rssMB || 0) + ' MB</strong></div><div class="load-detail" data-admin-metric-detail>Container RAM limit is unavailable, so no RAM percentage is shown.</div></div>') +
+        meterHtml('JavaScript heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit', 'heap') +
       '</div>' +
       '<div class="sec">Server connection</div>' +
       '<div class="connection-grid">' +
@@ -3785,8 +3882,8 @@ function start() {
       '<input id="blkIn" maxlength="30" placeholder="Word to block" aria-label="Word to block"> ' + B('Add', '/block ', '', '', '#blkIn') +
       '<div class="sec">Alerts</div><p>' + (st.channels.length ? 'Active: ' + h(st.channels.join(', ')) : 'Not set up yet (see the Render environment settings).') + '</p>' + B('Send test alert', '/notifytest', 'plain') +
       '<div class="sec">✦ AI CONTROL CENTER</div>' +
-      '<div class="load-status ' + (ai.enabled && ai.configured ? 'normal' : 'warn') + '"><b>' + (ai.enabled ? (ai.configured ? 'AI ONLINE' : 'AI ENABLED · PROVIDER NOT CONFIGURED') : 'AI PAUSED BY ADMIN') + '</b><span>Model: ' + h(ai.model || 'not configured') + ' · ' + (ai.conversations || 0) + ' private conversations · ' + (ai.shares || 0) + ' active share links</span></div>' +
-      '<div class="admin-stats"><span class="stat"><b>' + (ai.messages || 0) + '</b> AI messages</span><span class="stat"><b>' + (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300) + '</b> requests / 24h</span></div>' +
+      '<div class="load-status ' + (ai.enabled && ai.configured ? 'normal' : 'warn') + '" data-admin-ai-status><b>' + (ai.enabled ? (ai.configured ? 'AI ONLINE' : 'AI ENABLED · PROVIDER NOT CONFIGURED') : 'AI PAUSED BY ADMIN') + '</b><span>Model: ' + h(ai.model || 'not configured') + ' · ' + (ai.conversations || 0) + ' private conversations · ' + (ai.shares || 0) + ' active share links</span></div>' +
+      '<div class="admin-stats"><span class="stat"><b data-admin-live-value="aiMessages">' + (ai.messages || 0) + '</b> AI messages</span><span class="stat"><b data-admin-live-value="aiRequests">' + (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300) + '</b> requests / 24h</span></div>' +
       '<p>Pause the text AI without deleting anyone’s private conversation. The provider API key stays on the server.</p>' +
       B('↻ Refresh AI status', '/aistatus', 'plain') +
       B(ai.enabled ? '⏸ Pause AI' : '✦ Enable AI', ai.enabled ? '/aioff' : '/aion', ai.enabled ? 'red' : '', ai.enabled ? 'Pause text AI for all users? Existing conversations will be preserved.' : 'Enable text AI for all users? The provider still needs to be configured.') +
@@ -3805,10 +3902,10 @@ function start() {
       '<div class="sec">Danger zone</div>' +
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
       B('Log out', '/logout', 'plain');
-    layoutAdminDesktop(previousPanel, previousMainScroll, previousSideScroll);
+    layoutAdminDesktop(previousPanel, previousScroll);
     renderAdminImageReview();
   }
-  const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
+  const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; document.body.classList.remove('admin-console-open'); };
   socket.on('image:pending', data => {
     showToast('Image submitted for review. New uploads are visible in the room immediately and can be reviewed in the admin panel.', 'info', 8000);
   });
@@ -3871,13 +3968,69 @@ function start() {
     updateMusicAdminUI();
     if (!on) closeAdm();
   });
+  let adminDesktopRendered = false, adminForceRender = false;
+  function refreshAdminLiveMetrics(st) {
+    if (!st || !admOpen) return;
+    const body = $('admbody');
+    if (!body || !body.querySelector('.admin-windows-desktop')) return;
+    const text = (selector, value) => { const node = body.querySelector(selector); if (node) node.textContent = String(value); };
+    for (const key of ['online','rooms','messages','memory','timeouts']) text('[data-admin-live-value="' + key + '"]', st[key] ?? 0);
+    const ai = st.ai || {};
+    text('[data-admin-live-value="aiMessages"]', ai.messages || 0);
+    text('[data-admin-live-value="aiRequests"]', (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300));
+    const load = st.load || {};
+    const level = String(load.level || 'UNKNOWN').toLowerCase();
+    const levelText = level === 'normal' ? 'LOAD NORMAL' : level === 'high' ? 'HIGH LOAD — CHECK SERVER' : level === 'critical' ? 'CRITICAL LOAD — CHECK SERVER' : 'COLLECTING LOAD DATA';
+    const status = body.querySelector('[data-admin-load-status]');
+    if (status) {
+      status.classList.remove('normal','high','critical','unknown');
+      status.classList.add(['normal','high','critical'].includes(level) ? level : 'unknown');
+      const title = status.querySelector('b'); if (title) title.textContent = levelText;
+    }
+    const updateMeter = (key, percent, detail, rawValue) => {
+      const card = body.querySelector('[data-admin-metric="' + key + '"]');
+      if (!card) return;
+      const valueNode = card.querySelector('[data-admin-metric-value]'), bar = card.querySelector('[data-admin-metric-bar]'), detailNode = card.querySelector('[data-admin-metric-detail]');
+      const value = Number.isFinite(Number(percent)) ? Math.max(0, Number(percent)) : 0;
+      if (valueNode) valueNode.textContent = rawValue === undefined ? Math.round(value) + '%' : rawValue;
+      if (bar) { bar.style.width = Math.min(100, value) + '%'; bar.classList.toggle('warn', value >= 80 && value < 95); bar.classList.toggle('critical', value >= 95); }
+      if (detailNode && detail) detailNode.textContent = detail;
+    };
+    const ramAvailable = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
+    updateMeter('cpu', load.cpuPct || 0, 'Node.js process CPU usage');
+    updateMeter('ram', ramAvailable ? load.rssPct : 0,
+      ramAvailable ? (load.rssMB + ' MB RSS / ' + load.memoryLimitMB + ' MB container limit') : 'Container RAM limit is unavailable, so no RAM percentage is shown.',
+      ramAvailable ? undefined : ((load.rssMB || 0) + ' MB'));
+    updateMeter('heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit');
+    const aiStatus = body.querySelector('[data-admin-ai-status]');
+    if (aiStatus) {
+      aiStatus.classList.remove('normal','warn','high','critical','unknown');
+      aiStatus.classList.add(ai.enabled && ai.configured ? 'normal' : 'warn');
+      const title = aiStatus.querySelector('b'), detail = aiStatus.querySelector('span');
+      if (title) title.textContent = ai.enabled ? (ai.configured ? 'AI ONLINE' : 'AI ENABLED · PROVIDER NOT CONFIGURED') : 'AI PAUSED BY ADMIN';
+      if (detail) detail.textContent = 'Model: ' + (ai.model || 'not configured') + ' · ' + (ai.conversations || 0) + ' private conversations · ' + (ai.shares || 0) + ' active share links';
+    }
+  }
+
   socket.on('adm:state', st => {
     if (!admOpen) return;
     const a = document.activeElement;
-    if (!(a && a.tagName === 'INPUT' && $('adm').contains(a))) renderAdmin(st);   // don't interrupt typing
+    const editing = a && ['INPUT','TEXTAREA'].includes(a.tagName) && $('adm').contains(a);
+    if (!adminDesktopRendered || adminForceRender) {
+      if (editing) { refreshAdminLiveMetrics(st); return; }
+      adminForceRender = false;
+      adminDesktopRendered = true;
+      renderAdmin(st);
+      return;
+    }
+    // A five-second poll updates values in place; the active app DOM is never rebuilt by polling.
+    refreshAdminLiveMetrics(st);
   });
   $('admbtn').onclick = () => {
     admOpen = true;
+    if ($('adm').parentElement !== document.body) document.body.appendChild($('adm'));
+    adminForceRender = true;
+    document.body.classList.add('admin-console-open');
     $('adm').style.display = 'flex';
     $('admmsg').textContent = '';
     socket.emit('adm', '');
@@ -3887,17 +4040,10 @@ function start() {
   };
   $('admX').onclick = closeAdm;
   $('admbody').onclick = async e => {
-    const jump = e.target.closest('button[data-admin-jump]');
-    if (jump) {
-      const wanted = jump.dataset.adminJump;
-      const panels = [...$('admbody').querySelectorAll('.admin-desktop-card')];
-      const target = panels.find(panel => panel.dataset.adminPanel === wanted) || (wanted === 'overview' ? $('admbody').querySelector('.admin-stats') : [...$('admbody').querySelectorAll('.sec')].find(el => el.textContent.toLowerCase().includes(wanted)));
-      if (target) {
-        target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-        $('admbody').querySelectorAll('.admin-nav-item').forEach(button => button.classList.toggle('is-active', button.dataset.adminJump === wanted));
-      }
-      return;
-    }
+    const appButton = e.target.closest('button[data-admin-desktop-app]');
+    if (appButton) { openAdminDesktopApp(appButton.dataset.adminDesktopApp); return; }
+    if (e.target.closest('[data-admin-desktop-home]')) { showAdminDesktopHome(); return; }
+    if (e.target.closest('[data-admin-desktop-refresh]')) { adminForceRender = true; socket.emit('adm', ''); return; }
     const imageAction = e.target.closest('button[data-image-action]');
     if (imageAction) {
       if (!moderator) return;
@@ -4009,9 +4155,10 @@ function start() {
     }
     let c = b.dataset.cmd;
     if (b.dataset.input) { const i = document.querySelector(b.dataset.input); c += i.value.trim(); if (i.tagName === 'INPUT') i.value = ''; }
+    adminForceRender = true;
     socket.emit('adm', c);
   };
-  $('admbody').onchange = e => { const s = e.target.closest('select[data-cmd]'); if (s) socket.emit('adm', s.dataset.cmd + s.value); };
+  $('admbody').onchange = e => { const s = e.target.closest('select[data-cmd]'); if (s) { adminForceRender = true; socket.emit('adm', s.dataset.cmd + s.value); } };
 
   // Official channel navigation is always visible, including from private rooms.
 }
