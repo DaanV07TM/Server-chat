@@ -143,3 +143,6 @@
   .credentials-card .auth-intro { font-size:12px; }
   .settings-danger { padding:12px; }
 }
+
+/* Keep destructive confirmations above the account settings overlay. */
+#siteDialog { z-index: 15200 !important; }
