@@ -29,6 +29,19 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 - **Installable app:** Compatible browsers can install Server Chat from the browser's install action. The service worker caches only the visual shell; sending messages, voice, TURN credentials and other live features still require a network connection. If offline, the app shows a reconnect page.
 - **Moderation:** Every non-admin message can be reported, including your own. Admin messages and built-in bot notices cannot be reported. The server enforces this rule, rather than relying only on the button being hidden.
 
+## Built-in AI assistant
+
+The chat interface includes a private-by-default AI helper for questions, writing help, learning, and ideas. It receives only the messages a user deliberately types into the AI panel; it does not automatically read channel history, room messages, or encrypted private chats. The API key stays on the server. The service sends explicit prompts to OpenAI's Responses API with response storage disabled, limits input size and request frequency, and does not log prompts.
+
+To activate it on Render:
+
+1. Create an API key in the [OpenAI API platform](https://platform.openai.com/api-keys) and make sure API billing is configured.
+2. In the Render service, open **Environment** and add `OPENAI_API_KEY` with the key as its value. Never add the key to GitHub or browser code.
+3. Optionally set `OPENAI_MODEL` to a model available to your API project. If omitted, the server uses `gpt-6-astra`.
+4. Save the environment changes and redeploy/restart the service. The AI button will show when the endpoint is ready.
+
+**Costs:** API usage is billed separately from ChatGPT Go/Plus/Pro subscriptions and depends on model usage. Check the [current API pricing](https://openai.com/api/pricing/) and configure spending limits before enabling it for other visitors. Without `OPENAI_API_KEY`, the AI panel remains visible but politely reports that setup is required.
+
 ## Privacy and safety
 
 - No user account is required. Display names are not identity verification.
