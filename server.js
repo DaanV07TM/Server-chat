@@ -241,6 +241,7 @@ const IMG = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+\/=]+$/;
 const LINK = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|gg|ly|me|xyz|ru|cn|tk|ml|ga|cf|gq|co|info|biz|app|dev|link|click|top)\b)/i;
 const imagesAllowed = (room) => images === 'on' || (images === 'private' && room.startsWith('private-'));
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const USER_STATUSES = ['Online', 'Gaming', 'Away', 'Do not disturb'];
 const pub = (m) => { const { v, rep, tok, ...rest } = m; return rest; };
 // Personalize message payloads without ever exposing the browser identity token.
 function emitPersonalizedRoomMessage(roomName, eventName, message) {
@@ -1944,7 +1945,15 @@ io.on('connection', (socket) => {
     }
     last = now;
     const isAdmin = socket.data.admin === true;
-    const message = { id: socket.id, tok: key(), name: isAdmin ? 'Admin' : safeName(d && d.name), admin: isAdmin, text: isPrivateRoom ? '' : text, t: now };
+    const message = {
+      id: socket.id,
+      tok: key(),
+      name: isAdmin ? 'Admin' : safeName(d && d.name),
+      admin: isAdmin,
+      status: isAdmin ? 'Staff' : (USER_STATUSES.includes(d && d.status) ? d.status : 'Online'),
+      text: isPrivateRoom ? '' : text,
+      t: now
+    };
     if (encryptedText) message.encryptedText = encryptedText;
     if (img) {
       message.img = img;
