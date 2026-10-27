@@ -447,7 +447,7 @@ app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const MAX_ANNOUNCEMENT_HISTORY = 1000;
-const ANNOUNCEMENT_TTL = 60 * 1000;
+const ANNOUNCEMENT_TTL = 2 * 60 * 1000;
 const ADMIN_IMAGE_LIST_LIMIT = 6;
 const USER_BAN_MS = 24 * 60 * 60 * 1000;
 const userBans = new Map();
@@ -551,8 +551,8 @@ const SERVER_LOCATION = String(process.env.SERVER_LOCATION || '').trim();
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'on';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aiclear', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /log /restart /cancelrestart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/party', '/partyoff', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aiclear', '/help', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -637,19 +637,20 @@ function bot(room, text, ownerToken = '') {
   io.to(room).emit('msg', pub(m));
 }
 function announce(t, options = {}) {
-  // Every connected client receives the live banner, including the isolated AI Studio page.
+  // Render the announcement as a special message inside each connected user's current chat.
   const message = {
     name: '📢',
     bot: true,
     admin: true,
     announcement: true,
     alarm: options.alarm === true,
+    ...(options.eventType ? { eventType: options.eventType } : {}),
     announcementId: crypto.randomBytes(8).toString('hex'),
     text: t,
     t: Date.now()
   };
-  // Keep a durable copy in #announcements, without replaying the emergency sound from its archive.
-  const archived = { ...message, announcement: false, alarm: false, persistentAnnouncement: true };
+  // Keep a durable text-only archive in #announcements; events and alarm effects are not replayed there.
+  const archived = { ...message, announcement: false, alarm: false, eventType: null, persistentAnnouncement: true };
   store('announcements', archived);
   io.to('announcements').emit('msg', pub(archived));
 
@@ -662,9 +663,9 @@ function announce(t, options = {}) {
     }
   }, ANNOUNCEMENT_TTL);
 
-  // Socket.IO broadcasts to every connected socket, regardless of room.
+  // Broadcast to every connected socket, regardless of chat room, including AI Studio.
   io.emit('msg', message);
-  console.log('[admin] global ' + (message.alarm ? 'ALARM ' : '') + 'announcement broadcast to all rooms');
+  console.log('[admin] global ' + (message.eventType ? message.eventType + ' event ' : '') + (message.alarm ? 'ALARM ' : '') + 'announcement sent as an in-chat message');
 }
 const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.admin) s.emit('sys', t); };
 function removeMsg(mid) {
@@ -825,6 +826,8 @@ function adminCommand(socket, c, arg, room) {
   else if (c === 'clear') { delete rooms[room]; console.log('[admin] a room was cleared'); io.to(room).emit('history', []); say('This room was cleared.'); }
   else if (c === 'announce') { if (!arg) return say('Usage: /announce your message'); announce(clean(arg, 300)); console.log('[admin] announcement sent'); }
   else if (c === 'announcealarm') { if (!arg) return say('Usage: /announcealarm urgent message'); announce(clean(arg, 300), { alarm: true }); console.log('[admin] forced audible alarm announcement sent'); }
+  else if (c === 'party') { announce(clean(arg, 250) || '🎉 PARTY MODE ACTIVATED! The next two minutes are for good vibes, celebrations and great chat. Drop your best energy below! 🎊', { eventType: 'party' }); say('Party mode activated in every open chat for two minutes.'); }
+  else if (c === 'partyoff') { io.emit('server:party-stop'); announce('🪩 PARTY MODE ENDED — back to the regular chat. Thanks for joining in!', { eventType: 'party-end' }); say('Party mode stopped in every open chat.'); }
   else if (c === 'aistatus') {
     const conversations = [...AI_CONVERSATIONS.values()].reduce((total, map) => total + map.size, 0);
     const messages = [...AI_CONVERSATIONS.values()].reduce((total, map) => total + [...map.values()].reduce((sum, item) => sum + item.messages.length, 0), 0);
