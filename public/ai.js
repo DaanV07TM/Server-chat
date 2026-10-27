@@ -9,7 +9,7 @@
   root.id = 'aiStudioRoot';
   root.innerHTML =
     '<main class="ai-workspace">' +
-      '<aside class="ai-sidebar">' +
+      '<aside id="aiSidebar" class="ai-sidebar">' +
         '<div class="ai-sidebar-brand"><span class="ai-brand-icon">✦</span><div><strong>AI Studio</strong><span>YOUR PRIVATE SPACE</span></div></div>' +
         '<button id="aiNewChat" class="ai-new-chat" type="button"><span>＋</span> New conversation</button>' +
         '<div class="ai-history-heading"><span>YOUR CHATS</span><span id="aiHistoryCount">0</span></div>' +
@@ -575,7 +575,6 @@
   if (state.sharedView) {
     initSharedView();
   } else {
-    $('aiSidebar').id = 'aiSidebar';
     checkStatus();
     if (sessionToken()) loadConversations();
     else {
