@@ -23,6 +23,7 @@ jobs:
         run: |
           node --check server.js
           node --check public/sw.js
+          node --check public/ai.js
       - name: Validate inline browser JavaScript
         shell: bash
         run: |
