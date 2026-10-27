@@ -34,6 +34,8 @@ header button{border:1px solid var(--line);background:none;color:var(--ink);bord
 @keyframes adminAlert{0%,100%{filter:saturate(1);transform:scale(1);box-shadow:0 0 0 3px rgba(249,115,22,.3),0 0 24px rgba(239,68,68,.75),0 0 46px rgba(147,51,234,.45)}50%{filter:saturate(1.6);transform:scale(1.012);box-shadow:0 0 0 5px rgba(255,242,0,.7),0 0 34px rgba(255,80,50,1),0 0 58px rgba(147,51,234,.8)}}
 @media(prefers-reduced-motion:reduce){.m.admin-message,.m.announcement{animation:none;transform:none}}
 .m.bot span{white-space:pre-wrap}
+/* Global admin announcements float above every channel, including the isolated AI Studio. */
+.global-admin-alert{position:fixed;z-index:60000;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);width:min(780px,calc(100vw - 20px));padding:3px;border:1px solid rgba(255,255,255,.8);border-radius:21px;background:linear-gradient(110deg,#ffb703,#f72585,#7545ff,#00bbf9);box-shadow:0 16px 54px rgba(23,16,65,.48),0 0 0 4px rgba(247,37,133,.18);animation:globalAlertEntrance .48s cubic-bezier(.2,.85,.2,1) both;isolation:isolate}.global-admin-alert[hidden]{display:none!important}.global-admin-alert-inner{position:relative;padding:18px 20px 16px;border-radius:17px;color:white;background:linear-gradient(125deg,rgba(25,16,55,.96),rgba(80,20,95,.96),rgba(23,42,105,.96));overflow:hidden}.global-admin-alert-inner:before{content:"";position:absolute;inset:-70% -20%;z-index:-1;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.2) 49%,transparent 57%);animation:globalAlertSweep 3.2s linear infinite;pointer-events:none}.global-admin-alert.alarm{animation:globalAlertEntrance .48s cubic-bezier(.2,.85,.2,1) both,globalAlertAlarm 1.3s ease-in-out infinite}.global-admin-alert-title{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-size:11px;font-weight:1000;letter-spacing:.13em;text-transform:uppercase}.global-admin-alert-title .spark{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#fff;color:#8b1aab;font-size:18px}.global-admin-alert.alarm .spark{color:#b91c1c;background:#fff1b8}.global-admin-alert-copy{font-size:clamp(15px,2.4vw,20px);font-weight:850;line-height:1.45;overflow-wrap:anywhere;text-shadow:0 2px 10px rgba(0,0,0,.2)}.global-admin-alert-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:12px;color:rgba(255,255,255,.78);font-size:10px}.global-admin-alert-actions{display:flex;flex-wrap:wrap;gap:7px}.global-admin-alert button{border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:7px 10px;color:white;background:rgba(255,255,255,.12);font:800 11px/1.2 system-ui,sans-serif;cursor:pointer}.global-admin-alert button:hover{background:rgba(255,255,255,.24)}.global-admin-alert button.primary{color:#43104f;background:#fff;border-color:#fff}.global-admin-alert.alarm .global-admin-alert-title{color:#ffed9c}.global-admin-alert-progress{height:3px;margin-top:12px;border-radius:5px;background:rgba(255,255,255,.2);overflow:hidden}.global-admin-alert-progress span{display:block;width:100%;height:100%;background:#fff;transform-origin:left;animation:globalAlertTimer 60s linear forwards}@keyframes globalAlertEntrance{from{opacity:0;transform:translate(-50%,-18px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes globalAlertSweep{to{transform:translateX(45%)}}@keyframes globalAlertAlarm{0%,100%{filter:saturate(1);box-shadow:0 16px 54px rgba(23,16,65,.48),0 0 0 4px rgba(247,37,133,.18)}50%{filter:saturate(1.45);box-shadow:0 16px 64px rgba(239,68,68,.68),0 0 0 7px rgba(255,201,71,.35)}}@keyframes globalAlertTimer{from{transform:scaleX(1)}to{transform:scaleX(0)}}@media(prefers-reduced-motion:reduce){.global-admin-alert,.global-admin-alert.alarm,.global-admin-alert-inner:before,.global-admin-alert-progress span{animation:none!important}}@media(max-width:520px){.global-admin-alert-inner{padding:14px}.global-admin-alert-meta{align-items:flex-start}.global-admin-alert-copy{font-size:15px}}
 .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .rx button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:12px;padding:1px 8px;font:inherit;font-size:13px;cursor:pointer}
 .m.me .rx button{border-color:rgba(255,255,255,.4)}
@@ -574,7 +576,8 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="authIntro" class="auth-intro">Sign in to continue to your conversations.</p>
     <div class="auth-tabs" role="tablist" aria-label="Account access">
       <button id="authTabLogin" type="button" role="tab" aria-selected="true">Log in</button>
-      <button id="authTabRegister" type="button" role="tab" aria-selected="false">New temporary account</button>
+      <button id="authTabRegister" type="button" role="tab" aria-selected="false">New account</button>
+      <button id="authTabAdmin" type="button" role="tab" aria-selected="false">🛡 Admin</button>
     </div>
     <form id="authForm" autocomplete="on" novalidate>
       <div id="authLoginFields">
@@ -587,6 +590,11 @@ button:active:not(:disabled){transform:translateY(0)}
           <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
           <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
         </div>
+      </div>
+      <div id="authAdminFields" hidden>
+        <label class="auth-label" for="authAdminPassword">Server administrator password</label>
+        <input id="authAdminPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="ADMIN_PASSWORD from your server settings">
+        <p class="auth-hint">This logs you in as the administrator directly. No ordinary user account is created.</p>
       </div>
       <div id="authCreateInfo" class="auth-create-info" hidden>
         <span class="auth-create-icon" aria-hidden="true">✦</span>
@@ -1097,6 +1105,68 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+  // Global admin alert layer is independent of the current channel DOM, so it also overlays AI Studio.
+  const adminAlertLayer = document.createElement('section');
+  adminAlertLayer.id = 'globalAdminAlert'; adminAlertLayer.className = 'global-admin-alert'; adminAlertLayer.hidden = true;
+  adminAlertLayer.setAttribute('role', 'alert'); adminAlertLayer.setAttribute('aria-live', 'assertive');
+  adminAlertLayer.innerHTML = '<div class="global-admin-alert-inner"><div class="global-admin-alert-title"><span class="spark">✦</span><span id="globalAdminAlertTitle">SERVER ADMIN ANNOUNCEMENT</span></div><div id="globalAdminAlertCopy" class="global-admin-alert-copy"></div><div class="global-admin-alert-meta"><span id="globalAdminAlertHint">Official message · visible across the server</span><span class="global-admin-alert-actions"><button id="globalAdminAlertSound" type="button">🔊 Enable alert sounds</button><button id="globalAdminAlertReplay" class="primary" type="button">▶ Play / replay alarm</button><button id="globalAdminAlertDismiss" type="button">Dismiss</button></span></div><div class="global-admin-alert-progress"><span></span></div></div>';
+  document.body.appendChild(adminAlertLayer);
+  let currentGlobalAlertId = '', dismissedGlobalAlertId = '', globalAlertTimer = null, alertAudioContext = null;
+  let alertSoundsEnabled = false;
+  try { alertSoundsEnabled = localStorage.getItem('serverAdminAlertSounds') === '1'; } catch (_) {}
+  const alertSoundButton = $('globalAdminAlertSound');
+  const syncAlertSoundButton = () => { alertSoundButton.textContent = alertSoundsEnabled ? '✓ Alert sounds enabled' : '🔊 Enable alert sounds'; };
+  syncAlertSoundButton();
+  function playAdminAlarm(force = false) {
+    if (!force && !alertSoundsEnabled) return;
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) { $('globalAdminAlertHint').textContent = 'This browser does not support built-in alert audio.'; return; }
+      if (!alertAudioContext) alertAudioContext = new AudioContextClass();
+      const context = alertAudioContext;
+      context.resume().then(() => {
+        const start = context.currentTime + 0.04;
+        for (let i = 0; i < 6; i++) {
+          const osc = context.createOscillator(), gain = context.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(i % 2 ? 880 : 660, start + i * 0.22);
+          osc.frequency.linearRampToValueAtTime(i % 2 ? 660 : 990, start + i * 0.22 + 0.16);
+          gain.gain.setValueAtTime(0.0001, start + i * 0.22);
+          gain.gain.exponentialRampToValueAtTime(0.13, start + i * 0.22 + 0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + i * 0.22 + 0.18);
+          osc.connect(gain); gain.connect(context.destination); osc.start(start + i * 0.22); osc.stop(start + i * 0.22 + 0.19);
+        }
+        $('globalAdminAlertHint').textContent = 'Alarm sound attempted · browser/device volume still applies.';
+      }).catch(() => { $('globalAdminAlertHint').textContent = 'Browser blocked autoplay. Click Play / replay alarm to hear it.'; });
+    } catch (_) { $('globalAdminAlertHint').textContent = 'Browser blocked autoplay. Click Play / replay alarm to hear it.'; }
+  }
+  function showGlobalAdminAnnouncement(message) {
+    if (!message || !message.announcement) return;
+    const id = String(message.announcementId || (String(message.t || '') + ':' + String(message.text || '').slice(0, 32)));
+    if (!id || id === currentGlobalAlertId || id === dismissedGlobalAlertId) return;
+    currentGlobalAlertId = id;
+    const isAlarm = message.alarm === true;
+    adminAlertLayer.classList.toggle('alarm', isAlarm);
+    $('globalAdminAlertTitle').textContent = isAlarm ? '🚨 URGENT SERVER-WIDE ALARM' : '✨ OFFICIAL SERVER ANNOUNCEMENT';
+    $('globalAdminAlertCopy').textContent = String(message.text || 'An administrator sent a server-wide announcement.');
+    $('globalAdminAlertHint').textContent = isAlarm ? 'Urgent broadcast · sound attempt on connected devices' : 'Official message · visible across every channel, including AI Studio';
+    adminAlertLayer.hidden = false;
+    const progress = adminAlertLayer.querySelector('.global-admin-alert-progress span');
+    if (progress) { progress.style.animation = 'none'; void progress.offsetWidth; progress.style.animation = ''; }
+    clearTimeout(globalAlertTimer); globalAlertTimer = setTimeout(() => { adminAlertLayer.hidden = true; }, 60000);
+    if (isAlarm) playAdminAlarm(true);
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(isAlarm ? '🚨 Server Chat emergency alert' : '✨ Server Chat announcement', { body: String(message.text || '').slice(0, 180), icon: '/app-icon.svg', tag: 'server-admin-' + id }); } catch (_) {}
+    }
+  }
+  alertSoundButton.addEventListener('click', () => {
+    alertSoundsEnabled = !alertSoundsEnabled;
+    try { localStorage.setItem('serverAdminAlertSounds', alertSoundsEnabled ? '1' : '0'); } catch (_) {}
+    syncAlertSoundButton(); if (alertSoundsEnabled) playAdminAlarm(true);
+  });
+  $('globalAdminAlertReplay').addEventListener('click', () => playAdminAlarm(true));
+  $('globalAdminAlertDismiss').addEventListener('click', () => { dismissedGlobalAlertId = currentGlobalAlertId; adminAlertLayer.hidden = true; clearTimeout(globalAlertTimer); });
+  document.addEventListener('pointerdown', () => { if (alertSoundsEnabled && alertAudioContext && alertAudioContext.state === 'suspended') alertAudioContext.resume().catch(() => {}); }, { passive: true });
   let accountSessionToken = '';
   let accountUsername = '';
   let accountAuthenticated = false;
@@ -1120,42 +1190,58 @@ function start() {
     authGate.style.display = 'flex';
     authMessage.textContent = message;
     authMessage.classList.toggle('is-error', !!message);
-    if (authMode === 'register') authSubmit.focus(); else $('authUsername').focus();
+    if (authMode === 'register') authSubmit.focus();
+    else if (authMode === 'admin') $('authAdminPassword').focus();
+    else $('authUsername').focus();
   }
   function hideAuthGate() {
     authGate.style.display = 'none';
     authGate.hidden = true;
   }
   function setAuthMode(mode) {
-    authMode = mode === 'register' ? 'register' : 'login';
+    authMode = mode === 'register' ? 'register' : mode === 'admin' ? 'admin' : 'login';
     const registering = authMode === 'register';
-    $('authTabLogin').setAttribute('aria-selected', String(!registering));
+    const adminLogin = authMode === 'admin';
+    $('authTabLogin').setAttribute('aria-selected', String(authMode === 'login'));
     $('authTabRegister').setAttribute('aria-selected', String(registering));
-    $('authTitle').textContent = registering ? 'Create a disposable account' : 'Welcome back';
+    $('authTabAdmin').setAttribute('aria-selected', String(adminLogin));
+    $('authTitle').textContent = registering ? 'Create a disposable account' : adminLogin ? 'Administrator access' : 'Welcome back';
     $('authIntro').textContent = registering
       ? 'No form-filling needed. We generate your login details automatically.'
+      : adminLogin ? 'Sign in directly as the server administrator — no normal account needed.'
       : 'Sign in with the username and password you saved.';
-    $('authLoginFields').hidden = registering;
+    $('authLoginFields').hidden = registering || adminLogin;
+    $('authAdminFields').hidden = !adminLogin;
     $('authCreateInfo').hidden = !registering;
-    $('authUsername').required = !registering;
-    authPasswordInput.required = !registering;
+    $('authUsername').required = !registering && !adminLogin;
+    authPasswordInput.required = !registering && !adminLogin;
+    $('authAdminPassword').required = adminLogin;
+    if (!adminLogin) $('authAdminPassword').value = '';
     authPasswordInput.setAttribute('autocomplete', 'current-password');
     authPasswordInput.setAttribute('placeholder', 'Your password');
     authConfirmWrap.hidden = true;
     authConfirmInput.required = false;
-    authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
+    authSubmit.textContent = registering ? 'Generate account and password' : adminLogin ? '🛡 Sign in as admin' : 'Log in';
     authMessage.textContent = '';
     authMessage.classList.remove('is-error');
   }
   $('authTabLogin').addEventListener('click', () => setAuthMode('login'));
   $('authTabRegister').addEventListener('click', () => setAuthMode('register'));
+  $('authTabAdmin').addEventListener('click', () => setAuthMode('admin'));
   authForm.addEventListener('submit', event => {
     event.preventDefault();
     if (authBusy || !socket.connected) {
       if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
       return;
     }
-    if (authMode === 'login') {
+    if (authMode === 'admin') {
+      const password = $('authAdminPassword').value;
+      if (!password || password.length > 128) {
+        authMessage.textContent = 'Enter the server administrator password.';
+        authMessage.classList.add('is-error');
+        return;
+      }
+    } else if (authMode === 'login') {
       const username = $('authUsername').value.trim();
       const password = authPasswordInput.value;
       if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
@@ -1172,11 +1258,13 @@ function start() {
 
     authBusy = true;
     authSubmit.disabled = true;
-    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
-    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Connecting securely…';
+    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : authMode === 'admin' ? 'Verifying admin access…' : 'Signing in…';
+    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : authMode === 'admin' ? 'Verifying your server admin password…' : 'Connecting securely…';
     authMessage.classList.remove('is-error');
     if (authMode === 'register') {
       socket.emit('auth:register', {});
+    } else if (authMode === 'admin') {
+      socket.emit('auth:admin-login', { password: $('authAdminPassword').value });
     } else {
       socket.emit('auth:login', {
         username: $('authUsername').value.trim(),
@@ -1233,8 +1321,32 @@ function start() {
     }
   });
 
+  socket.on('auth:admin-result', data => {
+    authBusy = false;
+    authSubmit.disabled = false;
+    if (!data || !data.ok) {
+      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Administrator sign-in failed.');
+      return;
+    }
+    $('authAdminPassword').value = '';
+    accountAuthenticated = false;
+    accountUsername = '';
+    name = 'Server Admin';
+    $('accountName').textContent = 'Server Admin';
+    $('accountAvatar').textContent = 'A';
+    $('accountChip').setAttribute('aria-label', 'Signed in as server administrator');
+    hideAuthGate();
+    showToast('🛡 Admin access granted. No user account was created.', 'success', 7000);
+    joinAuthenticated();
+  });
   socket.on('auth:required', () => {
-    if (!accountAuthenticated && !isSharedAIView) showAuthGate('Please log in with your temporary account to continue.');
+    if (!accountAuthenticated && !isSharedAIView) {
+      if (adminSessionToken) {
+        clearStoredAdminSession();
+        setAuthMode('admin');
+        showAuthGate('Your admin session expired. Sign in again with the server administrator password.');
+      } else showAuthGate('Please sign in to continue. Choose Admin for direct administrator access.');
+    }
   });
   socket.on('auth:logged-out', () => {
     clearLocalAccountSession(false);
@@ -1253,9 +1365,13 @@ function start() {
     if (confirmed) socket.emit('auth:logout');
   });
   socket.on('connect', () => {
+    socket.emit('global-announcement:sync');
     if (accountSessionToken) {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
+    } else if (adminSessionToken) {
+      hideAuthGate();
+      joinAuthenticated();
     } else if (!isSharedAIView) {
       showAuthGate();
     }
@@ -2042,9 +2158,18 @@ function start() {
   }, 5000);
   log.innerHTML = EMPTY;
   joinAuthenticated = () => {
-    // AI Studio is a personal REST-backed workspace, never a shared Socket.IO room.
-    if (!accountAuthenticated || !accountSessionToken || !socket.connected || room === 'ai') return;
-    socket.emit('join', { room, tok, adminToken: adminSessionToken });
+    if (!socket.connected) return;
+    // AI Studio remains isolated for ordinary users. Admins may authenticate to its inert room
+    // so the global admin panel works there too; the AI chat itself never joins shared chat.
+    if (room === 'ai') {
+      if (adminSessionToken) socket.emit('join', { room: 'ai', adminToken: adminSessionToken });
+      return;
+    }
+    if (accountAuthenticated && accountSessionToken) {
+      socket.emit('join', { room, tok, adminToken: adminSessionToken });
+      return;
+    }
+    if (adminSessionToken) socket.emit('join', { room, adminToken: adminSessionToken });
   };
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
@@ -2282,6 +2407,10 @@ function start() {
     }).catch(() => {});
   }
   socket.on('history', l => {
+    if (Array.isArray(l)) {
+      const announcement = [...l].reverse().find(item => item && item.announcement && Date.now() - Number(item.t || 0) < FLASH_BANNER_MS);
+      if (announcement) showGlobalAdminAnnouncement(announcement);
+    }
     if (activeFlashTimer) clearTimeout(activeFlashTimer);
     activeFlashTimer = null;
     activeFlashBanner = null;
@@ -2291,7 +2420,9 @@ function start() {
     l.forEach(queueServerMessage);
     messageRenderQueue.then(updateMessageSearch).catch(() => {});
   });
+  socket.on('server:global-announcement', showGlobalAdminAnnouncement);
   socket.on('msg', m => {
+    if (m && m.announcement) showGlobalAdminAnnouncement(m);
     // In #announcements use the archived copy, not the duplicate short-lived global banner.
     if (room === 'announcements' && m && m.announcement) return;
     if (document.hidden && m && !m.own && !m.admin && !m.bot && m.id !== socket.id) {
@@ -3355,6 +3486,7 @@ function start() {
   }
   function renderAdmin(st) {
     const load = st.load || {};
+    const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
     const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
     const memoryPct = hasContainerRam ? Number(load.rssPct) : Number(load.heapPct) || 0;
     const memoryTitle = hasContainerRam ? 'Process RAM' : 'JavaScript heap';
@@ -3421,7 +3553,11 @@ function start() {
       B(st.links ? 'Links: allowed' : 'Links: blocked', '/links ' + (st.links ? 'off' : 'on'), 'plain') +
       B('Clear timeouts', '/pardon', 'plain') +
       '<div>Slow mode ' + SEL('/slow ', [[0, 'Off'], [3, '3 s'], [5, '5 s'], [10, '10 s'], [30, '30 s']], st.slow) + ' Images ' + SEL('/images ', [['off', 'Off'], ['private', 'Private rooms'], ['on', 'Everywhere']], st.images) + '</div>' +
-      '<div class="sec">Announce</div><input id="annIn" maxlength="300" placeholder="Message to everyone" aria-label="Announcement"> ' + B('Send', '/announce ', '', '', '#annIn') +
+      '<div class="sec">📣 GLOBAL ANNOUNCEMENT STUDIO</div>' +
+      '<p>Appears above every channel, including AI Studio. Announcements are also archived in #announcements.</p>' +
+      '<input id="annIn" maxlength="300" placeholder="Write a server-wide message…" aria-label="Announcement"> ' +
+      B('✨ Broadcast to all channels', '/announce ', '', '', '#annIn') +
+      B('🚨 Broadcast with alarm sound', '/announcealarm ', 'nuker', 'Send an urgent global announcement with an audible alert attempt on recipients’ devices?', '#annIn') +
       '<div>Maintenance in <select id="mSel" aria-label="Minutes"><option>5</option><option>10</option><option>30</option><option>60</option></select> min ' + B('Start countdown', '/maintenance ', '', '', '#mSel') + '</div>' +
       '<div class="sec">Reports (' + st.reports.length + ')</div>' +
       (st.reports.length ? st.reports.map(r => '<div class="rep">' + (r.urgent ? '🚨 ' : '') + '<b>#' + r.mid + '</b> ' + h(r.name) + ' · ' + h(r.reasons.join(', ')) + ' (' + r.n + '×) <i>[' + h(r.status) + ']</i><br>“' + h(r.text) + '”<br>' +
@@ -3430,6 +3566,13 @@ function start() {
       '<div class="sec">Blocked words</div>' + (st.banned.map(w => '<span class="stat">' + h(w) + ' ' + B('×', '/unblock ' + w, 'plain') + '</span>').join('') || '<p>None.</p>') +
       '<input id="blkIn" maxlength="30" placeholder="Word to block" aria-label="Word to block"> ' + B('Add', '/block ', '', '', '#blkIn') +
       '<div class="sec">Alerts</div><p>' + (st.channels.length ? 'Active: ' + h(st.channels.join(', ')) : 'Not set up yet (see the Render environment settings).') + '</p>' + B('Send test alert', '/notifytest', 'plain') +
+      '<div class="sec">✦ AI CONTROL CENTER</div>' +
+      '<div class="load-status ' + (ai.enabled && ai.configured ? 'normal' : 'warn') + '"><b>' + (ai.enabled ? (ai.configured ? 'AI ONLINE' : 'AI ENABLED · PROVIDER NOT CONFIGURED') : 'AI PAUSED BY ADMIN') + '</b><span>Model: ' + h(ai.model || 'not configured') + ' · ' + (ai.conversations || 0) + ' private conversations · ' + (ai.shares || 0) + ' active share links</span></div>' +
+      '<div class="admin-stats"><span class="stat"><b>' + (ai.messages || 0) + '</b> AI messages</span><span class="stat"><b>' + (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300) + '</b> requests / 24h</span></div>' +
+      '<p>Pause the text AI without deleting anyone’s private conversation. The provider API key stays on the server.</p>' +
+      B('↻ Refresh AI status', '/aistatus', 'plain') +
+      B(ai.enabled ? '⏸ Pause AI' : '✦ Enable AI', ai.enabled ? '/aioff' : '/aion', ai.enabled ? 'red' : '', ai.enabled ? 'Pause text AI for all users? Existing conversations will be preserved.' : 'Enable text AI for all users? The provider still needs to be configured.') +
+      B('🧹 Clear all AI chats and share links', '/aiclear', 'red', 'Permanently clear all temporary AI conversations and revoke every AI share link? This cannot be undone.') +
       '<div class="sec">Server logs</div>' +
       '<div class="server-log-toolbar"><span>Latest ' + serverLogs.length + ' in-memory entries · refreshes every 5 seconds</span><span>INFO · WARN · ERROR</span></div>' +
       '<div class="server-log-list" id="serverLogList" aria-label="Recent server logs" aria-live="polite">' + serverLogHtml + '</div>' +
@@ -3485,7 +3628,13 @@ function start() {
     adminSessionToken = token;
     try { localStorage.setItem('adminSessionToken', token); } catch (_) {}
   });
-  socket.on('admin:session-invalid', clearStoredAdminSession);
+  socket.on('admin:session-invalid', () => {
+    clearStoredAdminSession();
+    if (!accountAuthenticated && !isSharedAIView) {
+      setAuthMode('admin');
+      showAuthGate('Your saved admin session is no longer valid. Sign in again.');
+    }
+  });
   socket.on('admin:session-revoked', clearStoredAdminSession);
   socket.on('admin', on => {
     moderator = !!on;
