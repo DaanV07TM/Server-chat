@@ -423,6 +423,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="help" href="/?room=help"><span aria-hidden="true">❔</span><span>help</span></a>
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
+  <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -557,6 +558,7 @@ button:active:not(:disabled){transform:translateY(0)}
       <button type="button" data-palette-room="announcements">📢 <span>announcements</span><span class="palette-shortcut">Official</span></button>
       <button type="button" data-palette-room="voice">🎙️ <span>voice lounge</span><span class="palette-shortcut">Talk live</span></button>
       <button type="button" data-palette-room="music">🎵 <span>music</span><span class="palette-shortcut">Listen together</span></button>
+      <button type="button" data-palette-room="ai">✦ <span>AI Studio</span><span class="palette-shortcut">Private assistant</span></button>
     </div>
     <button id="commandPaletteClose" class="plain" type="button">Close</button>
   </div>
@@ -946,6 +948,9 @@ function start() {
   const params = new URLSearchParams(location.search);
   const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
   const isPrivateRoom = room.startsWith('private-');
+  const isSharedAIView = room === 'ai' && /^[a-f0-9]{32}$/.test(params.get('share') || '');
+  document.body.dataset.room = room;
+  document.body.dataset.sharedAi = isSharedAIView ? 'true' : 'false';
   const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
   const toBase64Url = bytes => {
     let binary = '';
@@ -1032,7 +1037,7 @@ function start() {
   $('title').textContent = '#' + room;
   let unreadCount = 0;
   const syncDocumentTitle = () => {
-    document.title = (unreadCount ? '(' + unreadCount + ') ' : '') + '#' + room + ' · Server Chat';
+    document.title = (unreadCount ? '(' + unreadCount + ') ' : '') + (room === 'ai' ? 'AI Studio' : '#' + room) + ' · Server Chat';
   };
   syncDocumentTitle();
   const updateNotificationButton = () => {
@@ -1221,7 +1226,7 @@ function start() {
   });
 
   socket.on('auth:required', () => {
-    if (!accountAuthenticated) showAuthGate('Please log in with your temporary account to continue.');
+    if (!accountAuthenticated && !isSharedAIView) showAuthGate('Please log in with your temporary account to continue.');
   });
   socket.on('auth:logged-out', () => {
     clearLocalAccountSession(false);
@@ -1243,7 +1248,7 @@ function start() {
     if (accountSessionToken) {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
-    } else {
+    } else if (!isSharedAIView) {
       showAuthGate();
     }
   });
@@ -2029,7 +2034,8 @@ function start() {
   }, 5000);
   log.innerHTML = EMPTY;
   joinAuthenticated = () => {
-    if (!accountAuthenticated || !accountSessionToken || !socket.connected) return;
+    // AI Studio is a personal REST-backed workspace, never a shared Socket.IO room.
+    if (!accountAuthenticated || !accountSessionToken || !socket.connected || room === 'ai') return;
     socket.emit('join', { room, tok, adminToken: adminSessionToken });
   };
 
