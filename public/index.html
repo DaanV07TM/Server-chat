@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Anonymous chat with browser-side end-to-end encrypted text, moderator image monitoring, optional voice, and screen sharing.">
-<title>Anonymous Chat · Encrypted Text</title>
+<meta name="description" content="A modern anonymous chat with private-room encryption, live voice, shared music, and thoughtful moderation.">
+<meta name="theme-color" content="#5667e8">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Server Chat · Hang out together</title>
 <style>
 :root{--bad:#b3261e;--bg:#e9edf3;--panel:#fff;--ink:#16202e;--mute:#6b7788;--accent:#2f4bd8;--mine:#2f4bd8;--mine-ink:#fff;--other:#fff;--line:#d5dbe5;--l:38%}
 @media (prefers-color-scheme:dark){:root{--bg:#10151d;--panel:#171d28;--ink:#e8edf5;--mute:#8d99ab;--accent:#7b93ff;--mine:#4b63e0;--other:#1e2633;--line:#27303f;--l:72%;--bad:#ff8a80}}
@@ -389,15 +391,21 @@ button:active:not(:disabled){transform:translateY(0)}
 }
 
 </style>
+<link rel="stylesheet" href="/experience.css">
 </head>
 <body>
 <header>
   <h1 id="title">Chat</h1>
-  <small id="online"></small>
+  <small id="online" aria-live="polite">Connecting…</small>
+  <button id="searchToggle" type="button" title="Search messages in this room (Ctrl+F)">⌕ Search</button>
+  <button id="channelPaletteToggle" type="button" title="Switch channel (Ctrl+K)">⌘ Channels</button>
+  <button id="themeToggle" type="button" title="Switch light/dark appearance">☾ Theme</button>
+  <button id="profileStatusBtn" type="button" title="Set your current status">● Online</button>
+  <button id="installApp" type="button" hidden>Install app</button>
   <button id="quickGuide" type="button" title="Open the quick guide">Quick guide</button>
   <button id="share" type="button">Copy link</button>
   <button id="private" type="button">New private room</button>
-  <button id="rename" type="button">Name</button>
+  <button id="rename" type="button">Profile</button>
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <nav id="channelNav" aria-label="Official channels">
@@ -407,6 +415,18 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
 </nav>
+<section id="messageSearchPanel" hidden aria-label="Search current room messages">
+  <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
+  <span id="messageSearchCount" aria-live="polite">—</span>
+  <button id="messageSearchClose" type="button">Close</button>
+</section>
+<section id="statusPanel" hidden aria-label="Choose your status">
+  <span style="align-self:center;font-size:11px;color:var(--mute);font-weight:800">YOUR STATUS</span>
+  <button type="button" data-user-status="Online" aria-pressed="true">● Online</button>
+  <button type="button" data-user-status="Gaming" aria-pressed="false">🎮 Gaming</button>
+  <button type="button" data-user-status="Away" aria-pressed="false">◷ Away</button>
+  <button type="button" data-user-status="Do not disturb" aria-pressed="false">⛔ Do not disturb</button>
+</section>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
     <div class="voice-info">
@@ -501,12 +521,35 @@ button:active:not(:disabled){transform:translateY(0)}
   <div id="screenStatus" aria-live="polite"></div>
 </section>
 <div id="typing" aria-live="polite"></div>
+<section id="composeContext" hidden aria-live="polite">
+  <span id="composeContextBar" aria-hidden="true"></span>
+  <div id="composeContextCopy">
+    <span id="composeContextTitle">Replying to message</span>
+    <span id="composeContextText"></span>
+  </div>
+  <button id="composeContextCancel" type="button" aria-label="Cancel reply or edit">Cancel</button>
+</section>
 <div id="bar">
   <input id="file" type="file" accept="image/*" hidden>
   <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
   <button class="icon" id="screenShareBtn" type="button" aria-label="Share your screen" title="Share your screen">🖥️</button>
   <input id="text" maxlength="500" placeholder="Write a message… (/roll)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
+</div>
+<div id="commandPalette" class="ov" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle" hidden>
+  <div class="box">
+    <span class="site-dialog-kicker">QUICK SWITCHER · CTRL K</span>
+    <h2 id="commandPaletteTitle">Where to?</h2>
+    <input id="commandPaletteInput" type="search" placeholder="Search channels…" autocomplete="off" aria-label="Search channels">
+    <div id="commandPaletteList">
+      <button type="button" data-palette-room="general"># <span>general</span><span class="palette-shortcut">Casual chat</span></button>
+      <button type="button" data-palette-room="help">❔ <span>help</span><span class="palette-shortcut">Questions</span></button>
+      <button type="button" data-palette-room="announcements">📢 <span>announcements</span><span class="palette-shortcut">Official</span></button>
+      <button type="button" data-palette-room="voice">🎙️ <span>voice lounge</span><span class="palette-shortcut">Talk live</span></button>
+      <button type="button" data-palette-room="music">🎵 <span>music</span><span class="palette-shortcut">Listen together</span></button>
+    </div>
+    <button id="commandPaletteClose" class="plain" type="button">Close</button>
+  </div>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
   <div class="box">
