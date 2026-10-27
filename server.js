@@ -62,15 +62,6 @@ app.post('/api/ai/chat', express.json({ limit: '20kb', strict: true }), async (r
     res.set('Retry-After', String(Math.max(1, Math.ceil((AI_RATE_WINDOW_MS - (now - recent[0])) / 1000))));
     return res.status(429).json({ error: 'Too many AI requests. Please try again in a little while.' });
   }
-  const globalRecent = AI_GLOBAL_REQUESTS.filter(time => now - time < AI_GLOBAL_WINDOW_MS);
-  if (globalRecent.length >= AI_GLOBAL_MAX) {
-    AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
-    res.set('Retry-After', String(Math.max(1, Math.ceil((AI_GLOBAL_WINDOW_MS - (now - globalRecent[0])) / 1000))));
-    return res.status(429).json({ error: 'The shared daily AI request allowance has been reached. Please try again later.' });
-  }
-  globalRecent.push(now);
-  AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
-
   recent.push(now);
   AI_RATE_LIMIT.set(clientKey, recent);
   if (AI_RATE_LIMIT.size > 2000) {
@@ -100,6 +91,15 @@ app.post('/api/ai/chat', express.json({ limit: '20kb', strict: true }), async (r
   if (totalChars > 10000 || messages[messages.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'The conversation is too long or does not end with a user message.' });
   }
+
+  const globalRecent = AI_GLOBAL_REQUESTS.filter(time => now - time < AI_GLOBAL_WINDOW_MS);
+  if (globalRecent.length >= AI_GLOBAL_MAX) {
+    AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
+    res.set('Retry-After', String(Math.max(1, Math.ceil((AI_GLOBAL_WINDOW_MS - (now - globalRecent[0])) / 1000))));
+    return res.status(429).json({ error: 'The shared daily AI request allowance has been reached. Please try again later.' });
+  }
+  globalRecent.push(now);
+  AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
 
   try {
     const upstream = await fetch('https://api.openai.com/v1/responses', {
