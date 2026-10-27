@@ -1474,12 +1474,15 @@ function removeVoiceParticipant(socketId) {
 // Temporary accounts are deliberately memory-only. Passwords are scrypt-hashed; raw passwords are never stored.
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
 const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
-const AUTH_ATTEMPTS = new Map(); // connection address -> timestamps
+const AUTH_ATTEMPTS = new Map(); // per-address login attempts
+const AUTH_REGISTRATION_ATTEMPTS = new Map(); // per-address account-creation attempts
 const AUTH_REGISTRATION_LOCKS = new Set();
 const MAX_TEMP_ACCOUNTS = 2000;
 const MAX_ACCOUNT_SESSIONS = 10000;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_ATTEMPTS = 10;
+const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
+const REGISTRATION_MAX_ATTEMPTS = 5;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
 const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout']);
 
@@ -1496,31 +1499,38 @@ function scryptPassword(password, salt) {
   });
 }
 
-function allowAuthAttempt(socket) {
+function authAddress(socket) {
   const forwardedFor = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
   const forwardedAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : '';
-  const key = String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100);
+  return String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100);
+}
+
+function allowAuthAttempt(socket, kind = 'login') {
+  const registration = kind === 'register';
+  const key = authAddress(socket);
   const now = Date.now();
-  const attempts = (AUTH_ATTEMPTS.get(key) || []).filter(time => now - time < AUTH_WINDOW_MS);
-  if (attempts.length >= AUTH_MAX_ATTEMPTS) {
-    AUTH_ATTEMPTS.set(key, attempts);
+  const map = registration ? AUTH_REGISTRATION_ATTEMPTS : AUTH_ATTEMPTS;
+  const windowMs = registration ? REGISTRATION_WINDOW_MS : AUTH_WINDOW_MS;
+  const maxAttempts = registration ? REGISTRATION_MAX_ATTEMPTS : AUTH_MAX_ATTEMPTS;
+  const attempts = (map.get(key) || []).filter(time => now - time < windowMs);
+  if (attempts.length >= maxAttempts) {
+    map.set(key, attempts);
     return false;
   }
   attempts.push(now);
-  AUTH_ATTEMPTS.set(key, attempts);
-  if (AUTH_ATTEMPTS.size > 2000) {
-    for (const [address, times] of AUTH_ATTEMPTS) {
-      if (!times.length || now - times[times.length - 1] >= AUTH_WINDOW_MS) AUTH_ATTEMPTS.delete(address);
-      if (AUTH_ATTEMPTS.size <= 1500) break;
+  map.set(key, attempts);
+  if (map.size > 2000) {
+    for (const [address, times] of map) {
+      if (!times.length || now - times[times.length - 1] >= windowMs) map.delete(address);
+      if (map.size <= 1500) break;
     }
   }
   return true;
 }
 
-function clearAuthAttempts(socket) {
-  const forwardedFor = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
-  const forwardedAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : '';
-  AUTH_ATTEMPTS.delete(String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100));
+function clearAuthAttempts(socket, kind = 'login') {
+  const map = kind === 'register' ? AUTH_REGISTRATION_ATTEMPTS : AUTH_ATTEMPTS;
+  map.delete(authAddress(socket));
 }
 
 function issueTemporaryAccountSession(socket, account, sessionToken = '') {
@@ -1564,7 +1574,7 @@ io.on('connection', (socket) => {
 
   socket.on('auth:register', async (d) => {
     if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
-    if (!allowAuthAttempt(socket)) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
+    if (!allowAuthAttempt(socket, 'register')) return socket.emit('auth:result', { ok: false, message: 'Too many account-creation attempts. Please wait one hour.' });
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
     const accountKey = username.toLowerCase();
@@ -1599,7 +1609,6 @@ io.on('connection', (socket) => {
         createdAt: Date.now()
       };
       TEMP_ACCOUNTS.set(accountKey, account);
-      clearAuthAttempts(socket);
       issueTemporaryAccountSession(socket, account);
     } catch (error) {
       console.warn('[accounts] Account registration failed due to a server-side error.');
@@ -1611,7 +1620,7 @@ io.on('connection', (socket) => {
 
   socket.on('auth:login', async (d) => {
     if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in.' });
-    if (!allowAuthAttempt(socket)) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
+    if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
     const accountKey = username.toLowerCase();
@@ -1626,7 +1635,7 @@ io.on('connection', (socket) => {
       if (!account || !matches) {
         return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
       }
-      clearAuthAttempts(socket);
+      clearAuthAttempts(socket, 'login');
       issueTemporaryAccountSession(socket, account);
     } catch (error) {
       console.warn('[accounts] Login failed due to a server-side error.');
