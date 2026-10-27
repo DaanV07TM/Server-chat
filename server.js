@@ -35,6 +35,8 @@ app.get('/healthz', (_req, res) => {
 app.set('trust proxy', 1);
 const AI_API_KEY = String(process.env.GROQ_API_KEY || '').trim();
 const AI_MODEL = String(process.env.GROQ_MODEL || 'openai/gpt-oss-20b').trim();
+// Admins can pause/resume the built-in AI at runtime without changing provider secrets.
+let AI_ENABLED = String(process.env.AI_ENABLED || '1').trim() !== '0';
 const AI_CONVERSATIONS = new Map(); // account key -> Map(conversation id -> conversation)
 const AI_PUBLIC_SHARES = new Map(); // random unlisted link id -> read-only conversation snapshot
 const AI_RATE_LIMIT = new Map();
@@ -54,10 +56,23 @@ function aiAccountFromRequest(req) {
   const authHeader = String(req.headers.authorization || '');
   const match = /^Bearer ([a-f0-9]{64})$/.exec(authHeader);
   if (!match) return null;
-  const accountKey = ACCOUNT_SESSIONS.get(match[1]);
-  if (!accountKey) return null;
-  const account = TEMP_ACCOUNTS.get(accountKey);
-  return account ? { accountKey, account, sessionToken: match[1] } : null;
+  const token = match[1];
+  const accountKey = ACCOUNT_SESSIONS.get(token);
+  if (accountKey) {
+    const account = TEMP_ACCOUNTS.get(accountKey);
+    if (account) return { accountKey, account, sessionToken: token, admin: false };
+  }
+  // Direct admin sign-in has its own fixed AI workspace, without manufacturing a user account.
+  // It is still gated by a current server-issued admin session token.
+  if (typeof adminSessions !== 'undefined' && adminSessions.has(token)) {
+    return {
+      accountKey: '__server_chat_admin_workspace__',
+      account: { key: '__server_chat_admin_workspace__', username: 'Server Admin' },
+      sessionToken: token,
+      admin: true
+    };
+  }
+  return null;
 }
 
 function aiConversationsFor(accountKey, create = false) {
@@ -106,7 +121,9 @@ function aiSetNoStore(res) {
 app.get('/api/ai/status', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
-    available: Boolean(AI_API_KEY),
+    available: Boolean(AI_API_KEY) && AI_ENABLED,
+    enabled: AI_ENABLED,
+    configured: Boolean(AI_API_KEY),
     model: AI_API_KEY ? AI_MODEL : null,
   });
 });
@@ -262,6 +279,7 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to chat privately with the AI.' });
+  if (!AI_ENABLED) return res.status(503).json({ error: 'The built-in AI is temporarily paused by a server administrator.' });
   if (!AI_API_KEY) return res.status(503).json({ error: 'The built-in AI is not configured yet.' });
 
   const conversationId = String(req.body && req.body.conversationId || '');
@@ -533,8 +551,8 @@ const SERVER_LOCATION = String(process.env.SERVER_LOCATION || '').trim();
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'on';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /log /restart /cancelrestart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aiclear', '/help', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /maintenance minutes /slow seconds /silence /block word /unblock word /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /log /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -562,6 +580,10 @@ const reportLog = new Map();   // kept 24h in memory, so you can review reports 
 const reportTimes = {};
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
+function adminPasswordMatches(password) {
+  if (!ADMIN || typeof password !== 'string' || !password || password.length > 128) return false;
+  return crypto.timingSafeEqual(sha(password), sha(ADMIN));
+}
 function login(pw) {
   if (!ADMIN) return 'nopw';
   const now = Date.now();
@@ -614,19 +636,20 @@ function bot(room, text, ownerToken = '') {
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
-function announce(t) {
-  // Keep the latest global announcement in server memory so anyone joining
-  // any room during its 60-second lifetime receives it as part of history.
+function announce(t, options = {}) {
+  // Every connected client receives the live banner, including the isolated AI Studio page.
   const message = {
     name: '📢',
     bot: true,
     admin: true,
     announcement: true,
+    alarm: options.alarm === true,
+    announcementId: crypto.randomBytes(8).toString('hex'),
     text: t,
     t: Date.now()
   };
-  // Keep a durable copy in the official channel while retaining the brief global banner.
-  const archived = { ...message, announcement: false, persistentAnnouncement: true };
+  // Keep a durable copy in #announcements, without replaying the emergency sound from its archive.
+  const archived = { ...message, announcement: false, alarm: false, persistentAnnouncement: true };
   store('announcements', archived);
   io.to('announcements').emit('msg', pub(archived));
 
@@ -641,7 +664,7 @@ function announce(t) {
 
   // Socket.IO broadcasts to every connected socket, regardless of room.
   io.emit('msg', message);
-  console.log('[admin] global announcement broadcast to all rooms');
+  console.log('[admin] global ' + (message.alarm ? 'ALARM ' : '') + 'announcement broadcast to all rooms');
 }
 const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.admin) s.emit('sys', t); };
 function removeMsg(mid) {
@@ -762,6 +785,16 @@ const statsLine = () =>
 const adminState = () => ({
   offline, silenced, slow, links, images, banned,
   events: events.slice(-80),
+  ai: {
+    enabled: AI_ENABLED,
+    configured: Boolean(AI_API_KEY),
+    model: AI_API_KEY ? AI_MODEL : null,
+    conversations: [...AI_CONVERSATIONS.values()].reduce((total, map) => total + map.size, 0),
+    messages: [...AI_CONVERSATIONS.values()].reduce((total, map) => total + [...map.values()].reduce((sum, item) => sum + item.messages.length, 0), 0),
+    shares: AI_PUBLIC_SHARES.size,
+    requests24h: AI_GLOBAL_REQUESTS.filter(time => Date.now() - time < AI_GLOBAL_WINDOW_MS).length,
+    requestLimit24h: AI_GLOBAL_MAX
+  },
   restartInProgress, restartSubmitted,
   online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
@@ -791,6 +824,22 @@ function adminCommand(socket, c, arg, room) {
   else if (c === 'wipe') { for (const r in rooms) delete rooms[r]; console.log('[admin] all messages wiped'); io.emit('history', []); say('All messages wiped.'); }
   else if (c === 'clear') { delete rooms[room]; console.log('[admin] a room was cleared'); io.to(room).emit('history', []); say('This room was cleared.'); }
   else if (c === 'announce') { if (!arg) return say('Usage: /announce your message'); announce(clean(arg, 300)); console.log('[admin] announcement sent'); }
+  else if (c === 'announcealarm') { if (!arg) return say('Usage: /announcealarm urgent message'); announce(clean(arg, 300), { alarm: true }); console.log('[admin] forced audible alarm announcement sent'); }
+  else if (c === 'aistatus') {
+    const conversations = [...AI_CONVERSATIONS.values()].reduce((total, map) => total + map.size, 0);
+    const messages = [...AI_CONVERSATIONS.values()].reduce((total, map) => total + [...map.values()].reduce((sum, item) => sum + item.messages.length, 0), 0);
+    const recentRequests = AI_GLOBAL_REQUESTS.filter(time => Date.now() - time < AI_GLOBAL_WINDOW_MS).length;
+    say('AI status: ' + (AI_ENABLED ? 'ENABLED' : 'PAUSED') + ' | provider: ' + (AI_API_KEY ? 'configured' : 'not configured') + ' | model: ' + (AI_API_KEY ? AI_MODEL : 'none') + ' | conversations: ' + conversations + ' | stored messages: ' + messages + ' | share links: ' + AI_PUBLIC_SHARES.size + ' | requests/24h: ' + recentRequests + '/' + AI_GLOBAL_MAX);
+  }
+  else if (c === 'aion') { AI_ENABLED = true; announce('✨ Server Chat AI is available again.'); say('Built-in AI enabled.'); }
+  else if (c === 'aioff') { AI_ENABLED = false; announce('🛠️ Server Chat AI has been temporarily paused by an administrator.'); say('Built-in AI paused. Existing private conversations are preserved.'); }
+  else if (c === 'aiclear') {
+    for (const [, conversations] of AI_CONVERSATIONS) conversations.clear();
+    AI_CONVERSATIONS.clear();
+    AI_PUBLIC_SHARES.clear();
+    say('All temporary AI conversations and share links have been cleared. This cannot be undone.');
+    console.log('[admin] temporary AI conversations and share links cleared');
+  }
   else if (c === 'maintenance') {
     if (!num || num < 1 || num > 120) return say('Usage: /maintenance 10 (minutes, 1-120). Cancel with /online.');
     cancelMaint();
@@ -915,6 +964,7 @@ function adminCommand(socket, c, arg, room) {
       }
     }
     say('Logged out as moderator.');
+    socket.emit('auth:required');
   }
   else say(ADMIN_HELP);
 }
@@ -1710,7 +1760,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 5;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout']); // password changes/deletion require a valid session
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // login and public announcement sync can run before account auth
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -1789,9 +1839,19 @@ io.on('connection', (socket) => {
   const blocked = () => (offline || socket.data.banned) && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
 
+  // This sync works without joining a chat room, which keeps AI Studio private while still
+  // allowing a recently posted server-wide announcement to appear after page navigation.
+  socket.on('global-announcement:sync', () => {
+    if (latestAnnouncement && Date.now() - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
+      socket.emit('server:global-announcement', latestAnnouncement);
+    }
+  });
+
   // Every non-auth socket packet must carry a currently valid temporary-account session.
   socket.use((packet, next) => {
     if (AUTH_EVENTS.has(packet && packet[0])) return next();
+    // An authenticated admin session is a first-class login and does not require a temporary user account.
+    if (socket.data.admin === true && socket.data.adminToken && adminSessions.has(socket.data.adminToken)) return next();
     const sessionToken = socket.data.authSessionToken;
     const account = socket.data.account;
     if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionToken) !== account.key) {
@@ -1799,6 +1859,33 @@ io.on('connection', (socket) => {
       return next(new Error('Authentication required'));
     }
     return next();
+  });
+
+  socket.on('auth:admin-resume', (d) => {
+    const token = typeof (d && d.sessionToken) === 'string' ? d.sessionToken : '';
+    if (!/^[a-f0-9]{64}$/.test(token) || !adminSessions.has(token)) {
+      return socket.emit('auth:admin-resume-result', { ok: false, message: 'Your saved admin session has expired. Sign in again.' });
+    }
+    socket.data.admin = true;
+    socket.data.adminToken = token;
+    socket.data.tok = 'admin:' + token;
+    socket.emit('auth:admin-resume-result', { ok: true });
+  });
+
+  socket.on('auth:admin-login', (d) => {
+    if (!allowAuthAttempt(socket, 'login')) {
+      return socket.emit('auth:admin-result', { ok: false, message: 'Too many login attempts. Please wait before trying again.' });
+    }
+    const password = typeof (d && d.password) === 'string' ? d.password : '';
+    const result = login(password);
+    if (result !== 'ok') return socket.emit('auth:admin-result', { ok: false, message: LOGIN_MSG[result] || 'Admin login failed.' });
+    const token = issueAdminSession();
+    socket.data.admin = true;
+    socket.data.adminToken = token;
+    socket.data.tok = 'admin:' + token;
+    socket.emit('admin:session', token);
+    socket.emit('auth:admin-result', { ok: true, message: 'Signed in securely as server admin.' });
+    console.log('[admin] direct administrator login (no temporary account)');
   });
 
   socket.on('auth:register', async () => {
@@ -1855,6 +1942,21 @@ io.on('connection', (socket) => {
     if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
+
+    // Same ordinary login form: if the password matches ADMIN_PASSWORD, create an admin session
+    // directly and ignore the username. No temporary user account is created or stored.
+    if (adminPasswordMatches(password)) {
+      clearAuthAttempts(socket, 'login');
+      const token = issueAdminSession();
+      socket.data.admin = true;
+      socket.data.adminToken = token;
+      socket.data.tok = 'admin:' + token;
+      socket.emit('admin:session', token);
+      socket.emit('auth:result', { ok: true, isAdmin: true, username: 'Server Admin', resumed: false });
+      console.log('[admin] signed in through the standard login form (no temporary account)');
+      return;
+    }
+
     const accountKey = username.toLowerCase();
     if (!validAccountUsername(username) || !password || password.length > 128) {
       return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
@@ -2126,13 +2228,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join', (d) => {
-    if (!socket.data.account || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== socket.data.account.key) {
+    const hasAccount = Boolean(socket.data.account && ACCOUNT_SESSIONS.get(socket.data.authSessionToken) === socket.data.account.key);
+    const hasAdminSession = Boolean(socket.data.admin && socket.data.adminToken && adminSessions.has(socket.data.adminToken));
+    const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
+    if (!hasAccount && !hasAdminSession && !( /^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken))) {
+      if (requestedAdminToken) socket.emit('admin:session-invalid');
       return socket.emit('auth:required');
     }
-    const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (/^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken)) {
       socket.data.admin = true;
       socket.data.adminToken = requestedAdminToken;
+      socket.data.tok = hasAccount ? socket.data.account.token : 'admin:' + requestedAdminToken;
+    } else if (hasAdminSession) {
+      socket.data.admin = true;
+      socket.data.tok = hasAccount ? socket.data.account.token : 'admin:' + socket.data.adminToken;
     } else {
       socket.data.admin = false;
       socket.data.adminToken = null;
@@ -2145,8 +2254,8 @@ io.on('connection', (socket) => {
       socket.leave(room);
     }
     room = nextRoom;
-    // The account token is stable for this temporary account and cannot be chosen by the browser.
-    socket.data.tok = socket.data.account.token;
+    // Account tokens are server-issued; a standalone admin session uses its unguessable server-issued session token.
+    if (hasAccount) socket.data.tok = socket.data.account.token;
     const existingBan = activeUserBan(socket.data.tok);
     if (existingBan) {
       socket.data.banned = true;

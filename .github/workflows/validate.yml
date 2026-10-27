@@ -47,6 +47,13 @@ jobs:
           for marker in ("socket.on('auth:register'", "socket.on('auth:login'", "socket.on('auth:resume'", "socket.on('auth:logout'", "socket.on('auth:change-password'", "socket.on('auth:delete-account'", "socket.use((packet, next)", "generatedPassword = crypto.randomBytes(18).toString('base64url')", "addedByToken: key()", "reporters: []"):
               if marker not in server:
                   raise SystemExit(f"Missing server account control: {marker}")
+          for marker in ("function adminPasswordMatches(password)", "if (adminPasswordMatches(password))", "isAdmin: true"):
+              if marker not in server:
+                  raise SystemExit(f"Missing standard-form admin password login: {marker}")
+          if 'id="authTabAdmin"' in html or 'id="authAdminPassword"' in html:
+              raise SystemExit("The login UI must not display a separate admin option.")
+          if "if (data.isAdmin === true)" not in html:
+              raise SystemExit("The normal login response must handle an admin session without creating an account.")
           for marker in ("app.get('/api/ai/conversations'", "app.post('/api/ai/conversations'", "app.post('/api/ai/chat'", "app.post('/api/ai/conversations/:id/share'", "AI_PUBLIC_SHARES.delete(shareId)"):
               if marker not in server:
                   raise SystemExit(f"Missing private AI endpoint or deletion control: {marker}")

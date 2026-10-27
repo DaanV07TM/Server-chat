@@ -50,7 +50,8 @@
   };
 
   const sessionToken = () => {
-    try { return localStorage.getItem('accountSessionToken') || ''; } catch (_) { return ''; }
+    // The admin has a distinct private AI workspace and can use it without a temporary user account.
+    try { return localStorage.getItem('accountSessionToken') || localStorage.getItem('adminSessionToken') || ''; } catch (_) { return ''; }
   };
   const api = async (path, options = {}) => {
     const headers = Object.assign({ Accept: 'application/json' }, options.headers || {});
@@ -97,7 +98,11 @@
     try {
       const status = await api('/api/ai/status');
       state.available = Boolean(status.available);
-      updateStatus(state.available ? 'AI assistant ready' : 'Text AI is not configured', state.available);
+      const statusText = !status.enabled ? 'AI paused by a server administrator' : !status.configured ? 'Text AI is not configured' : 'AI assistant ready';
+      updateStatus(statusText, state.available);
+      if (!status.enabled) showModeNotice('The server administrator has temporarily paused text AI. Your private conversation history has not been deleted.', true, 'warning');
+      else if (!status.configured) showModeNotice('Text AI is not configured on the server yet. Your prompt will not be sent until the provider is configured.', true, 'warning');
+      else if ($('aiModeNotice').classList.contains('warning')) showModeNotice('', false);
       syncComposer();
     } catch (_) {
       updateStatus('AI service unavailable', false);
@@ -470,6 +475,9 @@
       $('aiInput').dispatchEvent(new Event('input'));
     }
   });
+
+  // Keep the status current when an administrator pauses/resumes AI from another panel or tab.
+  setInterval(() => { if (!state.sharedView) checkStatus(); }, 20000);
 
   window.addEventListener('server-chat:account-ready', () => {
     if (!state.sharedView) {
