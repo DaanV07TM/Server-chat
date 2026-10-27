@@ -25,6 +25,7 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 - **Message search:** Search matches in the currently loaded history of the current room. It is a local browser filter, not a server-wide search.
 - **Anonymous profile:** Choose a display name and a simple status (Online, Gaming, Away, or Do not disturb). Name, status and theme preference are stored in this browser; they do not verify identity and are not an account.
 - **Appearance:** The light/dark toggle remembers the current browser's preference. The channel switcher is available with **Ctrl+K**, room search with **Ctrl+F**, and **/** focuses the composer when you are not already typing.
+- **Desktop notifications:** Optional notifications can be enabled explicitly from the status menu. Notifications for private-room text only say that an encrypted message arrived; the decrypted message body is not copied onto the operating system's lock screen.
 - **Installable app:** Compatible browsers can install Server Chat from the browser's install action. The service worker caches only the visual shell; sending messages, voice, TURN credentials and other live features still require a network connection. If offline, the app shows a reconnect page.
 - **Moderation:** Every non-admin message can be reported, including your own. Admin messages and built-in bot notices cannot be reported. The server enforces this rule, rather than relying only on the button being hidden.
 
