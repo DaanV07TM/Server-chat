@@ -640,8 +640,6 @@ button:active:not(:disabled){transform:translateY(0)}
     <section class="settings-danger">
       <h3>Delete account and all data</h3>
       <p>This permanently removes your account, all messages, images and command replies you created, your report activity, and music tracks you added. Other users’ messages are not deleted. Moderation notifications already sent to external services cannot be recalled.</p>
-      <label class="auth-label" for="deleteAccountPassword">Confirm with your current password</label>
-      <input id="deleteAccountPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="Current password">
       <p id="deleteAccountMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="deleteAccountButton" class="auth-danger-button" type="button">Delete account and all my data</button>
     </section>
@@ -1305,7 +1303,6 @@ function start() {
     $('currentPassword').value = '';
     $('newPassword').value = '';
     $('confirmNewPassword').value = '';
-    $('deleteAccountPassword').value = '';
     $('changePasswordMessage').textContent = '';
     $('changePasswordMessage').classList.remove('is-error');
     $('deleteAccountMessage').textContent = '';
@@ -1394,13 +1391,11 @@ function start() {
   });
 
   $('deleteAccountButton').addEventListener('click', async () => {
-    const password = $('deleteAccountPassword').value;
     const message = $('deleteAccountMessage');
     message.classList.remove('is-error');
-    if (!password || password.length > 128) {
-      message.textContent = 'Enter your current password to confirm account deletion.';
+    if (!accountAuthenticated || !socket.connected) {
+      message.textContent = 'Your session has expired. Sign in again before deleting the account.';
       message.classList.add('is-error');
-      $('deleteAccountPassword').focus();
       return;
     }
     const confirmed = await showSiteDialog({
@@ -1414,7 +1409,7 @@ function start() {
     $('deleteAccountButton').disabled = true;
     $('deleteAccountButton').textContent = 'Deleting account…';
     message.textContent = 'Deleting your account and associated data…';
-    socket.emit('auth:delete-account', { password });
+    socket.emit('auth:delete-account');
   });
   socket.on('auth:delete-result', result => {
     $('deleteAccountButton').disabled = false;
