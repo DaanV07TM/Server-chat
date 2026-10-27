@@ -968,11 +968,10 @@ function start() {
   const notifyIncomingMessage = async message => {
     if (!message || message.own || message.bot || message.admin || message.id === socket.id ||
         !document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
-    let body = message.text || (message.img ? 'Sent an image' : 'New message');
-    if (message.encryptedText) {
-      try { body = await decryptChatText(message.encryptedText); }
-      catch (_) { body = 'Sent an encrypted message'; }
-    }
+    // Do not expose private-room plaintext on the operating system lock screen.
+    const body = message.encryptedText
+      ? 'Sent a private encrypted message'
+      : message.text || (message.img ? 'Sent an image' : 'New message');
     try {
       new Notification('#' + room, {
         body: String((message.name || 'Anonymous') + ': ' + body).slice(0, 180),
