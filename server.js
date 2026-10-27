@@ -1756,7 +1756,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 5;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'global-announcement:sync']); // login and public announcement sync can run before account auth
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // login and public announcement sync can run before account auth
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -1855,6 +1855,17 @@ io.on('connection', (socket) => {
       return next(new Error('Authentication required'));
     }
     return next();
+  });
+
+  socket.on('auth:admin-resume', (d) => {
+    const token = typeof (d && d.sessionToken) === 'string' ? d.sessionToken : '';
+    if (!/^[a-f0-9]{64}$/.test(token) || !adminSessions.has(token)) {
+      return socket.emit('auth:admin-resume-result', { ok: false, message: 'Your saved admin session has expired. Sign in again.' });
+    }
+    socket.data.admin = true;
+    socket.data.adminToken = token;
+    socket.data.tok = 'admin:' + token;
+    socket.emit('auth:admin-resume-result', { ok: true });
   });
 
   socket.on('auth:admin-login', (d) => {
