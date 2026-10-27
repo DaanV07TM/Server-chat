@@ -1345,6 +1345,7 @@ function start() {
     if (!accountAuthenticated && !isSharedAIView) {
       if (adminSessionToken) {
         clearStoredAdminSession();
+        window.dispatchEvent(new Event('server-chat:session-ended'));
         setAuthMode('admin');
         showAuthGate('Your admin session expired. Sign in again with the server administrator password.');
       } else showAuthGate('Please sign in to continue. Choose Admin for direct administrator access.');
@@ -3640,13 +3641,19 @@ function start() {
     try { localStorage.setItem('adminSessionToken', token); } catch (_) {}
   });
   socket.on('admin:session-invalid', () => {
+    const hadAdminSession = Boolean(adminSessionToken);
     clearStoredAdminSession();
+    if (hadAdminSession && !accountAuthenticated) window.dispatchEvent(new Event('server-chat:session-ended'));
     if (!accountAuthenticated && !isSharedAIView) {
       setAuthMode('admin');
       showAuthGate('Your saved admin session is no longer valid. Sign in again.');
     }
   });
-  socket.on('admin:session-revoked', clearStoredAdminSession);
+  socket.on('admin:session-revoked', () => {
+    const hadAdminSession = Boolean(adminSessionToken);
+    clearStoredAdminSession();
+    if (hadAdminSession && !accountAuthenticated) window.dispatchEvent(new Event('server-chat:session-ended'));
+  });
   socket.on('admin', on => {
     moderator = !!on;
     if (!on) {
