@@ -927,7 +927,7 @@ function checkServerResourceAlerts() {
 const resourceAlertTimer = setInterval(checkServerResourceAlerts, 15000);
 if (typeof resourceAlertTimer.unref === 'function') resourceAlertTimer.unref();
 
-const statsLine = ()
+const statsLine = () =>
   'online: ' + io.engine.clientsCount + ' | rooms: ' + Object.keys(rooms).length +
   ' | messages: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
   ' | chat: ' + (offline ? 'OFFLINE' : 'online') + ' | images: ' + images + ' | links: ' + (links ? 'on' : 'blocked') +
