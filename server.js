@@ -118,6 +118,7 @@ function aiSetNoStore(res) {
   res.set('Cache-Control', 'private, no-store, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
 }
 
 app.get('/api/ai/status', (_req, res) => {
@@ -313,8 +314,6 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   if (conversation.messages.length >= AI_MAX_MESSAGES_PER_CONVERSATION) {
     return res.status(429).json({ error: 'This conversation reached its limit of 80 messages. Start a new conversation to continue.' });
   }
-  globalRecent.push(now);
-  AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
   const accountConversations = aiConversationsFor(auth.accountKey);
   const currentConversationChars = conversation.messages.reduce((sum, message) => sum + String(message.content || '').length, 0);
   const accountConversationChars = accountConversations
@@ -324,6 +323,8 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
       accountConversationChars + prompt.length > AI_MAX_CHARS_PER_ACCOUNT) {
     return res.status(429).json({ error: 'Your temporary AI history reached its storage limit. Delete an old conversation to make room.' });
   }
+  globalRecent.push(now);
+  AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
 
   const userMessage = { role: 'user', content: prompt, createdAt: now };
   conversation.messages.push(userMessage);
