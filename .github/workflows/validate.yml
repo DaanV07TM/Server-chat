@@ -37,5 +37,22 @@ jobs:
           Path("/tmp/server-chat-inline.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/server-chat-inline.js
+      - name: Validate temporary account wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          server = Path("server.js").read_text(encoding="utf-8")
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          css = Path("public/accounts.css").read_text(encoding="utf-8")
+          for marker in ("socket.on('auth:register'", "socket.on('auth:login'", "socket.on('auth:resume'", "socket.on('auth:logout'", "socket.use((packet, next)"):
+              if marker not in server:
+                  raise SystemExit(f"Missing server account control: {marker}")
+          for marker in ('id="authGate"', 'id="authForm"', 'id="authPasswordConfirm"', 'id="logoutBtn"', 'id="accountName"'):
+              if marker not in html:
+                  raise SystemExit(f"Missing account UI control: {marker}")
+          for marker in (".auth-card", "#channelNav", ".account-chip"):
+              if marker not in css:
+                  raise SystemExit(f"Missing account/workspace style: {marker}")
+          PY
       - name: Validate web app manifest
         run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
