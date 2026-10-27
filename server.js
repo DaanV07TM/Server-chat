@@ -1835,12 +1835,23 @@ io.on('connection', (socket) => {
   socket.on('auth:logout', () => {
     const sessionToken = socket.data.authSessionToken;
     const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
-    if (sessionToken) ACCOUNT_SESSIONS.delete(sessionToken);
-    if (accountKey) console.log('[accounts] temporary account logged out.');
+    // A missing or invalid session may only clear its own socket; it must never log out other users.
+    if (!sessionToken || !accountKey) {
+      socket.data.account = null;
+      socket.data.authSessionToken = null;
+      socket.data.tok = null;
+      socket.data.admin = false;
+      socket.data.adminToken = null;
+      socket.emit('admin', false);
+      socket.emit('auth:logged-out');
+      return;
+    }
+    ACCOUNT_SESSIONS.delete(sessionToken);
+    console.log('[accounts] temporary account logged out.');
 
     const tokensToRevoke = new Set();
     for (const client of io.sockets.sockets.values()) {
-      if (!sessionToken || client.data.authSessionToken !== sessionToken) continue;
+      if (client.data.authSessionToken !== sessionToken) continue;
       if (client.data.adminToken) tokensToRevoke.add(client.data.adminToken);
       for (const joinedRoom of [...client.rooms]) {
         if (joinedRoom === client.id) continue;
