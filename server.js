@@ -1471,13 +1471,226 @@ function removeVoiceParticipant(socketId) {
   console.log('[voice] participant left; active: ' + getVoiceRoster().length);
 }
 
+// Temporary accounts are deliberately memory-only. Passwords are scrypt-hashed; raw passwords are never stored.
+const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
+const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
+const AUTH_ATTEMPTS = new Map(); // connection address -> timestamps
+const AUTH_REGISTRATION_LOCKS = new Set();
+const MAX_TEMP_ACCOUNTS = 2000;
+const MAX_ACCOUNT_SESSIONS = 10000;
+const AUTH_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_MAX_ATTEMPTS = 10;
+const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout']);
+
+function validAccountUsername(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
+}
+
+function scryptPassword(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (error, derivedKey) => {
+      if (error) return reject(error);
+      resolve(derivedKey);
+    });
+  });
+}
+
+function allowAuthAttempt(socket) {
+  const key = String(socket.handshake.address || 'unknown').slice(0, 100);
+  const now = Date.now();
+  const attempts = (AUTH_ATTEMPTS.get(key) || []).filter(time => now - time < AUTH_WINDOW_MS);
+  if (attempts.length >= AUTH_MAX_ATTEMPTS) {
+    AUTH_ATTEMPTS.set(key, attempts);
+    return false;
+  }
+  attempts.push(now);
+  AUTH_ATTEMPTS.set(key, attempts);
+  if (AUTH_ATTEMPTS.size > 2000) {
+    for (const [address, times] of AUTH_ATTEMPTS) {
+      if (!times.length || now - times[times.length - 1] >= AUTH_WINDOW_MS) AUTH_ATTEMPTS.delete(address);
+      if (AUTH_ATTEMPTS.size <= 1500) break;
+    }
+  }
+  return true;
+}
+
+function clearAuthAttempts(socket) {
+  AUTH_ATTEMPTS.delete(String(socket.handshake.address || 'unknown').slice(0, 100));
+}
+
+function issueTemporaryAccountSession(socket, account, sessionToken = '') {
+  let token = sessionToken;
+  if (!token) {
+    if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
+      const oldest = ACCOUNT_SESSIONS.keys().next().value;
+      ACCOUNT_SESSIONS.delete(oldest);
+    }
+    token = crypto.randomBytes(32).toString('hex');
+    ACCOUNT_SESSIONS.set(token, account.key);
+  }
+  socket.data.account = { key: account.key, username: account.username, token: account.token };
+  socket.data.authSessionToken = token;
+  socket.data.tok = account.token;
+  socket.emit('auth:result', {
+    ok: true,
+    username: account.username,
+    sessionToken: token,
+    resumed: Boolean(sessionToken)
+  });
+}
+
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
   const blocked = () => (offline || socket.data.banned) && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
 
+  // Every non-auth socket packet must carry a currently valid temporary-account session.
+  socket.use((packet, next) => {
+    if (AUTH_EVENTS.has(packet && packet[0])) return next();
+    const sessionToken = socket.data.authSessionToken;
+    const account = socket.data.account;
+    if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionToken) !== account.key) {
+      socket.emit('auth:required');
+      return next(new Error('Authentication required'));
+    }
+    return next();
+  });
+
+  socket.on('auth:register', async (d) => {
+    if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
+    if (!allowAuthAttempt(socket)) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
+    const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
+    const password = typeof (d && d.password) === 'string' ? d.password : '';
+    const accountKey = username.toLowerCase();
+    if (!validAccountUsername(username)) {
+      return socket.emit('auth:result', { ok: false, message: 'Username must be 3–20 characters and use only letters, numbers, _ or -.' });
+    }
+    if (Buffer.byteLength(password, 'utf8') < 10 || password.length > 128) {
+      return socket.emit('auth:result', { ok: false, message: 'Choose a password of at least 10 characters (maximum 128).' });
+    }
+    if (['admin', 'server', 'system', 'anonymous'].includes(accountKey)) {
+      return socket.emit('auth:result', { ok: false, message: 'That username is reserved. Please choose another one.' });
+    }
+    if (TEMP_ACCOUNTS.has(accountKey) || AUTH_REGISTRATION_LOCKS.has(accountKey)) {
+      return socket.emit('auth:result', { ok: false, message: 'That username is already taken. Try another one.' });
+    }
+    if (TEMP_ACCOUNTS.size >= MAX_TEMP_ACCOUNTS) {
+      return socket.emit('auth:result', { ok: false, message: 'The temporary account limit has been reached. Please try again later.' });
+    }
+    AUTH_REGISTRATION_LOCKS.add(accountKey);
+    try {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const passwordHash = await scryptPassword(password, salt);
+      if (TEMP_ACCOUNTS.has(accountKey)) {
+        return socket.emit('auth:result', { ok: false, message: 'That username is already taken. Try another one.' });
+      }
+      const account = {
+        key: accountKey,
+        username,
+        salt,
+        passwordHash,
+        token: crypto.randomBytes(32).toString('hex'),
+        createdAt: Date.now()
+      };
+      TEMP_ACCOUNTS.set(accountKey, account);
+      clearAuthAttempts(socket);
+      issueTemporaryAccountSession(socket, account);
+    } catch (error) {
+      console.warn('[accounts] Account registration failed due to a server-side error.');
+      socket.emit('auth:result', { ok: false, message: 'The account could not be created. Please try again.' });
+    } finally {
+      AUTH_REGISTRATION_LOCKS.delete(accountKey);
+    }
+  });
+
+  socket.on('auth:login', async (d) => {
+    if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in.' });
+    if (!allowAuthAttempt(socket)) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
+    const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
+    const password = typeof (d && d.password) === 'string' ? d.password : '';
+    const accountKey = username.toLowerCase();
+    if (!validAccountUsername(username) || !password || password.length > 128) {
+      return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
+    }
+    try {
+      const account = TEMP_ACCOUNTS.get(accountKey);
+      const candidate = await scryptPassword(password, account ? account.salt : FAKE_ACCOUNT_SALT);
+      const expected = account ? account.passwordHash : Buffer.alloc(64);
+      const matches = crypto.timingSafeEqual(candidate, expected);
+      if (!account || !matches) {
+        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
+      }
+      clearAuthAttempts(socket);
+      issueTemporaryAccountSession(socket, account);
+    } catch (error) {
+      console.warn('[accounts] Login failed due to a server-side error.');
+      socket.emit('auth:result', { ok: false, message: 'Login is temporarily unavailable. Please try again.' });
+    }
+  });
+
+  socket.on('auth:resume', (d) => {
+    const sessionToken = d && typeof d.sessionToken === 'string' && /^[a-f0-9]{64}$/.test(d.sessionToken)
+      ? d.sessionToken
+      : '';
+    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const account = accountKey ? TEMP_ACCOUNTS.get(accountKey) : null;
+    if (!account) {
+      socket.data.account = null;
+      socket.data.authSessionToken = null;
+      socket.data.tok = null;
+      return socket.emit('auth:result', {
+        ok: false,
+        invalidSession: true,
+        message: 'Your temporary account session expired or the server restarted. Log in again or create a new temporary account.'
+      });
+    }
+    issueTemporaryAccountSession(socket, account, sessionToken);
+  });
+
+  socket.on('auth:logout', () => {
+    const sessionToken = socket.data.authSessionToken;
+    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    if (sessionToken) ACCOUNT_SESSIONS.delete(sessionToken);
+    if (accountKey) console.log('[accounts] temporary account logged out: ' + accountKey);
+
+    const tokensToRevoke = new Set();
+    for (const client of io.sockets.sockets.values()) {
+      if (!sessionToken || client.data.authSessionToken !== sessionToken) continue;
+      if (client.data.adminToken) tokensToRevoke.add(client.data.adminToken);
+      for (const joinedRoom of [...client.rooms]) {
+        if (joinedRoom === client.id) continue;
+        if (joinedRoom === 'voice') removeVoiceParticipant(client.id);
+        endScreenShare(client.id);
+        client.leave(joinedRoom);
+        io.to(joinedRoom).emit('online', io.sockets.adapter.rooms.get(joinedRoom)?.size || 0);
+      }
+      client.data.account = null;
+      client.data.authSessionToken = null;
+      client.data.tok = null;
+      client.data.banned = false;
+      client.data.admin = false;
+      client.data.adminToken = null;
+      client.emit('auth:logged-out');
+      client.emit('admin', false);
+    }
+    for (const token of tokensToRevoke) {
+      adminSessions.delete(token);
+      for (const client of io.sockets.sockets.values()) {
+        if (client.data.adminToken !== token) continue;
+        client.data.admin = false;
+        client.data.adminToken = null;
+        client.emit('admin', false);
+        client.emit('admin:session-revoked');
+      }
+    }
+  });
+
   socket.on('join', (d) => {
+    if (!socket.data.account || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== socket.data.account.key) {
+      return socket.emit('auth:required');
+    }
     const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (/^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken)) {
       socket.data.admin = true;
@@ -1494,7 +1707,8 @@ io.on('connection', (socket) => {
       socket.leave(room);
     }
     room = nextRoom;
-    socket.data.tok = clean(d && d.tok, 32);
+    // The account token is stable for this temporary account and cannot be chosen by the browser.
+    socket.data.tok = socket.data.account.token;
     const existingBan = activeUserBan(socket.data.tok);
     if (existingBan) {
       socket.data.banned = true;
