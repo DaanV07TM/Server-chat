@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A modern chat with temporary username and password accounts, private-room encryption, live voice, shared music, and thoughtful moderation.">
-<meta name="theme-color" content="#5667e8">
+<meta name="theme-color" content="#77216f">
 <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Server Chat · Hang out together</title>
@@ -585,6 +585,7 @@ button:active:not(:disabled){transform:translateY(0)}
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
 <link rel="stylesheet" href="/accounts.css">
+<link rel="stylesheet" href="/ubuntu-cosmic.css">
 </head>
 <body>
 <header>
@@ -608,13 +609,28 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <nav id="channelNav" aria-label="Official channels">
-  <a class="channel-link" data-channel="general" href="/?room=general"><span aria-hidden="true">#</span><span>general</span></a>
+  <div class="sidebar-brand">
+    <span class="sidebar-brand-mark" aria-hidden="true">SC</span>
+    <span class="sidebar-brand-copy"><strong>Server Chat</strong><small>COMMUNITY SPACE</small></span>
+    <span class="sidebar-brand-pulse" aria-hidden="true"></span>
+  </div>
+  <div class="sidebar-section-label">WORKSPACE</div>
+  <a class="channel-link" data-channel="general" href="/?room=general"><span class="channel-glyph" aria-hidden="true">#</span><span>general</span></a>
+  <div class="sidebar-section-label">COMMUNITY</div>
   <a class="channel-link" data-channel="announcements" href="/?room=announcements"><span aria-hidden="true">📢</span><span>announcements</span><span class="channel-badge">OFFICIAL</span></a>
   <a class="channel-link" data-channel="help" href="/?room=help"><span aria-hidden="true">❔</span><span>help</span></a>
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
-  <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
+  <a class="channel-link" data-channel="music" href="/?room=music"><span class="channel-glyph" aria-hidden="true">♫</span><span>music</span></a>
+  <div class="sidebar-section-label">APPS</div>
   <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
-  <a class="channel-link status-page-link" href="/status.html"><span aria-hidden="true">🖥️</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
+  <a class="channel-link status-page-link" href="/status.html"><span class="channel-glyph" aria-hidden="true">◷</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
+  <div class="sidebar-spacer" aria-hidden="true"></div>
+  <div class="sidebar-dock" aria-label="Quick launch">
+    <a class="sidebar-dock-item" href="/?room=general" aria-label="Open general chat" title="General chat"><span class="dock-glyph dock-chat">#</span><small>Chat</small></a>
+    <a class="sidebar-dock-item" href="/?room=ai" aria-label="Open private AI Studio" title="AI Studio"><span class="dock-glyph dock-ai">✦</span><small>AI</small></a>
+    <a class="sidebar-dock-item" href="/status.html" aria-label="Open server status" title="Server status"><span class="dock-glyph dock-status">⌁</span><small>Status</small></a>
+  </div>
+  <div class="sidebar-footer"><span class="sidebar-footer-dot" aria-hidden="true"></span><span><strong>Server connected</strong><small>Secure community space</small></span></div>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
