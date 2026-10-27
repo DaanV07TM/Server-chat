@@ -50,7 +50,8 @@
   };
 
   const sessionToken = () => {
-    try { return localStorage.getItem('accountSessionToken') || ''; } catch (_) { return ''; }
+    // The admin has a distinct private AI workspace and can use it without a temporary user account.
+    try { return localStorage.getItem('accountSessionToken') || localStorage.getItem('adminSessionToken') || ''; } catch (_) { return ''; }
   };
   const api = async (path, options = {}) => {
     const headers = Object.assign({ Accept: 'application/json' }, options.headers || {});
