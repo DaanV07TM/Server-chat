@@ -1,6 +1,6 @@
 # Server-chat
 
-An anonymous, real-time chat with plaintext public/official channels, browser-side end-to-end encrypted text in private rooms, moderator image review, optional voice chat, and peer-to-peer screen sharing.
+A real-time chat with temporary username/password accounts, plaintext public/official channels, browser-side end-to-end encrypted text in private rooms, moderator image review, optional voice chat, and peer-to-peer screen sharing.
 
 ## Live chat
 
@@ -23,7 +23,8 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 - **Replies:** Use **Reply** on a message to attach a reference to the original message. The server stores only the referenced message ID and author label, not a quoted copy of private-room text.
 - **Edit and delete:** A message author can delete their own messages. Text-only messages can be edited for 15 minutes. The server verifies ownership using the browser token; private-room edits are encrypted in the browser before being sent.
 - **Message search:** Search matches in the currently loaded history of the current room. It is a local browser filter, not a server-wide search.
-- **Anonymous profile:** Choose a display name and a simple status (Online, Gaming, Away, or Do not disturb). Name, status and theme preference are stored in this browser; they do not verify identity and are not an account.
+- **Temporary accounts:** Create a username and password, log out, and sign back in while the server process is running. Usernames are unique case-insensitively; passwords are stored as salted scrypt hashes, never plain text. Accounts and their login sessions are held in server memory and are lost on a server restart or redeploy, by design. There is no password-reset flow because accounts have no email address. Choose a unique password you do not use elsewhere.
+- **Profile:** Choose a display name and a simple status (Online, Gaming, Away, or Do not disturb). Your display name can differ from your account username.
 - **Appearance:** The light/dark toggle remembers the current browser's preference. The channel switcher is available with **Ctrl+K**, room search with **Ctrl+F**, and **/** focuses the composer when you are not already typing.
 - **Desktop notifications:** Optional notifications can be enabled explicitly from the status menu. Notifications for private-room text only say that an encrypted message arrived; the decrypted message body is not copied onto the operating system's lock screen.
 - **Installable app:** Compatible browsers can install Server Chat from the browser's install action. The service worker caches only the visual shell; sending messages, voice, TURN credentials and other live features still require a network connection. If offline, the app shows a reconnect page.
@@ -44,7 +45,7 @@ The chat interface includes a private-by-default AI helper for questions, writin
 
 ## Privacy and safety
 
-- No user account is required. Display names are not identity verification.
+- A temporary account is required to join chat and send messages. Authentication sessions are random, server-validated tokens; the account store is memory-only.
 - **Text messages:** only text in `private-*` rooms is end-to-end encrypted in the browser using AES-GCM. Its 256-bit key is carried in the private invite-link URL fragment, which is not included in HTTP requests. Use **Copy link** inside that private room to share the same key with intended participants. Anyone holding the link can decrypt messages sent with that key. Text in public/official rooms (`#general`, `#help`, `#announcements`, `#voice`, and `#music`) is plaintext and can be read by the server. Slash commands are control actions and are not ordinary chat messages.
 - **Security limitation:** this implementation has not been independently audited. Because the browser JavaScript is served by the same site, a compromised deployment could serve modified code that reads the key or plaintext. Do not treat this as equivalent to an independently audited secure messenger.
 - **Images:** images are not end-to-end encrypted. They are sent to the server and appear immediately in the chat; the same uploaded image is also sent to the authenticated admin review panel, including for private rooms. Moderators can mark an image reviewed, delete image posts, and ban the uploader's browser token for 24 hours or until the current server process restarts. These bans are memory-only and are not reliable identity-level bans; clearing browser storage or using another device may evade them. Image uploads are enabled in all rooms by default and can be changed with `/images off|private|on`.
@@ -52,7 +53,7 @@ The chat interface includes a private-by-default AI helper for questions, writin
 - Ordinary chat history is held in server memory and expires after about one hour.
 - The shared music queue, uploaded audio files, temporary Audius catalogue cache and synchronized playback clock are held in memory and are cleared if the service restarts or redeploys. Catalogue audio cache files are kept only in the host's temporary directory, removed when a track is skipped, and cleared at process startup.
 - Moderator posts in `#announcements` are retained during the life of the current server process (up to 1,000 recent posts). Because this app does not yet use a persistent database, custom posts are cleared if the service restarts or redeploys. The built-in pinned guide information returns automatically.
-- The application does not maintain an account database or intentionally save IP addresses in chat history. Requests from the browser to music search and playback go to this chat server; the external addon/media host sees the server's outgoing connection rather than each listener's IP. The hosting provider still handles visitor connection metadata under its own policies.
+- The application keeps temporary accounts in memory rather than a persistent database and does not intentionally save IP addresses in chat history. Requests from the browser to music search and playback go to this chat server; the external addon/media host sees the server's outgoing connection rather than each listener's IP. The hosting provider still handles visitor connection metadata under its own policies.
 - Treat invite links as secret because the URL fragment contains the text-encryption key. Share them only with intended participants.
 - Do not post passwords, private addresses, personal documents, authentication tokens, or other sensitive information.
 - Be respectful. No harassment, hate, threats, scams, or illegal content. Use the ⚑ report control for messages that break the rules.
