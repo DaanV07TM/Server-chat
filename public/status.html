@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#11182d">
+  <meta name="description" content="Live status of the Server Chat service, resource health and public channel activity.">
+  <title>Server Chat · Live Status</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1020;--panel:#141c30;--panel2:#1a2540;--line:#2d3a57;--text:#edf2ff;--muted:#9baac5;--purple:#9f8bff;--cyan:#5de3ed;--green:#4ade80;--amber:#fbbf24;--red:#fb7185}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 12% 0%,rgba(99,102,241,.22),transparent 34%),radial-gradient(ellipse at 92% 20%,rgba(8,145,178,.13),transparent 32%),var(--bg);color:var(--text);font:14px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+    a{color:#c4b5fd;text-decoration:none}a:hover{text-decoration:underline}.shell{width:min(1160px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}.brand{display:flex;align-items:center;gap:12px}.brand-icon{display:grid;place-items:center;width:46px;height:46px;border:1px solid rgba(196,181,253,.5);border-radius:14px;background:linear-gradient(145deg,#6366f1,#9333ea 60%,#0891b2);font-weight:950;font-size:22px;box-shadow:0 12px 30px rgba(99,102,241,.22)}.eyebrow{font-size:10px;font-weight:900;letter-spacing:.18em;color:#a5b4fc}.brand h1{margin:3px 0 0;font-size:17px;letter-spacing:-.03em}
+    .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.status-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--line);border-radius:999px;background:rgba(20,28,48,.8);font-size:11px;font-weight:850;color:var(--muted)}.status-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(74,222,128,.6)}.status-pill[data-state=high],.status-pill[data-state=warning]{color:var(--amber);border-color:rgba(251,191,36,.35)}.status-pill[data-state=high] .status-dot,.status-pill[data-state=warning] .status-dot{background:var(--amber)}.status-pill[data-state=critical],.status-pill[data-state=offline]{color:var(--red);border-color:rgba(251,113,133,.4)}.status-pill[data-state=critical] .status-dot,.status-pill[data-state=offline] .status-dot{background:var(--red)}
+    .back-link{padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:11px;font-weight:800}
+    .hero{position:relative;overflow:hidden;padding:clamp(22px,4vw,38px);border:1px solid rgba(129,140,248,.32);border-radius:22px;background:linear-gradient(115deg,rgba(49,46,129,.52),rgba(20,28,48,.94) 62%,rgba(8,145,178,.18));box-shadow:0 22px 70px rgba(0,0,0,.2);margin-bottom:16px}.hero:after{content:"";position:absolute;right:-72px;top:-105px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.24),rgba(99,102,241,.04) 60%,transparent 70%);pointer-events:none}.hero-kicker{color:#c4b5fd;font-size:10px;font-weight:900;letter-spacing:.17em}.hero h2{position:relative;z-index:1;margin:8px 0 7px;font-size:clamp(26px,4vw,42px);letter-spacing:-.05em;line-height:1.1}.hero p{position:relative;z-index:1;max-width:660px;margin:0;color:#c5d0e5;font-size:13px}.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.meta-chip{padding:6px 9px;border:1px solid rgba(191,219,254,.18);border-radius:8px;background:rgba(15,23,42,.32);color:#cbd5e1;font-size:10px}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.kpi,.panel{min-width:0;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,rgba(26,37,64,.85),rgba(20,28,48,.96));box-shadow:0 10px 28px rgba(0,0,0,.08)}.kpi{padding:16px}.kpi-label{color:var(--muted);font-size:11px;font-weight:750}.kpi strong{display:block;margin:7px 0 2px;font-size:clamp(24px,3vw,33px);font-variant-numeric:tabular-nums;letter-spacing:-.05em}.kpi small{color:var(--muted);font-size:10px}
+    .grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:16px}.panel{padding:18px;margin-bottom:16px}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:15px}.panel h3{margin:0;font-size:14px;letter-spacing:-.01em}.panel-sub{margin:4px 0 0;color:var(--muted);font-size:11px}.sub-badge{padding:5px 7px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:9px;font-weight:850;white-space:nowrap}
+    .metric{padding:12px 0;border-bottom:1px solid rgba(45,58,87,.7)}.metric:last-child{border-bottom:0;padding-bottom:1px}.metric-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.metric-name{font-weight:800;font-size:12px}.metric-value{font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}.track{height:8px;overflow:hidden;border-radius:99px;background:#29334b}.fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#6366f1,#22d3ee);transition:width .25s}.fill[data-tone=warning]{background:linear-gradient(90deg,#f59e0b,#fbbf24)}.fill[data-tone=critical]{background:linear-gradient(90deg,#e11d48,#fb7185)}.metric-detail{margin-top:7px;color:var(--muted);font-size:10px}
+    .warning-list,.channel-list,.activity-list{display:grid;gap:8px}.warning{display:flex;align-items:flex-start;gap:10px;padding:11px;border:1px solid var(--line);border-radius:11px;background:rgba(11,16,32,.45)}.warning-icon{font-size:17px}.warning b{display:block;font-size:11px}.warning small{display:block;margin-top:3px;color:var(--muted);font-size:10px;line-height:1.45}.warning.warning{border-color:rgba(251,191,36,.35)}.warning.critical{border-color:rgba(251,113,133,.4);background:rgba(159,18,57,.1)}.warning.healthy{border-color:rgba(74,222,128,.22)}
+    .channel{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(11,16,32,.36)}.channel-name{display:flex;align-items:center;gap:9px;min-width:0;font-size:12px;font-weight:800}.channel-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#64748b}.channel[data-active=true] .channel-dot{background:var(--green);box-shadow:0 0 9px rgba(74,222,128,.6)}.channel-count{white-space:nowrap;color:var(--muted);font-size:10px}
+    .activity{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;padding:11px 0;border-bottom:1px solid rgba(45,58,87,.7);font-size:11px;line-height:1.45}.activity:last-child{border-bottom:0}.activity time{color:var(--muted);font-variant-numeric:tabular-nums}.activity-message{overflow-wrap:anywhere}.category{display:inline-block;margin-right:5px;color:#a5b4fc;font-size:9px;font-weight:950;letter-spacing:.06em}.empty{padding:15px;text-align:center;color:var(--muted);font-size:11px}.error-banner{display:none;margin-bottom:16px;padding:11px 13px;border:1px solid rgba(251,113,133,.45);border-radius:11px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:12px}.error-banner.show{display:block}
+    .footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;color:var(--muted);font-size:10px}.footer strong{color:#c4b5fd}
+    @media(max-width:760px){.shell{width:min(100% - 20px,680px);padding-top:16px}.topbar{align-items:flex-start;flex-direction:column;margin-bottom:18px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.kpi{padding:12px}.grid{grid-template-columns:minmax(0,1fr);gap:0}.panel{padding:14px}.hero{border-radius:16px}.top-actions{width:100%;justify-content:space-between}}
+    @media(prefers-reduced-motion:reduce){.fill{transition:none}}
+  </style>
+  <script src="/status.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">SC</span><div><div class="eyebrow">SERVER CHAT / SERVICE OPERATIONS</div><h1>Live Server Status</h1></div></div>
+      <div class="top-actions"><span class="status-pill" id="overallStatus" data-state="unknown"><i class="status-dot"></i><span id="overallStatusText">Checking systems…</span></span><a class="back-link" href="/">← Back to chat</a></div>
+    </header>
+    <div id="connectionError" class="error-banner" role="status">The server status endpoint is not reachable. The page will retry automatically.</div>
+    <section class="hero">
+      <div class="hero-kicker">REAL-TIME SERVICE OVERVIEW</div>
+      <h2>Your community,<br>at a glance.</h2>
+      <p>Current service health, public channel activity, and lightweight resource metrics. This page shows aggregate status only—not usernames, private room names, or message contents.</p>
+      <div class="hero-meta"><span class="meta-chip">● Automatic checks every 15 seconds</span><span class="meta-chip">🔒 Private room activity excluded</span><span class="meta-chip" id="lastChecked">Last checked: —</span></div>
+    </section>
+    <section class="kpis" aria-label="Service summary">
+      <article class="kpi"><div class="kpi-label">ONLINE USERS</div><strong id="onlineUsers">—</strong><small>Connected clients</small></article>
+      <article class="kpi"><div class="kpi-label">ACTIVE CHANNELS</div><strong id="activeChannels">—</strong><small>Public channels with users</small></article>
+      <article class="kpi"><div class="kpi-label">SERVER UPTIME</div><strong id="uptime">—</strong><small>Since this process started</small></article>
+      <article class="kpi"><div class="kpi-label">SERVICE LOAD</div><strong id="loadLabel">—</strong><small id="loadSubline">CPU and memory</small></article>
+    </section>
+    <div class="grid">
+      <div>
+        <section class="panel">
+          <div class="panel-head"><div><h3>⚙ Resource health</h3><p class="panel-sub">Threshold alerts are generated server-side with a cooldown.</p></div><span class="sub-badge" id="resourceLevel">—</span></div>
+          <div class="metric"><div class="metric-head"><span class="metric-name">CPU · one core = 100%</span><strong class="metric-value" id="cpuValue">—</strong></div><div class="track"><div id="cpuBar" class="fill"></div></div><div id="cpuDetail" class="metric-detail">Waiting for sample…</div></div>
+          <div class="metric"><div class="metric-head"><span class="metric-name">Process memory (RSS)</span><strong class="metric-value" id="ramValue">—</strong></div><div class="track"><div id="ramBar" class="fill"></div></div><div id="ramDetail" class="metric-detail">Waiting for sample…</div></div>
+          <div class="metric"><div class="metric-head"><span class="metric-name">JavaScript heap</span><strong class="metric-value" id="heapValue">—</strong></div><div class="track"><div id="heapBar" class="fill"></div></div><div id="heapDetail" class="metric-detail">Waiting for sample…</div></div>
+        </section>
+        <section class="panel"><div class="panel-head"><div><h3>🚦 Resource alerts</h3><p class="panel-sub">High or critical resource use appears here.</p></div></div><div id="warnings" class="warning-list"><div class="empty">Loading resource alerts…</div></div></section>
+      </div>
+      <div>
+        <section class="panel"><div class="panel-head"><div><h3>📡 Public channels</h3><p class="panel-sub">Private channels and AI Studio are excluded from public counts.</p></div></div><div id="channels" class="channel-list"><div class="empty">Loading channels…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>🧭 Recent service activity</h3><p class="panel-sub">Generic events only. No actual chat text is collected here.</p></div><span class="sub-badge">LIVE FEED</span></div><div id="activity" class="activity-list"><div class="empty">Loading activity…</div></div></section>
+      </div>
+    </div>
+    <footer class="footer"><span><strong>Server Chat</strong> · Live operational overview</span><span id="refreshState">Initializing automatic refresh…</span></footer>
+  </main>
+</body>
+</html>

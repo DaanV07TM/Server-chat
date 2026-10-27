@@ -526,6 +526,61 @@ button:active:not(:disabled){transform:translateY(0)}
 #adm .admin-taskbar-clock{margin-left:10px;padding-left:10px;border-left:1px solid rgba(255,255,255,.14);color:#cbd5e1;font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.1em;white-space:nowrap}
 #adm #admmsg.admin-window-statusbar{min-height:31px;padding:7px 14px;font-size:10px}
 @media(max-width:720px){#adm .box.admin-window{width:98vw!important;max-width:98vw!important;height:96dvh!important;max-height:96dvh!important}#adm .admin-desktop-home{padding:16px}#adm .admin-desktop-welcome{margin-bottom:17px}#adm .admin-desktop-tip{font-size:10px}#adm .admin-desktop-icons{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}#adm .admin-desktop-icon-button{min-height:120px;padding:10px 5px!important}#adm .admin-desktop-icon{width:45px;height:45px;flex-basis:45px;font-size:23px;border-radius:13px}#adm .admin-desktop-icon-button small{font-size:8px}#adm .admin-app-window{margin:7px}#adm .admin-active-app-subtitle{max-width:130px}#adm .admin-window-toolbar-button{padding:7px!important;font-size:9px!important}#adm .admin-taskbar-live{display:none}#adm .admin-taskbar-clock{margin-left:auto}}
+
+/* Shared sticker picker and lightweight chat widgets */
+#bar{position:sticky;isolation:isolate}
+#stickerButton{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:13px;width:42px;min-width:42px;height:42px;font-size:20px}
+.sticker-picker{position:fixed;right:14px;bottom:86px;z-index:80;width:min(370px,calc(100vw - 24px));max-height:min(480px,65vh);overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--panel);color:var(--ink);box-shadow:0 18px 60px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.sticker-picker[hidden]{display:none!important}
+.sticker-picker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.sticker-picker-head strong{font-size:13px}.sticker-picker-head small{display:block;margin-top:3px;color:var(--mute);font-size:10px}
+.sticker-picker-close{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:17px}
+.sticker-picker-tabs{display:flex;gap:5px;padding:9px 10px 0}
+.sticker-picker-tab{flex:1;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--mute);padding:8px;font-size:11px;font-weight:800}
+.sticker-picker-tab.is-active{border-color:#8b5cf6;background:rgba(139,92,246,.12);color:#a78bfa}
+.sticker-picker-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:12px;overflow:auto;overscroll-behavior:contain}
+.picker-emoji{display:grid;place-items:center;min-width:0;aspect-ratio:1;border:1px solid transparent;border-radius:11px;background:var(--bg);font-size:25px}
+.picker-emoji:hover,.picker-emoji:focus-visible{border-color:var(--accent);background:rgba(139,92,246,.12)}
+.picker-sticker{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:86px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);padding:7px 4px;text-align:center}
+.picker-sticker>span{font-size:25px}.picker-sticker>small{font-size:9px;line-height:1.2;color:var(--mute);font-weight:800}
+.sticker-picker-foot{border-top:1px solid var(--line);padding:9px 13px;color:var(--mute);font-size:10px;line-height:1.4}
+.m.sticker-message{align-self:flex-start;min-width:150px;max-width:min(84%,360px);padding:12px 14px;border:1px solid rgba(167,139,250,.48);border-radius:17px;background:linear-gradient(145deg,rgba(99,102,241,.12),rgba(217,70,239,.11),var(--panel));box-shadow:0 6px 22px rgba(99,102,241,.09)}
+.m.sticker-message.me{align-self:flex-end;background:linear-gradient(145deg,rgba(79,70,229,.2),rgba(6,182,212,.1),var(--mine));color:var(--mine-ink)}
+.sticker-art{display:grid;place-items:center;min-height:92px;margin:2px auto 8px;padding:10px;border-radius:13px;background:radial-gradient(circle at 50% 10%,rgba(255,255,255,.85),rgba(196,181,253,.25) 44%,transparent 80%);font-size:clamp(44px,8vw,72px);line-height:1;text-shadow:0 5px 16px rgba(99,102,241,.22);animation:stickerPop .28s cubic-bezier(.18,.89,.32,1.28) both}
+.sticker-message .sticker-caption{display:block;text-align:center;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#a78bfa}
+.sticker-party .sticker-art{background:radial-gradient(circle,rgba(251,191,36,.2),rgba(217,70,239,.1) 58%,transparent 80%)}
+.sticker-hype .sticker-art{background:radial-gradient(circle,rgba(34,211,238,.24),rgba(99,102,241,.12) 58%,transparent 80%)}
+.sticker-love .sticker-art{background:radial-gradient(circle,rgba(251,113,133,.25),rgba(217,70,239,.1) 58%,transparent 80%)}
+@keyframes stickerPop{from{transform:scale(.78) rotate(-5deg);opacity:.2}to{transform:scale(1) rotate(0);opacity:1}}
+.poll-card{margin-top:10px;padding:13px;border:1px solid rgba(129,140,248,.35);border-radius:14px;background:linear-gradient(145deg,rgba(99,102,241,.08),rgba(139,92,246,.035),var(--panel));color:var(--ink);min-width:0}
+.poll-kicker{display:flex;align-items:center;gap:7px;margin-bottom:8px;color:#8b5cf6;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.poll-question{margin-bottom:11px;font-size:14px;line-height:1.45;font-weight:850;overflow-wrap:anywhere}
+.poll-options{display:grid;gap:7px}
+.poll-option{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;min-height:48px;margin:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);text-align:left;overflow:hidden}
+.poll-option:hover:not(:disabled){border-color:#8b5cf6;background:rgba(139,92,246,.07)}
+.poll-option.is-selected{border-color:#8b5cf6;box-shadow:inset 3px 0 0 #8b5cf6;background:rgba(139,92,246,.1)}
+.poll-option:disabled{cursor:default;opacity:1}
+.poll-option-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:750}
+.poll-option-count{flex-shrink:0;color:var(--mute);font-size:10px;font-variant-numeric:tabular-nums}
+.poll-option-track{height:4px;border-radius:8px;background:var(--line);overflow:hidden}
+.poll-option-track span{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#6366f1,#d946ef);transition:width .2s ease}
+.poll-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;color:var(--mute);font-size:10px}
+@media(prefers-reduced-motion:reduce){.sticker-art{animation:none}.poll-option-track span{transition:none}}
+/* Live server health cards */
+.server-center-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px;margin-bottom:12px;border:1px solid rgba(99,102,241,.24);border-radius:13px;background:linear-gradient(120deg,rgba(99,102,241,.12),rgba(8,145,178,.07))}
+.server-center-hero h4{margin:0 0 5px;font-size:15px;color:var(--ink)}.server-center-hero p{margin:0;font-size:11px;line-height:1.5;color:var(--mute)}
+.server-center-hero .server-center-openpage{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;padding:9px 11px;border:1px solid rgba(129,140,248,.3);border-radius:9px;background:rgba(99,102,241,.1);color:var(--ink);font-size:11px;font-weight:850;text-decoration:none}
+.server-center-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:13px}
+.server-center-kpi{min-width:0;padding:11px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.server-center-kpi strong{display:block;font-size:clamp(20px,2vw,28px);font-variant-numeric:tabular-nums;letter-spacing:-.04em}.server-center-kpi span{display:block;margin-top:4px;color:var(--mute);font-size:10px}
+.server-center-health{display:flex;align-items:center;gap:9px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:11px;font-weight:850}
+.server-center-health[data-level="normal"]{border-color:rgba(34,197,94,.45);color:#16a34a}.server-center-health[data-level="healthy"]{border-color:rgba(34,197,94,.45);color:#16a34a}.server-center-health[data-level="high"]{border-color:rgba(234,179,8,.55);color:#ca8a04;background:rgba(234,179,8,.07)}.server-center-health[data-level="critical"]{border-color:rgba(239,68,68,.55);color:#ef4444;background:rgba(239,68,68,.08)}.server-center-health[data-level="unknown"]{color:var(--mute)}
+.server-center-health i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.server-center-warnings{display:grid;gap:7px;margin-bottom:14px}.server-center-warning{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.server-center-warning .warning-icon{font-size:16px;line-height:1.3}.server-center-warning b{display:block;font-size:11px}.server-center-warning small{display:block;margin-top:3px;color:var(--mute);font-size:10px;line-height:1.45}.server-center-warning.critical{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.06)}.server-center-warning.warning{border-color:rgba(234,179,8,.45);background:rgba(234,179,8,.05)}.server-center-warning.healthy{border-color:rgba(34,197,94,.35)}
+.server-center-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px}.server-center-column{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.server-center-column h4{margin:0 0 10px;font-size:12px;color:var(--ink)}
+.server-center-channel-list,.server-center-activity-list{display:grid;gap:6px}.server-center-channel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}.server-center-channel-name{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;font-weight:750}.server-center-channel-name i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#94a3b8}.server-center-channel[data-active="true"] .server-center-channel-name i{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.6)}.server-center-channel-count{flex-shrink:0;color:var(--mute);font-size:10px}
+.server-center-activity{display:grid;grid-template-columns:58px minmax(0,1fr);gap:6px;padding:8px 0;border-bottom:1px solid var(--line);font-size:10px;line-height:1.4}.server-center-activity:last-child{border-bottom:0}.server-center-activity time{color:var(--mute);font-variant-numeric:tabular-nums}.server-center-activity span{overflow-wrap:anywhere;color:var(--ink)}.server-center-empty{padding:12px;color:var(--mute);font-size:11px;text-align:center}
+@media(max-width:780px){.server-center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.server-center-columns{grid-template-columns:minmax(0,1fr)}.server-center-hero{align-items:flex-start;flex-direction:column}.sticker-picker{right:8px;bottom:80px}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -559,6 +614,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
   <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
+  <a class="channel-link status-page-link" href="/status.html"><span aria-hidden="true">🖥️</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -679,8 +735,15 @@ button:active:not(:disabled){transform:translateY(0)}
   <input id="file" type="file" accept="image/*" hidden>
   <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
   <button class="icon" id="screenShareBtn" type="button" aria-label="Share your screen" title="Share your screen">🖥️</button>
-  <input id="text" maxlength="500" placeholder="Write a message… (/roll)" autocomplete="off" aria-label="Message">
+  <button class="icon" id="stickerButton" type="button" aria-label="Open emoji and sticker library" title="Emoji & stickers">😊</button>
+  <input id="text" maxlength="500" placeholder="Write a message… (/help)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
+</div>
+<div id="stickerPicker" class="sticker-picker" role="dialog" aria-label="Emoji and sticker library" hidden>
+  <div class="sticker-picker-head"><div><strong>Emoji & Stickers</strong><small>Shared reactions for your Server Chat</small></div><button type="button" id="stickerPickerClose" class="sticker-picker-close" aria-label="Close emoji and sticker library">×</button></div>
+  <div class="sticker-picker-tabs"><button type="button" class="sticker-picker-tab is-active" data-sticker-tab="emoji">😀 Emoji</button><button type="button" class="sticker-picker-tab" data-sticker-tab="stickers">✨ Stickers</button></div>
+  <div id="stickerPickerGrid" class="sticker-picker-grid"></div>
+  <div class="sticker-picker-foot">Stickers are built-in, lightweight and available in every room. Private-room message text remains encrypted.</div>
 </div>
 <div id="commandPalette" class="ov" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle" hidden>
   <div class="box">
@@ -1244,6 +1307,21 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+  const STICKER_LIBRARY = [
+    { id:'party', emoji:'🎉', label:'Party time', caption:'LET’S GO!', theme:'party' },
+    { id:'hype', emoji:'🚀', label:'Hype', caption:'LEVEL UP', theme:'hype' },
+    { id:'love', emoji:'💖', label:'Sending love', caption:'GOOD VIBES', theme:'love' },
+    { id:'gg', emoji:'🏆', label:'Good game', caption:'GG WP', theme:'gold' },
+    { id:'coffee', emoji:'☕', label:'Coffee break', caption:'BRB · COFFEE', theme:'coffee' },
+    { id:'facepalm', emoji:'🤦', label:'Facepalm', caption:'OH NO', theme:'purple' },
+    { id:'bruh', emoji:'🫠', label:'Bruh', caption:'I CANNOT', theme:'bruh' },
+    { id:'fire', emoji:'🔥', label:'Fire', caption:'ABSOLUTE FIRE', theme:'fire' },
+    { id:'nice', emoji:'😎', label:'Nice', caption:'SMOOTH', theme:'nice' },
+    { id:'cat', emoji:'🐱', label:'Cat vibes', caption:'MEOW', theme:'cat' },
+    { id:'clap', emoji:'👏', label:'Applause', caption:'WELL DONE', theme:'clap' },
+    { id:'wow', emoji:'🤯', label:'Mind blown', caption:'WHAT?!', theme:'wow' }
+  ];
+  const CHAT_EMOJI_LIBRARY = ['😀','😄','😂','🤣','🥹','😍','🥰','😘','😎','🤔','🫡','😴','😭','😡','🤯','🫠','🙃','😈','👀','👍','👎','👏','🙏','🤝','💀','❤️','💖','💯','🔥','✨','🎉','🎊','🎮','🚀','☕','🐱','✅','❌','💻','⚡'];
   // Party effects are local, CSS-driven and strictly bounded: max 24 confetti pieces, no animation loops in JS.
   const partyConfettiLayer = document.createElement('div');
   partyConfettiLayer.className = 'party-confetti-layer';
@@ -2360,10 +2438,64 @@ function start() {
   }
   $('composeContextCancel').onclick = () => clearComposeContext(!!editingMessage);
 
+  function renderPollCard(mid, poll) {
+    const card = document.createElement('section');
+    card.className = 'poll-card';
+    const kicker = document.createElement('div');
+    kicker.className = 'poll-kicker';
+    kicker.textContent = poll.kind === 'quiz' ? '🧠 QUICK QUIZ' : '📊 COMMUNITY POLL';
+    const question = document.createElement('div');
+    question.className = 'poll-question';
+    question.textContent = String(poll.question || 'Community poll');
+    const options = document.createElement('div');
+    options.className = 'poll-options';
+    const optionList = Array.isArray(poll.options) ? poll.options : [];
+    const totalVotes = Math.max(Number(poll.totalVotes) || 0, optionList.reduce((sum, option) => sum + (Number(option.votes) || 0), 0));
+    optionList.forEach((option, index) => {
+      const votes = Math.max(0, Number(option.votes) || 0);
+      const percent = totalVotes ? Math.round(votes / totalVotes * 100) : 0;
+      const selected = poll.myVote !== null && poll.myVote !== undefined && Number(poll.myVote) === index;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'poll-option' + (selected ? ' is-selected' : '');
+      button.disabled = !!poll.closed;
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.setAttribute('aria-label', 'Vote for ' + String(option.label || 'option'));
+      const top = document.createElement('span');
+      top.className = 'poll-option-top';
+      const label = document.createElement('span');
+      label.textContent = String(option.label || 'Option ' + (index + 1));
+      const count = document.createElement('span');
+      count.className = 'poll-option-count';
+      count.textContent = votes + ' · ' + percent + '%';
+      top.append(label, count);
+      const track = document.createElement('span');
+      track.className = 'poll-option-track';
+      const fill = document.createElement('span');
+      fill.style.width = percent + '%';
+      track.appendChild(fill);
+      button.append(top, track);
+      button.addEventListener('click', () => {
+        if (!poll.closed) socket.emit('poll:vote', { mid: Number(mid), optionIndex: index });
+      });
+      options.appendChild(button);
+    });
+    const footer = document.createElement('div');
+    footer.className = 'poll-footer';
+    const status = document.createElement('span');
+    status.textContent = (poll.closed ? 'Poll closed' : 'Click to vote · you can change your choice') + ' · ' + totalVotes + (totalVotes === 1 ? ' vote' : ' votes');
+    const kind = document.createElement('span');
+    kind.textContent = poll.kind === 'quiz' ? 'Quiz answer stays private until you vote' : 'Community vote';
+    footer.append(status, kind);
+    card.append(kicker, question, options, footer);
+    return card;
+  }
+
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isPartyEvent = m.eventType === 'party';
     if (isPartyEvent) startPartyMode(m);
+    const sticker = m.stickerId ? STICKER_LIBRARY.find(item => item.id === m.stickerId) : null;
     const isAdminMessage = !!m.admin || (moderator && m.id === socket.id && !m.bot);
     const isOwnMessage = m.own === true || m.id === socket.id;
     const isPinnedInfo = m.pinned === true;
@@ -2386,9 +2518,11 @@ function start() {
       (isAdminMessage && !isPersistentAdminPost ? ' admin-message' : '') +
       (isAnnouncement ? ' announcement' : '') +
       (isPartyEvent ? ' party-event' : '') +
+      (sticker ? ' sticker-message sticker-' + sticker.theme : '') +
+      (m.poll ? ' poll-message' : '') +
       (isPersistentAdminPost ? ' official-post' : '') +
       (isPinnedInfo ? ' pinned-info' : '');
-    if (m.mid && !m.bot) {
+    if (m.mid && (!m.bot || m.poll)) {
       d.dataset.mid = m.mid;
       d.dataset.own = isOwnMessage && !isAdminMessage ? '1' : '';
       d.dataset.admin = isAdminMessage ? '1' : '';
@@ -2402,6 +2536,16 @@ function start() {
         isPartyEvent ? '🎉 PARTY MODE · SERVER EVENT · 2 MINUTES' :
         isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT · DISAPPEARS IN 2 MINUTES' : '✦ SERVER ADMIN · OFFICIAL MESSAGE';
       d.append(badge);
+    }
+    if (sticker) {
+      const art = document.createElement('div');
+      art.className = 'sticker-art';
+      art.textContent = sticker.emoji;
+      art.setAttribute('aria-label', sticker.label);
+      const caption = document.createElement('span');
+      caption.className = 'sticker-caption';
+      caption.textContent = sticker.caption;
+      d.append(art, caption);
     }
     if (!m.bot) {
       const author = document.createElement('div');
@@ -2463,6 +2607,10 @@ function start() {
         editedTag.textContent = 'edited';
         d.append(editedTag);
       }
+    }
+    if (m.poll) {
+      d._pollState = { ...m.poll };
+      d.append(renderPollCard(m.mid, d._pollState));
     }
     if (m.img) { const img = document.createElement('img'); img.alt = 'Image'; img.loading = 'lazy'; img.onload = down; img.src = m.img; d.append(img); }
     if (m.mid && !m.bot) {
@@ -2582,6 +2730,30 @@ function start() {
       notifyIncomingMessage(m);
     }
     queueServerMessage(m); $('typing').textContent = '';
+  });
+  socket.on('poll:state', data => {
+    const mid = Number(data && data.mid);
+    if (!Number.isSafeInteger(mid) || !data.poll) return;
+    const node = log.querySelector('.m[data-mid="' + mid + '"]');
+    if (!node) return;
+    const previous = node._pollState || {};
+    const selected = previous.myVote !== undefined ? previous.myVote : null;
+    node._pollState = { ...data.poll, myVote: selected };
+    const oldCard = node.querySelector('.poll-card');
+    if (oldCard) oldCard.replaceWith(renderPollCard(mid, node._pollState));
+  });
+  socket.on('poll:vote-result', data => {
+    const mid = Number(data && data.mid);
+    if (!Number.isSafeInteger(mid)) return;
+    const node = log.querySelector('.m[data-mid="' + mid + '"]');
+    if (node && node._pollState) {
+      node._pollState.myVote = data.myVote === null ? null : Number(data.myVote);
+      const oldCard = node.querySelector('.poll-card');
+      if (oldCard) oldCard.replaceWith(renderPollCard(mid, node._pollState));
+    }
+    if (data.quiz && !data.unchanged) {
+      showToast(data.correct ? '✅ Correct answer! Nice one.' : '🧠 Not quite — the answer is ' + String(data.correctAnswer || 'hidden') + '.', data.correct ? 'success' : 'info', 4500);
+    }
   });
   socket.on('message:edited', async message => {
     if (!message || !Number.isSafeInteger(Number(message.mid))) return;
@@ -3469,6 +3641,67 @@ function start() {
     text.value = '';
     if (replyTarget || editingMessage) clearComposeContext();
   }
+  function renderStickerPicker(tab = 'emoji') {
+    const picker = $('stickerPicker'), grid = $('stickerPickerGrid');
+    if (!picker || !grid) return;
+    grid.replaceChildren();
+    document.querySelectorAll('[data-sticker-tab]').forEach(button => button.classList.toggle('is-active', button.dataset.stickerTab === tab));
+    if (tab === 'emoji') {
+      CHAT_EMOJI_LIBRARY.forEach(emoji => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'picker-emoji'; button.textContent = emoji;
+        button.dataset.pickerEmoji = emoji; button.setAttribute('aria-label', 'Insert ' + emoji); button.title = 'Insert ' + emoji;
+        grid.appendChild(button);
+      });
+    } else {
+      STICKER_LIBRARY.forEach(sticker => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'picker-sticker';
+        button.dataset.pickerSticker = sticker.id; button.setAttribute('aria-label', 'Send sticker: ' + sticker.label);
+        const art = document.createElement('span'); art.textContent = sticker.emoji;
+        const label = document.createElement('small'); label.textContent = sticker.label;
+        button.append(art, label); grid.appendChild(button);
+      });
+    }
+  }
+  function closeStickerPicker() { $('stickerPicker').hidden = true; $('stickerButton').setAttribute('aria-expanded', 'false'); }
+  $('stickerButton').setAttribute('aria-expanded', 'false');
+  $('stickerButton').onclick = () => {
+    const picker = $('stickerPicker');
+    picker.hidden = !picker.hidden;
+    $('stickerButton').setAttribute('aria-expanded', picker.hidden ? 'false' : 'true');
+    if (!picker.hidden) renderStickerPicker('emoji');
+  };
+  $('stickerPickerClose').onclick = closeStickerPicker;
+  document.querySelectorAll('[data-sticker-tab]').forEach(button => button.addEventListener('click', () => renderStickerPicker(button.dataset.stickerTab)));
+  $('stickerPicker').addEventListener('click', event => {
+    const emojiButton = event.target.closest('button[data-picker-emoji]');
+    if (emojiButton) {
+      const emoji = emojiButton.dataset.pickerEmoji;
+      const start = Number.isInteger(text.selectionStart) ? text.selectionStart : text.value.length;
+      const end = Number.isInteger(text.selectionEnd) ? text.selectionEnd : start;
+      text.setRangeText(emoji, start, end, 'end');
+      text.focus();
+      text.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+    const stickerButton = event.target.closest('button[data-picker-sticker]');
+    if (stickerButton) {
+      const id = stickerButton.dataset.pickerSticker;
+      if (!STICKER_LIBRARY.some(item => item.id === id)) return;
+      const payload = { name, status: userStatus, stickerId: id };
+      if (replyTarget) payload.replyToMid = replyTarget.mid;
+      socket.emit('msg', payload);
+      closeStickerPicker();
+      if (replyTarget) clearComposeContext();
+      showToast('Sticker sent ✨', 'success', 1800);
+    }
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!$('stickerPicker').hidden && !event.target.closest('#stickerPicker') && !event.target.closest('#stickerButton')) closeStickerPicker();
+  }, { passive: true });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('stickerPicker').hidden) closeStickerPicker(); });
+
   $('send').onclick = () => send();
   text.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -3635,8 +3868,40 @@ function start() {
       '<div class="load-track"><div class="load-fill ' + tone + '" data-admin-metric-bar style="width:' + width + '%"></div></div>' +
       '<div class="load-detail" data-admin-metric-detail>' + h(detail) + '</div></div>';
   }
+  function formatStatusUptime(seconds) {
+    let left = Math.max(0, Math.floor(Number(seconds) || 0));
+    const days = Math.floor(left / 86400); left %= 86400;
+    const hours = Math.floor(left / 3600); left %= 3600;
+    const minutes = Math.floor(left / 60);
+    return (days ? days + 'd ' : '') + (hours ? hours + 'h ' : '') + minutes + 'm';
+  }
+  function serverCenterWarningsHtml(warnings) {
+    const list = Array.isArray(warnings) ? warnings : [];
+    if (!list.length) return '<div class="server-center-empty">No resource warnings.</div>';
+    return list.map(item => {
+      const level = ['critical','warning','healthy','info'].includes(item.level) ? item.level : 'info';
+      const icon = level === 'critical' ? '🚨' : level === 'warning' ? '⚠️' : level === 'healthy' ? '✅' : 'ℹ️';
+      return '<div class="server-center-warning ' + level + '"><span class="warning-icon" aria-hidden="true">' + icon + '</span><span><b>' + h(item.title || 'Server status') + '</b><small>' + h(item.detail || '') + '</small></span></div>';
+    }).join('');
+  }
+  function serverCenterChannelsHtml(channels) {
+    const list = Array.isArray(channels) ? channels : [];
+    if (!list.length) return '<div class="server-center-empty">No channel data yet.</div>';
+    return list.map(channel => '<div class="server-center-channel" data-center-channel="' + h(channel.key) + '" data-active="' + (channel.online > 0 ? 'true' : 'false') + '">' +
+      '<span class="server-center-channel-name"><i></i>' + h(channel.label || channel.key) + '</span>' +
+      '<span class="server-center-channel-count"><b data-center-channel-count>' + (Number(channel.online) || 0) + '</b> online</span></div>').join('');
+  }
+  function serverCenterActivityHtml(activity) {
+    const list = Array.isArray(activity) ? activity : [];
+    if (!list.length) return '<div class="server-center-empty">Recent server activity will appear here.</div>';
+    return list.map(item => {
+      const time = Number(item.t) ? new Date(Number(item.t)).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '—';
+      return '<div class="server-center-activity" data-activity-id="' + h(item.id || '') + '"><time>' + h(time) + '</time><span><b>' + h(String(item.category || 'system').toUpperCase()) + '</b> · ' + h(item.message || '') + '</span></div>';
+    }).join('');
+  }
   const ADMIN_DESKTOP_APPS = [
     { key:'overview', title:'Overview', subtitle:'Server status at a glance', icon:'📊', color:'indigo' },
+    { key:'live-center', title:'Live Server Center', subtitle:'Live users, channels and alerts', icon:'🖥️', color:'cyan' },
     { key:'performance', title:'Performance Monitor', subtitle:'CPU, RAM and load', icon:'📈', color:'green' },
     { key:'connection', title:'Connection', subtitle:'Ping and hosting details', icon:'🌐', color:'cyan' },
     { key:'screen-shares', title:'Screen Shares', subtitle:'Monitor active shares', icon:'🖥️', color:'blue' },
@@ -3690,6 +3955,7 @@ function start() {
     if (!stats) return;
     const panelKey = title => {
       const value = String(title || '').toLowerCase();
+      if (value.includes('live server center')) return 'live-center';
       if (value.includes('server load')) return 'performance';
       if (value.includes('server connection')) return 'connection';
       if (value.includes('active screen shares')) return 'screen-shares';
@@ -3773,7 +4039,7 @@ function start() {
 
     const taskbar = document.createElement('div');
     taskbar.className = 'admin-desktop-taskbar';
-    taskbar.innerHTML = '<button type="button" class="admin-taskbar-start" data-admin-desktop-home><span class="admin-windows-mark">⊞</span><span>Start</span></button><span class="admin-taskbar-divider"></span><button type="button" class="admin-taskbar-app" data-admin-desktop-app="overview" data-taskbar-app="overview" title="Overview">📊</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="announcements" data-taskbar-app="announcements" title="Announcements">📣</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="events" data-taskbar-app="events" title="Live Events">🎉</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="ai-studio" data-taskbar-app="ai-studio" title="AI Studio">✨</button><div class="admin-taskbar-spacer"></div><span class="admin-taskbar-live"><i></i> Server connected</span><span class="admin-taskbar-clock">SERVER CHAT</span>';
+    taskbar.innerHTML = '<button type="button" class="admin-taskbar-start" data-admin-desktop-home><span class="admin-windows-mark">⊞</span><span>Start</span></button><span class="admin-taskbar-divider"></span><button type="button" class="admin-taskbar-app" data-admin-desktop-app="overview" data-taskbar-app="overview" title="Overview">📊</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="live-center" data-taskbar-app="live-center" title="Live Server Center">🖥️</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="announcements" data-taskbar-app="announcements" title="Announcements">📣</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="events" data-taskbar-app="events" title="Live Events">🎉</button><button type="button" class="admin-taskbar-app" data-admin-desktop-app="ai-studio" data-taskbar-app="ai-studio" title="AI Studio">✨</button><div class="admin-taskbar-spacer"></div><span class="admin-taskbar-live"><i></i> Server connected</span><span class="admin-taskbar-clock">SERVER CHAT</span>';
     workspace.append(home, win, taskbar);
     body.replaceChildren(workspace);
     content.scrollTop = Math.max(0, Number(previousScroll) || 0);
@@ -3789,6 +4055,13 @@ function start() {
     const previousScroll = oldAdminBody?.querySelector('.admin-app-content')?.scrollTop || 0;
     const load = st.load || {};
     const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
+    const center = st.serverCenter || { online: st.online || 0, activeChannels: 0, messages: st.messages || 0, uptimeSeconds: 0, channels: [], activity: [], warnings: [], load };
+    const centerLevel = String((center.load && center.load.level) || load.level || 'unknown').toLowerCase();
+    const centerHealthLabel = centerLevel === 'critical' ? 'CRITICAL · ACTION REQUIRED' : centerLevel === 'high' ? 'WARNING · RESOURCE USE HIGH' : centerLevel === 'normal' ? 'HEALTHY · ALL SYSTEMS NORMAL' : 'COLLECTING RESOURCE DATA';
+    const centerWarnings = Array.isArray(center.warnings) ? center.warnings : [];
+    const centerActivity = Array.isArray(center.activity) ? center.activity : [];
+    const centerWarningSignature = centerWarnings.map(item => (item.level || '') + ':' + (item.title || '') + ':' + (item.detail || '')).join('|');
+    const centerActivitySignature = centerActivity.map(item => item.id || '').join(',');
     const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
     const memoryPct = hasContainerRam ? Number(load.rssPct) : Number(load.heapPct) || 0;
     const memoryTitle = hasContainerRam ? 'Process RAM' : 'JavaScript heap';
@@ -3838,6 +4111,20 @@ function start() {
       '<button type="button" data-admin-jump="danger zone">Danger zone</button>' +
       '</nav>' +
       '<div class="admin-stats admin-server-stats"><span class="stat"><b data-admin-live-value="online">' + st.online + '</b> online</span><span class="stat"><b data-admin-live-value="rooms">' + st.rooms + '</b> rooms</span><span class="stat"><b data-admin-live-value="messages">' + st.messages + '</b> messages</span><span class="stat"><b data-admin-live-value="memory">' + st.memory + '</b> MB RSS</span><span class="stat"><b data-admin-live-value="timeouts">' + st.timeouts + '</b> timeouts</span></div>' +
+      '<div class="sec">🖥️ LIVE SERVER CENTER</div>' +
+      '<div class="server-center-hero"><div><h4>Live operations snapshot</h4><p>Aggregated server health, public channel activity and generic events. Private room names and message contents are never included.</p></div><a class="server-center-openpage" href="/status.html" target="_blank" rel="noopener">↗ Public status page</a></div>' +
+      '<div class="server-center-kpis">' +
+        '<div class="server-center-kpi"><strong id="serverCenterOnline">' + (center.online || 0) + '</strong><span>Online users</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterChannelsActive">' + (center.activeChannels || 0) + '</strong><span>Active channels</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterUptime">' + formatStatusUptime(center.uptimeSeconds) + '</strong><span>Server uptime</span></div>' +
+        '<div class="server-center-kpi"><strong id="serverCenterMessages">' + (center.messages || 0) + '</strong><span>Messages in memory</span></div>' +
+      '</div>' +
+      '<div class="server-center-health" id="serverCenterHealth" data-level="' + h(centerLevel) + '"><i></i><span id="serverCenterHealthLabel">' + h(centerHealthLabel) + '</span><span id="serverCenterUpdatedAt" style="margin-left:auto;font-size:10px;font-weight:500">Updated ' + h(new Date(center.checkedAt || Date.now()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})) + '</span></div>' +
+      '<div class="server-center-warnings" id="serverCenterWarnings" data-signature="' + h(centerWarningSignature) + '">' + serverCenterWarningsHtml(centerWarnings) + '</div>' +
+      '<div class="server-center-columns">' +
+        '<section class="server-center-column"><h4>📡 Active channels</h4><div class="server-center-channel-list" id="serverCenterChannels">' + serverCenterChannelsHtml(center.channels) + '</div></section>' +
+        '<section class="server-center-column"><h4>🧭 Recent activity</h4><div class="server-center-activity-list" id="serverCenterActivity" data-signature="' + h(centerActivitySignature) + '">' + serverCenterActivityHtml(centerActivity) + '</div></section>' +
+      '</div>' +
       '<div class="sec">Server load</div>' +
       '<div class="load-status ' + (['normal','high','critical'].includes(level) ? level : 'unknown') + '" data-admin-load-status><b>' + levelText + '</b><span>Live metrics update without rebuilding your desktop.</span></div>' +
       '<div class="load-grid">' +
@@ -3976,6 +4263,7 @@ function start() {
     const text = (selector, value) => { const node = body.querySelector(selector); if (node) node.textContent = String(value); };
     for (const key of ['online','rooms','messages','memory','timeouts']) text('[data-admin-live-value="' + key + '"]', st[key] ?? 0);
     const ai = st.ai || {};
+    const center = st.serverCenter || {};
     text('[data-admin-live-value="aiMessages"]', ai.messages || 0);
     text('[data-admin-live-value="aiRequests"]', (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300));
     const load = st.load || {};
@@ -4002,6 +4290,45 @@ function start() {
       ramAvailable ? (load.rssMB + ' MB RSS / ' + load.memoryLimitMB + ' MB container limit') : 'Container RAM limit is unavailable, so no RAM percentage is shown.',
       ramAvailable ? undefined : ((load.rssMB || 0) + ' MB'));
     updateMeter('heap', load.heapPct || 0, (load.heapUsedMB || 0) + ' MB used / ' + (load.heapLimitMB || 0) + ' MB V8 heap limit');
+
+    text('#serverCenterOnline', center.online || 0);
+    text('#serverCenterChannelsActive', center.activeChannels || 0);
+    text('#serverCenterUptime', formatStatusUptime(center.uptimeSeconds));
+    text('#serverCenterMessages', center.messages || 0);
+    text('#serverCenterUpdatedAt', 'Updated ' + (center.checkedAt ? new Date(center.checkedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '—'));
+    const centerLevel = String((center.load && center.load.level) || load.level || 'unknown').toLowerCase();
+    const centerHealthLabel = centerLevel === 'critical' ? 'CRITICAL · ACTION REQUIRED' : centerLevel === 'high' ? 'WARNING · RESOURCE USE HIGH' : centerLevel === 'normal' ? 'HEALTHY · ALL SYSTEMS NORMAL' : 'COLLECTING RESOURCE DATA';
+    const centerHealth = body.querySelector('#serverCenterHealth');
+    if (centerHealth) {
+      centerHealth.dataset.level = centerLevel;
+      const healthLabel = centerHealth.querySelector('#serverCenterHealthLabel');
+      if (healthLabel) healthLabel.textContent = centerHealthLabel;
+    }
+    const centerWarnings = Array.isArray(center.warnings) ? center.warnings : [];
+    const warningSignature = centerWarnings.map(item => (item.level || '') + ':' + (item.title || '') + ':' + (item.detail || '')).join('|');
+    const warningRoot = body.querySelector('#serverCenterWarnings');
+    if (warningRoot && warningRoot.dataset.signature !== warningSignature) {
+      warningRoot.innerHTML = serverCenterWarningsHtml(centerWarnings);
+      warningRoot.dataset.signature = warningSignature;
+    }
+    const channelRoot = body.querySelector('#serverCenterChannels');
+    const channelList = Array.isArray(center.channels) ? center.channels : [];
+    if (channelRoot) {
+      channelList.forEach(channel => {
+        const card = channelRoot.querySelector('[data-center-channel="' + String(channel.key || '').replace(/[^a-z0-9-]/g, '') + '"]');
+        if (!card) return;
+        card.dataset.active = Number(channel.online) > 0 ? 'true' : 'false';
+        const count = card.querySelector('[data-center-channel-count]');
+        if (count) count.textContent = String(Number(channel.online) || 0);
+      });
+    }
+    const activityList = Array.isArray(center.activity) ? center.activity : [];
+    const activitySignature = activityList.map(item => item.id || '').join(',');
+    const activityRoot = body.querySelector('#serverCenterActivity');
+    if (activityRoot && activityRoot.dataset.signature !== activitySignature) {
+      activityRoot.innerHTML = serverCenterActivityHtml(activityList);
+      activityRoot.dataset.signature = activitySignature;
+    }
     const aiStatus = body.querySelector('[data-admin-ai-status]');
     if (aiStatus) {
       aiStatus.classList.remove('normal','warn','high','critical','unknown');

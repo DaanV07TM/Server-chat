@@ -503,6 +503,27 @@ let musicPausedByAdmin = false;
 // Keep entries short and redact common secret-shaped values before they reach the UI.
 const events = [];
 const MAX_SERVER_LOGS = 100;
+const SERVER_STARTED_AT = Date.now();
+const MAX_PUBLIC_ACTIVITY = 30;
+const publicActivity = [];
+const PUBLIC_STATUS_CHANNELS = [
+  { key: 'general', label: '#general' },
+  { key: 'announcements', label: '#announcements' },
+  { key: 'help', label: '#help' },
+  { key: 'voice', label: '#voice lounge' },
+  { key: 'music', label: '#music' }
+];
+const ADMIN_CENTER_CHANNELS = [...PUBLIC_STATUS_CHANNELS, { key: 'ai', label: 'AI Studio' }];
+let lastLoadAlertAt = 0;
+function recordServerActivity(category, message) {
+  const allowed = new Set(['system', 'connection', 'channel', 'chat', 'sticker', 'poll', 'event', 'announcement', 'warning']);
+  const safeMessage = String(message || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+  if (!safeMessage) return;
+  const entry = { id: crypto.randomBytes(5).toString('hex'), category: allowed.has(category) ? category : 'system', message: safeMessage, t: Date.now() };
+  publicActivity.push(entry);
+  while (publicActivity.length > MAX_PUBLIC_ACTIVITY) publicActivity.shift();
+}
+recordServerActivity('system', 'Server process started');
 function captureConsole(original, level) {
   return (...args) => {
     original.apply(console, args);
@@ -552,7 +573,7 @@ let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'on';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
 const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/party', '/partyoff', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aiclear', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /help /restart /cancelrestart /logout";
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aiclear /help /roll [sides] /coinflip /8ball question /poll question | option 1 | option 2 /quiz /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -606,7 +627,7 @@ const LINK = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|gg|ly|me|xyz|ru|c
 const imagesAllowed = (room) => images === 'on' || (images === 'private' && room.startsWith('private-'));
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 const USER_STATUSES = ['Online', 'Gaming', 'Away', 'Do not disturb'];
-const pub = (m) => { const { v, rep, tok, ...rest } = m; return rest; };
+const pub = (m) => { const { v, rep, tok, pollVotes, pollAnswerIndex, ...rest } = m; return rest; };
 // Personalize message payloads without ever exposing the browser identity token.
 function emitPersonalizedRoomMessage(roomName, eventName, message) {
   const members = io.sockets.adapter.rooms.get(roomName);
@@ -630,13 +651,43 @@ function store(room, m) {
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
 }
-function bot(room, text, ownerToken = '') {
-  const m = { name: 'Bot', bot: true, text, t: Date.now() };
+function bot(room, text, ownerToken = '', extra = {}) {
+  const m = { name: 'Bot', bot: true, text, t: Date.now(), ...extra };
   if (ownerToken) m.tok = ownerToken;
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
+const QUIZ_BANK = [
+  { question: 'Which protocol resolves domain names to IP addresses?', options: ['DNS', 'DHCP', 'SSH', 'FTP'], answer: 0 },
+  { question: 'Which command lists files in a Linux directory?', options: ['ls', 'pwd', 'whoami', 'touch'], answer: 0 },
+  { question: 'Which transport protocol provides a reliable byte stream?', options: ['UDP', 'TCP', 'ICMP', 'ARP'], answer: 1 },
+  { question: 'What is the default HTTPS port?', options: ['21', '53', '443', '8080'], answer: 2 }
+];
+function createPoll(room, question, options, ownerToken = '', answerIndex = null) {
+  const cleanedQuestion = clean(question, 140);
+  const cleanedOptions = options.map(option => clean(option, 72)).filter(Boolean);
+  if (!cleanedQuestion || cleanedOptions.length < 2 || cleanedOptions.length > 5) return false;
+  const normalized = new Set(cleanedOptions.map(option => option.toLowerCase()));
+  if (normalized.size !== cleanedOptions.length) return false;
+  const poll = {
+    id: crypto.randomBytes(8).toString('hex'),
+    kind: Number.isSafeInteger(answerIndex) ? 'quiz' : 'poll',
+    question: cleanedQuestion,
+    options: cleanedOptions.map(label => ({ label, votes: 0 })),
+    totalVotes: 0,
+    closed: false,
+    createdAt: Date.now()
+  };
+  const extra = { name: Number.isSafeInteger(answerIndex) ? '🧠 Quick Quiz' : '📊 Community Poll', poll, pollVotes: Object.create(null) };
+  if (Number.isSafeInteger(answerIndex) && answerIndex >= 0 && answerIndex < cleanedOptions.length) extra.pollAnswerIndex = answerIndex;
+  bot(room, '', ownerToken, extra);
+  const posted = (rooms[room] || []).at(-1);
+  if (posted && posted.poll) recordServerActivity('poll', (poll.kind === 'quiz' ? 'A quick quiz' : 'A community poll') + ' started in #' + room);
+  return true;
+}
 function announce(t, options = {}) {
+  // Record only the event category, never the announcement's potentially private content.
+  recordServerActivity(options.eventType ? 'event' : 'announcement', options.eventType === 'party' ? 'Party Mode started' : options.eventType === 'party-end' ? 'Party Mode ended' : options.alarm ? 'An urgent server-wide alert was sent' : 'A server-wide announcement was sent');
   // Render the announcement as a special message inside each connected user's current chat.
   const message = {
     name: '📢',
@@ -709,9 +760,24 @@ function command(room, name, text, ownerToken = '') {
   const [c, ...r] = text.slice(1).split(' ');
   const arg = r.join(' ').trim();
   if (c === 'roll') bot(room, `🎲 ${name} rolls a d${Math.min(Math.max(parseInt(arg) || 6, 2), 1000)}: ` + (1 + Math.floor(Math.random() * Math.min(Math.max(parseInt(arg) || 6, 2), 1000))), ownerToken);
-  else if (c === 'coin') bot(room, `🪙 ${name} flips a coin: ${Math.random() < 0.5 ? 'heads' : 'tails'}`, ownerToken);
-  else if (c === '8ball') bot(room, `🎱 ${arg || '...'} → ${pick(BALL)}`, ownerToken);
+  else if (c === 'coin' || c === 'coinflip') bot(room, `🪙 ${name} flips a coin: ${Math.random() < 0.5 ? 'heads' : 'tails'}`, ownerToken);
+  else if (c === '8ball') bot(room, `🎱 ${arg || 'Ask a question'} → ${pick(BALL)}`, ownerToken);
   else if (c === 'rules') bot(room, 'Be kind. No harassment, hate, threats, scams or illegal content. Use ⚑ to report a message.', ownerToken);
+  else if (c === 'help') bot(room, '🤖 CHAT COMMANDS · /roll [sides] · /coinflip · /8ball question · /poll question | option 1 | option 2 · /quiz · /rules. Polls support 2–5 options; click a choice to vote or change your vote.', ownerToken);
+  else if (c === 'poll') {
+    if (room.startsWith('private-')) return;
+    const parts = arg.split('|').map(value => clean(value, 100)).filter(Boolean);
+    const question = parts.shift() || '';
+    if (parts.length < 2 || parts.length > 5) {
+      bot(room, '📊 Usage: /poll Your question? | Option A | Option B [| Option C …] (2–5 options)', ownerToken);
+    } else if (!createPoll(room, question, parts, ownerToken)) {
+      bot(room, '⚠️ That poll is invalid. Use a short question and 2–5 unique options.', ownerToken);
+    }
+  } else if (c === 'quiz') {
+    if (room.startsWith('private-')) return;
+    const quiz = pick(QUIZ_BANK);
+    createPoll(room, quiz.question, quiz.options, ownerToken, quiz.answer);
+  }
 }
 
 // Sample CPU continuously so opening the admin panel never reports an average
@@ -776,6 +842,91 @@ function getServerLoad() {
   };
 }
 
+function getLoadWarnings(load) {
+  const warnings = [];
+  if ((load.cpuPct || 0) >= 95) warnings.push({ level: 'critical', title: 'CPU usage is critical', detail: 'The Node.js process is using nearly a full CPU core.' });
+  else if ((load.cpuPct || 0) >= 80) warnings.push({ level: 'warning', title: 'CPU usage is high', detail: 'The process is using a large share of one CPU core.' });
+  if (load.rssPct !== null && load.rssPct !== undefined) {
+    if (load.rssPct >= 95) warnings.push({ level: 'critical', title: 'Process memory is critical', detail: load.rssMB + ' MB used out of a ' + load.memoryLimitMB + ' MB container limit.' });
+    else if (load.rssPct >= 85) warnings.push({ level: 'warning', title: 'Process memory is high', detail: load.rssMB + ' MB used out of a ' + load.memoryLimitMB + ' MB container limit.' });
+  }
+  if ((load.heapPct || 0) >= 95) warnings.push({ level: 'critical', title: 'JavaScript heap is critical', detail: load.heapUsedMB + ' MB of the available JavaScript heap is in use.' });
+  else if ((load.heapPct || 0) >= 85) warnings.push({ level: 'warning', title: 'JavaScript heap is high', detail: load.heapUsedMB + ' MB of the available JavaScript heap is in use.' });
+  if (load.level === 'unknown') warnings.push({ level: 'info', title: 'Collecting resource samples', detail: 'A first CPU sample is still being collected.' });
+  if (!warnings.length) warnings.push({ level: 'healthy', title: 'All resource indicators look healthy', detail: 'No CPU or memory thresholds are currently exceeded.' });
+  return warnings;
+}
+function getLiveServerCenterState() {
+  const load = getServerLoad();
+  const channelStats = ADMIN_CENTER_CHANNELS.map(channel => ({
+    key: channel.key,
+    label: channel.label,
+    online: io.sockets.adapter.rooms.get(channel.key)?.size || 0,
+    private: channel.key === 'ai'
+  }));
+  return {
+    checkedAt: Date.now(),
+    uptimeSeconds: Math.max(0, Math.floor((Date.now() - SERVER_STARTED_AT) / 1000)),
+    online: io.engine.clientsCount,
+    activeChannels: channelStats.filter(channel => channel.online > 0).length,
+    messages: Object.values(rooms).reduce((total, list) => total + list.length, 0),
+    channels: channelStats,
+    activity: publicActivity.slice(-12).reverse(),
+    load,
+    warnings: getLoadWarnings(load)
+  };
+}
+app.get('/api/server-status', (_req, res) => {
+  const center = getLiveServerCenterState();
+  const publicChannels = PUBLIC_STATUS_CHANNELS.map(channel => ({
+    key: channel.key,
+    label: channel.label,
+    online: io.sockets.adapter.rooms.get(channel.key)?.size || 0,
+    active: (io.sockets.adapter.rooms.get(channel.key)?.size || 0) > 0
+  }));
+  const load = center.load;
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.json({
+    ok: true,
+    checkedAt: center.checkedAt,
+    uptimeSeconds: center.uptimeSeconds,
+    online: center.online,
+    activeChannels: publicChannels.filter(channel => channel.active).length,
+    channels: publicChannels,
+    load: {
+      cpuPct: load.cpuPct, cpuReady: load.cpuReady,
+      rssMB: load.rssMB, rssPct: load.rssPct, memoryLimitMB: load.memoryLimitMB,
+      heapUsedMB: load.heapUsedMB, heapLimitMB: load.heapLimitMB, heapPct: load.heapPct,
+      level: load.level
+    },
+    warnings: center.warnings,
+    activity: publicActivity.slice(-12).reverse()
+  });
+});
+let lastLoadAlertCategory = 'normal';
+function checkServerResourceAlerts() {
+  const load = getServerLoad();
+  if (load.level === 'unknown') return;
+  const currentLevel = load.level === 'critical' ? 'critical' : load.level === 'high' ? 'warning' : 'normal';
+  const now = Date.now();
+  if (currentLevel === 'normal') {
+    if (lastLoadAlertCategory !== 'normal') recordServerActivity('system', 'Server resources returned to normal');
+    lastLoadAlertCategory = 'normal';
+    lastLoadAlertAt = 0;
+    return;
+  }
+  if (currentLevel !== lastLoadAlertCategory || now - lastLoadAlertAt >= 10 * 60 * 1000) {
+    const detail = 'CPU ' + load.cpuPct + '% · RAM ' + (load.rssPct === null ? 'limit unknown' : load.rssPct + '%') + ' · heap ' + load.heapPct + '%.';
+    recordServerActivity('warning', (currentLevel === 'critical' ? 'Critical server resource usage. ' : 'High server resource usage. ') + detail);
+    notify('Server resource warning', currentLevel.toUpperCase() + ': ' + detail, currentLevel === 'critical');
+    lastLoadAlertCategory = currentLevel;
+    lastLoadAlertAt = now;
+  }
+}
+const resourceAlertTimer = setInterval(checkServerResourceAlerts, 15000);
+if (typeof resourceAlertTimer.unref === 'function') resourceAlertTimer.unref();
+
 const statsLine = () =>
   'online: ' + io.engine.clientsCount + ' | rooms: ' + Object.keys(rooms).length +
   ' | messages: ' + Object.values(rooms).reduce((n, l) => n + l.length, 0) +
@@ -785,6 +936,7 @@ const statsLine = () =>
   ' | memory: ' + Math.round(process.memoryUsage().rss / 1048576) + ' MB';
 const adminState = () => ({
   offline, silenced, slow, links, images, banned,
+  serverCenter: getLiveServerCenterState(),
   events: events.slice(-80),
   ai: {
     enabled: AI_ENABLED,
@@ -1838,6 +1990,7 @@ function issueTemporaryAccountSession(socket, account, sessionToken = '', genera
 
 io.on('connection', (socket) => {
   console.log('[online] ' + io.engine.clientsCount);
+  recordServerActivity('connection', 'A client connected');
   let room = 'general', last = 0, lastReact = 0, lastReport = 0, lastText = '', lastTextAt = 0, recent = [];
   const blocked = () => (offline || socket.data.banned) && !socket.data.admin;
   const key = () => socket.data.tok || socket.id;
@@ -2257,6 +2410,7 @@ io.on('connection', (socket) => {
       socket.leave(room);
     }
     room = nextRoom;
+    if (PUBLIC_STATUS_CHANNELS.some(channel => channel.key === room)) recordServerActivity('channel', 'A client joined #' + room);
     // Account tokens are server-issued; a standalone admin session uses its unguessable server-issued session token.
     if (hasAccount) socket.data.tok = socket.data.account.token;
     const existingBan = activeUserBan(socket.data.tok);
@@ -2274,7 +2428,11 @@ io.on('connection', (socket) => {
     const now = Date.now();
     const history = (rooms[room] || [])
       .filter(m => m.imageApproved !== false && (room === 'announcements' || now - m.t < TTL))
-      .map(m => ({ ...pub(m), own: !!m.tok && m.tok === key() }));
+      .map(m => {
+        const safeMessage = { ...pub(m), own: !!m.tok && m.tok === key() };
+        if (m.poll) safeMessage.poll = { ...m.poll, myVote: m.pollVotes && Object.prototype.hasOwnProperty.call(m.pollVotes, key()) ? m.pollVotes[key()] : null };
+        return safeMessage;
+      });
     // Global banners remain temporary. Moderator posts written directly in
     // #announcements have their own history and do not expire with normal chat.
     if (room !== 'announcements' && latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
@@ -2764,6 +2922,9 @@ io.on('connection', (socket) => {
     const gap = socket.data.admin ? 500 : Math.max(500, slow * 1000);
     if (now - last < gap) { if (slow && !socket.data.admin && now - last >= 500) socket.emit('sys', 'Slow mode: please wait a moment.'); return; }
     const text = clean(d && d.text, 500);
+    const requestedStickerId = d && typeof d.stickerId === 'string' ? d.stickerId : '';
+    const stickerId = ['party','hype','love','gg','coffee','facepalm','bruh','fire','nice','cat','clap','wow'].includes(requestedStickerId) ? requestedStickerId : '';
+    if (requestedStickerId && !stickerId) return socket.emit('sys', 'That sticker is not in the shared Server Chat library.');
 
     // Login and moderator commands are control actions, not stored chat text.
     if (text === '/admin' || text.startsWith('/admin ')) {
@@ -2795,6 +2956,7 @@ io.on('connection', (socket) => {
 
     // Slash commands are server controls, not stored as ordinary chat text.
     if (text.startsWith('/')) {
+      if (room.startsWith('private-') && /^\/(poll|quiz)\b/i.test(text)) return socket.emit('sys', 'Interactive polls and quizzes are available in public channels only. Private-room text stays end-to-end encrypted.');
       if (!socket.data.admin) {
         recent = recent.filter(t => now - t < 10000); recent.push(now);
         if (recent.length > 6) { timeouts[key()] = now + 30000; return socket.emit('sys', 'Too fast. You are timed out for 30 seconds.'); }
@@ -2820,7 +2982,7 @@ io.on('connection', (socket) => {
       return socket.emit('sys', 'End-to-end encrypted text is only enabled in private rooms. Reload the page and send again.');
     }
     const img = d && typeof d.img === 'string' && imagesAllowed(room) && d.img.length < 1.4e6 && IMG.test(d.img) ? d.img : null;
-    if (isPrivateRoom ? (!encryptedText && !img) : (!text && !img)) return;
+    if (isPrivateRoom ? (!encryptedText && !img && !stickerId) : (!text && !img && !stickerId)) return;
 
     if (!socket.data.admin) {
       recent = recent.filter(t => now - t < 10000); recent.push(now);
@@ -2837,6 +2999,7 @@ io.on('connection', (socket) => {
       text: isPrivateRoom ? '' : text,
       t: now
     };
+    if (stickerId) message.stickerId = stickerId;
     if (encryptedText) message.encryptedText = encryptedText;
     if (img) {
       message.img = img;
@@ -2851,6 +3014,8 @@ io.on('connection', (socket) => {
       message.replyTo = { mid: replyParent.mid, name: replyParent.name || 'Anonymous', admin: !!replyParent.admin };
     }
     store(room, message);
+    // The public status feed records only generic activity categories, never chat contents or private-room activity.
+    if (!isPrivateRoom && PUBLIC_STATUS_CHANNELS.some(channel => channel.key === room)) recordServerActivity(message.poll ? 'poll' : stickerId ? 'sticker' : isAdmin ? 'system' : 'chat', message.poll ? 'A poll was started in #' + room : stickerId ? 'A sticker was shared in #' + room : isAdmin ? 'A staff message was posted in #' + room : 'A message was posted in #' + room);
     // Deliver ownership hints per recipient; browser tokens remain server-only.
     emitPersonalizedRoomMessage(room, 'msg', message);
 
@@ -2947,6 +3112,39 @@ io.on('connection', (socket) => {
       adminSay('⚑ ' + body.split('\nTo act')[0].replace(/\n/g, ' | '));
       notify(urgent ? 'URGENT chat report' : 'Chat report', body, urgent);
     }
+  });
+
+  socket.on('poll:vote', (data) => {
+    const now = Date.now();
+    if (blocked() || timeouts[key()] > now || !data || now - (socket.data.lastPollVoteAt || 0) < 250) return;
+    const mid = Number(data.mid), optionIndex = Number(data.optionIndex);
+    if (!Number.isSafeInteger(mid) || !Number.isSafeInteger(optionIndex)) return;
+    const message = (rooms[room] || []).find(item => item.mid === mid && item.poll);
+    if (!message || message.poll.closed || optionIndex < 0 || optionIndex >= message.poll.options.length) return;
+    socket.data.lastPollVoteAt = now;
+    const voterKey = key();
+    message.pollVotes ||= Object.create(null);
+    const hadVote = Object.prototype.hasOwnProperty.call(message.pollVotes, voterKey);
+    const previousVote = hadVote ? Number(message.pollVotes[voterKey]) : null;
+    if (previousVote === optionIndex) {
+      socket.emit('poll:vote-result', { mid, myVote: previousVote, quiz: message.poll.kind === 'quiz', unchanged: true });
+      return;
+    }
+    if (hadVote && Number.isSafeInteger(previousVote) && message.poll.options[previousVote]) {
+      message.poll.options[previousVote].votes = Math.max(0, message.poll.options[previousVote].votes - 1);
+    } else {
+      message.poll.totalVotes = (message.poll.totalVotes || 0) + 1;
+    }
+    message.pollVotes[voterKey] = optionIndex;
+    message.poll.options[optionIndex].votes = (message.poll.options[optionIndex].votes || 0) + 1;
+    message.poll.totalVotes = Object.keys(message.pollVotes).length;
+    io.to(room).emit('poll:state', { mid, poll: message.poll });
+    const quiz = message.poll.kind === 'quiz';
+    const correct = quiz && Number(message.pollAnswerIndex) === optionIndex;
+    socket.emit('poll:vote-result', {
+      mid, myVote: optionIndex, quiz, correct,
+      correctAnswer: quiz && message.poll.options[message.pollAnswerIndex] ? message.poll.options[message.pollAnswerIndex].label : null
+    });
   });
 
   socket.on('react', (d) => {
