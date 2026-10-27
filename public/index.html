@@ -1280,6 +1280,9 @@ function start() {
     $('currentPassword').value = '';
     $('newPassword').value = '';
     $('confirmNewPassword').value = '';
+    $('newPassword').type = 'password';
+    $('confirmNewPassword').type = 'password';
+    $('toggleNewPassword').textContent = 'Show';
     $('changePasswordMessage').textContent = '';
     $('changePasswordMessage').classList.remove('is-error');
     $('deleteAccountMessage').textContent = '';
@@ -1294,6 +1297,9 @@ function start() {
     $('currentPassword').value = '';
     $('newPassword').value = '';
     $('confirmNewPassword').value = '';
+    $('newPassword').type = 'password';
+    $('confirmNewPassword').type = 'password';
+    $('toggleNewPassword').textContent = 'Show';
   }
   $('accountChip').addEventListener('click', openAccountSettings);
   $('accountSettingsClose').addEventListener('click', closeAccountSettings);
@@ -1358,6 +1364,7 @@ function start() {
     if (result && result.ok) {
       $('currentPassword').value = '';
       $('confirmNewPassword').value = '';
+      $('confirmNewPassword').type = 'password';
       // Keep the chosen/generated password visible until account settings closes, so it can be copied.
       $('newPassword').type = 'text';
       $('toggleNewPassword').textContent = 'Hide';
