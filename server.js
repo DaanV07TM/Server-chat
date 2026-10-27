@@ -514,10 +514,10 @@ const PUBLIC_STATUS_CHANNELS = [
   { key: 'music', label: '#music' }
 ];
 const ADMIN_CENTER_CHANNELS = [...PUBLIC_STATUS_CHANNELS, { key: 'ai', label: 'AI Studio' }];
-let lastLoadAlertLevel = 'normal', lastLoadAlertAt = 0;
+let lastLoadAlertAt = 0;
 function recordServerActivity(category, message) {
   const allowed = new Set(['system', 'connection', 'channel', 'chat', 'sticker', 'poll', 'event', 'announcement', 'warning']);
-  const safeMessage = String(message || '').replace(/[\\u0000-\\u001f]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 140);
+  const safeMessage = String(message || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
   if (!safeMessage) return;
   const entry = { id: crypto.randomBytes(5).toString('hex'), category: allowed.has(category) ? category : 'system', message: safeMessage, t: Date.now() };
   publicActivity.push(entry);
