@@ -639,7 +639,7 @@ button:active:not(:disabled){transform:translateY(0)}
     </section>
     <section class="settings-danger">
       <h3>Delete account and all data</h3>
-      <p>This permanently removes your account, all messages and images you posted across channels, your report activity, and any music tracks you added. Other users’ messages are not deleted.</p>
+      <p>This permanently removes your account, all messages, images and command replies you created, your report activity, and music tracks you added. Other users’ messages are not deleted. Moderation notifications already sent to external services cannot be recalled.</p>
       <label class="auth-label" for="deleteAccountPassword">Confirm with your current password</label>
       <input id="deleteAccountPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="Current password">
       <p id="deleteAccountMessage" class="auth-message" role="status" aria-live="polite"></p>
@@ -1404,7 +1404,7 @@ function start() {
     }
     const confirmed = await showSiteDialog({
       title: 'Delete account and all data?',
-      message: 'This cannot be undone. Your account, all messages and images you posted, reports you made or received, and music tracks you added will be removed. Other people’s messages stay.',
+      message: 'This cannot be undone. Your account, messages, images and command replies, reports, and music tracks will be removed from this server. Other people’s messages stay. Previously sent external moderation alerts cannot be recalled.',
       confirmText: 'Delete everything',
       cancelText: 'Keep my account',
       danger: true
@@ -1449,6 +1449,14 @@ function start() {
     $('authUsername').value = '';
     $('authPassword').value = '';
     $('authPasswordConfirm').value = '';
+    $('currentPassword').value = '';
+    $('newPassword').value = '';
+    $('confirmNewPassword').value = '';
+    $('deleteAccountPassword').value = '';
+    $('generatedPassword').textContent = '';
+    newlyGeneratedPassword = '';
+    $('generatedCredentials').hidden = true;
+    $('generatedCredentials').style.display = 'none';
     log.replaceChildren();
     const empty = document.createElement('p');
     empty.className = 'empty';
