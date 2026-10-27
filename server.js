@@ -242,6 +242,18 @@ const LINK = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|gg|ly|me|xyz|ru|c
 const imagesAllowed = (room) => images === 'on' || (images === 'private' && room.startsWith('private-'));
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 const pub = (m) => { const { v, rep, tok, ...rest } = m; return rest; };
+// Personalize message payloads without ever exposing the browser identity token.
+function emitPersonalizedRoomMessage(roomName, eventName, message) {
+  const members = io.sockets.adapter.rooms.get(roomName);
+  if (!members) return;
+  const safeMessage = pub(message);
+  for (const socketId of members) {
+    const recipient = io.sockets.sockets.get(socketId);
+    if (!recipient) continue;
+    const recipientToken = recipient.data.tok || recipient.id;
+    recipient.emit(eventName, { ...safeMessage, own: !!message.tok && message.tok === recipientToken });
+  }
+}
 
 function store(room, m) {
   if (!m.mid) { m.mid = ++midCount; m.v = {}; m.r = {}; m.rep = []; }
@@ -1380,7 +1392,7 @@ io.on('connection', (socket) => {
     const now = Date.now();
     const history = (rooms[room] || [])
       .filter(m => m.imageApproved !== false && (room === 'announcements' || now - m.t < TTL))
-      .map(pub);
+      .map(m => ({ ...pub(m), own: !!m.tok && m.tok === key() }));
     // Global banners remain temporary. Moderator posts written directly in
     // #announcements have their own history and do not expire with normal chat.
     if (room !== 'announcements' && latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
@@ -1940,9 +1952,15 @@ io.on('connection', (socket) => {
       message.imageApproved = true;
       message.imageReviewed = isAdmin;
     }
+    const replyToMid = Number.isSafeInteger(Number(d && d.replyToMid)) ? Number(d.replyToMid) : 0;
+    const replyParent = replyToMid ? (rooms[room] || []).find(item => item.mid === replyToMid) : null;
+    if (replyParent && !replyParent.bot) {
+      // Store only a reference, not quoted text; this keeps private-room plaintext on clients.
+      message.replyTo = { mid: replyParent.mid, name: replyParent.name || 'Anonymous', admin: !!replyParent.admin };
+    }
     store(room, message);
-    // Publish immediately in the room, and send the same unencrypted image to the admin review panel.
-    io.to(room).emit('msg', pub(message));
+    // Deliver ownership hints per recipient; browser tokens remain server-only.
+    emitPersonalizedRoomMessage(room, 'msg', message);
 
     // Moderators may inspect image posts across rooms, including private-* rooms.
     if (img) {
@@ -1952,6 +1970,59 @@ io.on('connection', (socket) => {
       }
       console.log('[image-moderation] image posted in #' + room + (isAdmin ? ' (admin post)' : ' (visible; awaiting review)'));
     }
+  });
+
+  socket.on('message:edit', (d) => {
+    const now = Date.now();
+    if (blocked() || socket.data.banned || !d || !Number.isSafeInteger(Number(d.mid))) return;
+    if (room === 'announcements' || silenced || timeouts[key()] > now) return;
+    const mid = Number(d.mid);
+    const message = (rooms[room] || []).find(item => item.mid === mid);
+    if (!message || message.bot || message.admin || !message.tok || message.tok !== key() || message.img) {
+      return socket.emit('sys', 'You can only edit your own text messages.');
+    }
+    if (now - message.t > 15 * 60 * 1000) {
+      return socket.emit('sys', 'Messages can only be edited for 15 minutes after sending.');
+    }
+    const isPrivateRoom = room.startsWith('private-');
+    if (isPrivateRoom) {
+      const payload = d.encryptedText;
+      if (typeof d.text === 'string' && d.text.length) {
+        return socket.emit('sys', 'Private-room edits must stay end-to-end encrypted.');
+      }
+      if (!payload || typeof payload.iv !== 'string' || !/^[A-Za-z0-9_-]{16}$/.test(payload.iv) ||
+          typeof payload.data !== 'string' || payload.data.length < 22 || payload.data.length > 3000 ||
+          !/^[A-Za-z0-9_-]+$/.test(payload.data)) {
+        return socket.emit('sys', 'The encrypted edit was invalid. Reload the page and try again.');
+      }
+      message.text = '';
+      message.encryptedText = { iv: payload.iv, data: payload.data };
+    } else {
+      if (d.encryptedText !== undefined && d.encryptedText !== null) {
+        return socket.emit('sys', 'Encrypted text is only accepted in private rooms.');
+      }
+      const nextText = clean(d.text, 500);
+      if (!nextText || nextText.startsWith('/')) return socket.emit('sys', 'Enter a valid message to edit.');
+      message.text = nextText;
+    }
+    message.edited = true;
+    message.editedAt = now;
+    emitPersonalizedRoomMessage(room, 'message:edited', message);
+    socket.emit('sys', 'Message updated.');
+  });
+
+  socket.on('message:delete', (d) => {
+    if (blocked() || socket.data.banned || !d || !Number.isSafeInteger(Number(d.mid))) return;
+    if (room === 'announcements') return;
+    const mid = Number(d.mid);
+    const message = (rooms[room] || []).find(item => item.mid === mid);
+    if (!message || message.bot || message.admin || !message.tok || message.tok !== key()) {
+      return socket.emit('sys', 'You can only delete your own messages.');
+    }
+    const removed = removeMsg(mid);
+    const report = reportLog.get(mid);
+    if (report && removed) report.status = 'deleted by author';
+    socket.emit('sys', 'Message deleted.');
   });
 
   socket.on('report', (d) => {
