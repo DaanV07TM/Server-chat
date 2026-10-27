@@ -383,8 +383,9 @@ function store(room, m) {
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
 }
-function bot(room, text) {
+function bot(room, text, ownerToken = '') {
   const m = { name: 'Bot', bot: true, text, t: Date.now() };
+  if (ownerToken) m.tok = ownerToken;
   store(room, m);
   io.to(room).emit('msg', pub(m));
 }
@@ -455,13 +456,13 @@ const left = (until) => { const s = Math.ceil((until - Date.now()) / 1000); retu
 
 const BALL = ['Yes', 'No', 'Maybe', 'Definitely', 'Definitely not', 'Ask again later', 'Looks good', 'I doubt it'];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-function command(room, name, text) {
+function command(room, name, text, ownerToken = '') {
   const [c, ...r] = text.slice(1).split(' ');
   const arg = r.join(' ').trim();
-  if (c === 'roll') bot(room, `🎲 ${name} rolls a d${Math.min(Math.max(parseInt(arg) || 6, 2), 1000)}: ` + (1 + Math.floor(Math.random() * Math.min(Math.max(parseInt(arg) || 6, 2), 1000))));
-  else if (c === 'coin') bot(room, `🪙 ${name} flips a coin: ${Math.random() < 0.5 ? 'heads' : 'tails'}`);
-  else if (c === '8ball') bot(room, `🎱 ${arg || '...'} → ${pick(BALL)}`);
-  else if (c === 'rules') bot(room, 'Be kind. No harassment, hate, threats, scams or illegal content. Use ⚑ to report a message.');
+  if (c === 'roll') bot(room, `🎲 ${name} rolls a d${Math.min(Math.max(parseInt(arg) || 6, 2), 1000)}: ` + (1 + Math.floor(Math.random() * Math.min(Math.max(parseInt(arg) || 6, 2), 1000))), ownerToken);
+  else if (c === 'coin') bot(room, `🪙 ${name} flips a coin: ${Math.random() < 0.5 ? 'heads' : 'tails'}`, ownerToken);
+  else if (c === '8ball') bot(room, `🎱 ${arg || '...'} → ${pick(BALL)}`, ownerToken);
+  else if (c === 'rules') bot(room, 'Be kind. No harassment, hate, threats, scams or illegal content. Use ⚑ to report a message.', ownerToken);
 }
 
 // Sample CPU continuously so opening the admin panel never reports an average
@@ -2437,7 +2438,7 @@ io.on('connection', (socket) => {
         if (recent.length > 6) { timeouts[key()] = now + 30000; return socket.emit('sys', 'Too fast. You are timed out for 30 seconds.'); }
       }
       last = now;
-      command(room, socket.data.admin ? 'Admin' : safeName(d && d.name), text);
+      command(room, socket.data.admin ? 'Admin' : safeName(d && d.name), text, socket.data.admin ? '' : key());
       return;
     }
     const isPrivateRoom = room.startsWith('private-');
