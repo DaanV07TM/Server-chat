@@ -18,6 +18,16 @@ To use catalogue search, open `#music`, enter a song title or artist, and click 
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
+## Chat experience
+
+- **Replies:** Use **Reply** on a message to attach a reference to the original message. The server stores only the referenced message ID and author label, not a quoted copy of private-room text.
+- **Edit and delete:** A message author can delete their own messages. Text-only messages can be edited for 15 minutes. The server verifies ownership using the browser token; private-room edits are encrypted in the browser before being sent.
+- **Message search:** Search matches in the currently loaded history of the current room. It is a local browser filter, not a server-wide search.
+- **Anonymous profile:** Choose a display name and a simple status (Online, Gaming, Away, or Do not disturb). Name, status and theme preference are stored in this browser; they do not verify identity and are not an account.
+- **Appearance:** The light/dark toggle remembers the current browser's preference. The channel switcher is available with **Ctrl+K**, room search with **Ctrl+F**, and **/** focuses the composer when you are not already typing.
+- **Installable app:** Compatible browsers can install Server Chat from the browser's install action. The service worker caches only the visual shell; sending messages, voice, TURN credentials and other live features still require a network connection. If offline, the app shows a reconnect page.
+- **Moderation:** Every non-admin message can be reported, including your own. Admin messages and built-in bot notices cannot be reported. The server enforces this rule, rather than relying only on the button being hidden.
+
 ## Privacy and safety
 
 - No user account is required. Display names are not identity verification.
