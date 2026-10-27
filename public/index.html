@@ -1579,7 +1579,7 @@ function start() {
 
     const empty = $('empty'); if (empty) empty.remove();
     const d = document.createElement('div');
-    d.className = 'm' + (m.bot ? ' bot' : isOwnMessage ? ' me' : '') +
+    d.className = 'm' + (m.bot ? ' bot' : (isOwnMessage && !isAdminMessage) ? ' me' : '') +
       (isAdminMessage && !isPersistentAdminPost ? ' admin-message' : '') +
       (isAnnouncement ? ' announcement' : '') +
       (isPersistentAdminPost ? ' official-post' : '') +
