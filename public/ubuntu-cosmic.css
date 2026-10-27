@@ -559,3 +559,31 @@ body[data-room="ai"] #aiStudioRoot{
   *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
   .m:not(.announcement):not(.party-event){animation:none!important}
 }
+
+
+/* User-selectable accent palettes (local preference; light/dark remains independently selectable). */
+html[data-accent="ubuntu"]{--accent:#e95420;--mine:#77216f;--accent-soft:rgba(233,84,32,.10);--brand-main:#e95420;--brand-mid:#a23a59;--brand-alt:#77216f;--brand-gradient:linear-gradient(125deg,var(--brand-main),var(--brand-mid) 48%,var(--brand-alt))}
+html[data-accent="arctic"]{--accent:#4f9cff;--mine:#315a9b;--accent-soft:rgba(79,156,255,.12);--brand-main:#3297f5;--brand-mid:#5665c7;--brand-alt:#323c81;--brand-gradient:linear-gradient(125deg,var(--brand-main),var(--brand-mid) 48%,var(--brand-alt))}
+html[data-accent="matrix"]{--accent:#39bd78;--mine:#1e684d;--accent-soft:rgba(57,189,120,.12);--brand-main:#36b96f;--brand-mid:#20865a;--brand-alt:#145c4d;--brand-gradient:linear-gradient(125deg,var(--brand-main),var(--brand-mid) 48%,var(--brand-alt))}
+html[data-accent="rose"]{--accent:#f472b6;--mine:#9d356c;--accent-soft:rgba(244,114,182,.12);--brand-main:#f472b6;--brand-mid:#b04a86;--brand-alt:#702d68;--brand-gradient:linear-gradient(125deg,var(--brand-main),var(--brand-mid) 48%,var(--brand-alt))}
+header h1::before,.sidebar-brand-mark,header #share,header #private,header #admbtn,#send,.auth-card .auth-submit,.ai-brand-icon,.ai-empty-orb,.ai-working-orb,.ai-primary-btn,.ai-send-btn,.m.admin-message:not(.announcement),.m.announcement{background:var(--brand-gradient)!important}
+#channelNav .channel-link[aria-current="page"]{box-shadow:inset 3px 0 0 var(--brand-main),0 5px 15px rgba(8,3,12,.09)}
+#channelNav .channel-link[aria-current="page"] .channel-glyph,#channelNav .channel-link[aria-current="page"]>span:first-child{background:var(--brand-gradient)}
+.accent-palette-panel{position:fixed;top:calc(var(--app-header-height) + 10px);right:15px;z-index:120;width:min(330px,calc(100vw - 20px));padding:13px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--ink);box-shadow:0 25px 80px rgba(20,8,29,.28);backdrop-filter:blur(22px)}
+.accent-palette-panel[hidden]{display:none!important}
+.accent-palette-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 2px 12px;border-bottom:1px solid var(--line)}
+.accent-palette-head strong,.accent-palette-head small{display:block}.accent-palette-head strong{font-size:13px;font-weight:900}.accent-palette-head small{margin-top:3px;color:var(--mute);font-size:10px}
+#accentPaletteClose{display:grid;place-items:center;width:29px;height:29px;min-height:29px;margin:0;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:18px}
+.accent-palette-options{display:grid;gap:5px;padding-top:9px}
+.accent-palette-options button{display:flex;align-items:center;gap:10px;width:100%;min-height:53px;margin:0;padding:7px 9px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--ink);text-align:left;box-shadow:none}
+.accent-palette-options button:hover{border-color:var(--line);background:var(--surface-soft)}
+.accent-palette-options button[aria-pressed="true"]{border-color:color-mix(in srgb,var(--accent) 38%,var(--line));background:var(--accent-soft)}
+.palette-swatch{display:block;flex:0 0 35px;width:35px;height:35px;border:1px solid rgba(255,255,255,.28);border-radius:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.palette-swatch.ubuntu{background:linear-gradient(135deg,#e95420,#a23a59 48%,#77216f)}
+.palette-swatch.arctic{background:linear-gradient(135deg,#3297f5,#5665c7 48%,#323c81)}
+.palette-swatch.matrix{background:linear-gradient(135deg,#36b96f,#20865a 48%,#145c4d)}
+.palette-swatch.rose{background:linear-gradient(135deg,#f472b6,#b04a86 48%,#702d68)}
+.accent-palette-options button>span:nth-child(2){display:block;min-width:0;flex:1}.accent-palette-options strong,.accent-palette-options small{display:block}
+.accent-palette-options strong{font-size:11px;font-weight:900}.accent-palette-options small{margin-top:3px;color:var(--mute);font-size:9px}
+.palette-check{opacity:0;color:var(--accent);font-size:15px;font-weight:1000}.accent-palette-options button[aria-pressed="true"] .palette-check{opacity:1}
+@media(max-width:680px){.accent-palette-panel{top:auto;right:8px;bottom:78px}}
