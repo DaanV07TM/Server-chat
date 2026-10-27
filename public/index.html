@@ -948,6 +948,7 @@ function start() {
   const params = new URLSearchParams(location.search);
   const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
   const isPrivateRoom = room.startsWith('private-');
+  if (room === 'ai') $('title').textContent = 'AI Studio';
   const isSharedAIView = room === 'ai' && /^[a-f0-9]{32}$/.test(params.get('share') || '');
   document.body.dataset.room = room;
   document.body.dataset.sharedAi = isSharedAIView ? 'true' : 'false';
@@ -1196,6 +1197,7 @@ function start() {
     accountUsername = data.username;
     accountAuthenticated = true;
     try { localStorage.setItem('accountSessionToken', accountSessionToken); } catch (_) {}
+    window.dispatchEvent(new Event('server-chat:account-ready'));
     // Keep optional display names separate per account on this browser.
     try {
       const savedDisplayName = localStorage.getItem('displayName:' + accountUsername.toLowerCase()) || '';
