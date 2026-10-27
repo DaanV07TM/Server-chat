@@ -1740,6 +1740,19 @@ io.on('connection', (socket) => {
       for (const roomName of Object.keys(rooms)) {
         for (const message of rooms[roomName]) {
           if (Array.isArray(message.rep)) message.rep = message.rep.filter(token => token !== accountToken);
+          if (!message.v || typeof message.v !== 'object') continue;
+          for (const emoji of Object.keys(message.v)) {
+            const voters = Array.isArray(message.v[emoji])
+              ? message.v[emoji].filter(token => token !== accountToken)
+              : [];
+            if (voters.length) {
+              message.v[emoji] = voters;
+              message.r[emoji] = voters.length;
+            } else {
+              delete message.v[emoji];
+              if (message.r) delete message.r[emoji];
+            }
+          }
         }
       }
       delete reportTimes[accountToken];
@@ -2600,8 +2613,10 @@ io.on('connection', (socket) => {
     const m = (rooms[room] || []).find(x => x.mid === d.mid);
     if (!m) return;
     const who = (m.v[d.e] ||= []);
-    const i = who.indexOf(socket.id);
-    if (i >= 0) who.splice(i, 1); else who.push(socket.id);
+    // Reactions are tied to the account, not a single browser tab, so account deletion can remove them.
+    const voterToken = key();
+    const i = who.indexOf(voterToken);
+    if (i >= 0) who.splice(i, 1); else who.push(voterToken);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
     io.to(room).emit('react', { mid: m.mid, r: m.r });
   });
