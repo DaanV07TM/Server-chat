@@ -748,10 +748,14 @@ function start() {
   if (createdEncryptionKey) {
     showToast('A new text-encryption key was created for this private room. Share Copy link with the people who should read these messages.', 'info', 9000);
   }
-    let name = null, tok = null;
+    let name = null, tok = null, adminSessionToken = '';
   try { name = sessionStorage.getItem('name'); } catch (e) {}
   if (!name) { name = 'Anon-' + rnd(4); try { sessionStorage.setItem('name', name); } catch (e) {} }
-  try { tok = localStorage.getItem('tok'); if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); } } catch (e) { tok = rnd(16); }
+  try {
+    tok = localStorage.getItem('tok');
+    if (!tok) { tok = rnd(16); localStorage.setItem('tok', tok); }
+    adminSessionToken = localStorage.getItem('adminSessionToken') || '';
+  } catch (e) { tok = rnd(16); }
   $('title').textContent = '#' + room;
   $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
@@ -1327,7 +1331,7 @@ function start() {
     }
   }, 5000);
   log.innerHTML = EMPTY;
-  const join = () => socket.emit('join', { room, tok });
+  const join = () => socket.emit('join', { room, tok, adminToken: adminSessionToken });
   socket.on('connect', join);
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
@@ -2569,7 +2573,27 @@ function start() {
     $('file').disabled = true;
     showToast(message, 'error', 9000);
   });
-  socket.on('admin', on => { moderator = !!on; if (!on) recentAdminImages = []; $('admbtn').hidden = !on; updateMusicAdminUI(); if (!on) closeAdm(); });
+  function clearStoredAdminSession() {
+    adminSessionToken = '';
+    try { localStorage.removeItem('adminSessionToken'); } catch (_) {}
+  }
+  socket.on('admin:session', token => {
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return;
+    adminSessionToken = token;
+    try { localStorage.setItem('adminSessionToken', token); } catch (_) {}
+  });
+  socket.on('admin:session-invalid', clearStoredAdminSession);
+  socket.on('admin:session-revoked', clearStoredAdminSession);
+  socket.on('admin', on => {
+    moderator = !!on;
+    if (!on) {
+      clearStoredAdminSession();
+      recentAdminImages = [];
+    }
+    $('admbtn').hidden = !on;
+    updateMusicAdminUI();
+    if (!on) closeAdm();
+  });
   socket.on('adm:state', st => {
     if (!admOpen) return;
     const a = document.activeElement;
