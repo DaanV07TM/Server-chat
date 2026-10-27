@@ -1,0 +1,23 @@
+{
+  "name": "Server Chat",
+  "short_name": "Chat",
+  "description": "A modern anonymous chat to hang out together.",
+  "start_url": "/?room=general",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#0e121b",
+  "theme_color": "#5667e8",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
