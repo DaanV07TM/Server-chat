@@ -30,7 +30,7 @@
 .auth-eyebrow { display:block; margin-bottom:8px; color:var(--accent); font-size:10px; font-weight:900; letter-spacing:.15em; }
 .auth-card h2 { margin:0 0 8px; font-size:clamp(25px,4vw,32px); font-weight:850; letter-spacing:-.055em; }
 .auth-intro { margin:0 0 22px; color:var(--mute); font-size:13px; line-height:1.55; }
-.auth-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; margin-bottom:22px; border:1px solid var(--line); border-radius:13px; background:var(--surface-soft); }
+.auth-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; padding:4px; margin-bottom:22px; border:1px solid var(--line); border-radius:13px; background:var(--surface-soft); }
 .auth-tabs button { width:auto; margin:0; padding:10px 12px; border:0; border-radius:9px; background:transparent; color:var(--mute); font-size:12px; font-weight:800; box-shadow:none; }
 .auth-tabs button[aria-selected="true"] { background:var(--panel); color:var(--ink); box-shadow:0 2px 8px rgba(22,32,51,.08); }
 .auth-card form { display:flex; flex-direction:column; gap:0; }
