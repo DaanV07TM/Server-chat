@@ -1028,6 +1028,180 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+  let accountSessionToken = '';
+  let accountUsername = '';
+  let accountAuthenticated = false;
+  let authMode = 'login';
+  let authBusy = false;
+  let joinAuthenticated = () => {};
+  try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
+
+  const authGate = $('authGate');
+  const authForm = $('authForm');
+  const authSubmit = $('authSubmit');
+  const authMessage = $('authMessage');
+  const authPasswordInput = $('authPassword');
+  const authConfirmInput = $('authPasswordConfirm');
+  const authConfirmWrap = $('authConfirmWrap');
+
+  function showAuthGate(message = '') {
+    accountAuthenticated = false;
+    authGate.hidden = false;
+    authGate.style.display = 'flex';
+    authMessage.textContent = message;
+    authMessage.classList.toggle('is-error', !!message);
+    $('authUsername').focus();
+  }
+  function hideAuthGate() {
+    authGate.style.display = 'none';
+    authGate.hidden = true;
+  }
+  function setAuthMode(mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    const registering = authMode === 'register';
+    $('authTabLogin').setAttribute('aria-selected', String(!registering));
+    $('authTabRegister').setAttribute('aria-selected', String(registering));
+    $('authTitle').textContent = registering ? 'Create your space' : 'Welcome back';
+    $('authIntro').textContent = registering
+      ? 'Create a temporary account to start chatting.'
+      : 'Sign in to continue to your conversations.';
+    authSubmit.textContent = registering ? 'Create account' : 'Log in';
+    authPasswordInput.setAttribute('autocomplete', registering ? 'new-password' : 'current-password');
+    authPasswordInput.setAttribute('placeholder', registering ? 'At least 10 characters' : 'Your password');
+    authConfirmWrap.hidden = !registering;
+    authConfirmInput.required = registering;
+    authMessage.textContent = '';
+    authMessage.classList.remove('is-error');
+  }
+  $('authTabLogin').addEventListener('click', () => setAuthMode('login'));
+  $('authTabRegister').addEventListener('click', () => setAuthMode('register'));
+  authForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (authBusy || !socket.connected) {
+      if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
+      return;
+    }
+    const username = $('authUsername').value.trim();
+    const password = authPasswordInput.value;
+    if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
+      authMessage.textContent = 'Username must be 3–20 characters and use only letters, numbers, _ or -.';
+      authMessage.classList.add('is-error');
+      return;
+    }
+    if (authMode === 'register' && (password.length < 10 || password.length > 128)) {
+      authMessage.textContent = 'Choose a password between 10 and 128 characters.';
+      authMessage.classList.add('is-error');
+      return;
+    }
+    if (authMode === 'register' && password !== authConfirmInput.value) {
+      authMessage.textContent = 'The passwords do not match.';
+      authMessage.classList.add('is-error');
+      authConfirmInput.focus();
+      return;
+    }
+    if (authMode === 'login' && (!password || password.length > 128)) {
+      authMessage.textContent = 'Enter your password.';
+      authMessage.classList.add('is-error');
+      return;
+    }
+    authBusy = true;
+    authSubmit.disabled = true;
+    authSubmit.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
+    authMessage.textContent = 'Connecting securely…';
+    authMessage.classList.remove('is-error');
+    socket.emit(authMode === 'register' ? 'auth:register' : 'auth:login', { username, password });
+  });
+
+  socket.on('auth:result', data => {
+    authBusy = false;
+    authSubmit.disabled = false;
+    setAuthMode(authMode);
+    if (!data || !data.ok) {
+      if (data && data.invalidSession) {
+        accountSessionToken = '';
+        try { localStorage.removeItem('accountSessionToken'); } catch (_) {}
+        setAuthMode('login');
+      }
+      showAuthGate(data && data.message ? data.message : 'Could not sign in. Please try again.');
+      return;
+    }
+    accountSessionToken = data.sessionToken;
+    accountUsername = data.username;
+    accountAuthenticated = true;
+    try { localStorage.setItem('accountSessionToken', accountSessionToken); } catch (_) {}
+    // Start each account with its own display-name default rather than reusing the previous user's name.
+    name = accountUsername;
+    try {
+      localStorage.setItem('displayName', name);
+      sessionStorage.setItem('name', name);
+    } catch (_) {}
+    $('accountName').textContent = accountUsername;
+    $('accountAvatar').textContent = accountUsername.slice(0, 1).toUpperCase();
+    $('accountChip').setAttribute('aria-label', 'Signed in as ' + accountUsername);
+    authPasswordInput.value = '';
+    authConfirmInput.value = '';
+    hideAuthGate();
+    joinAuthenticated();
+    if (!data.resumed) {
+      showToast((authMode === 'register' ? 'Temporary account created: ' : 'Welcome back, ') + accountUsername + '.', 'success');
+      if (!welcomeGuideSeen) showWelcomeGuide();
+    }
+  });
+
+  socket.on('auth:required', () => {
+    if (!accountAuthenticated) showAuthGate('Please log in with your temporary account to continue.');
+  });
+  socket.on('auth:logged-out', () => {
+    accountAuthenticated = false;
+    accountSessionToken = '';
+    accountUsername = '';
+    try {
+      localStorage.removeItem('accountSessionToken');
+      localStorage.removeItem('adminSessionToken');
+      localStorage.removeItem('displayName');
+      sessionStorage.removeItem('name');
+    } catch (_) {}
+    adminSessionToken = '';
+    name = 'Anonymous';
+    $('accountName').textContent = 'Not signed in';
+    $('accountAvatar').textContent = '?';
+    $('accountChip').setAttribute('aria-label', 'No account signed in');
+    authPasswordInput.value = '';
+    authConfirmInput.value = '';
+    $('authUsername').value = '';
+    $('authGate').hidden = false;
+    $('authGate').style.display = 'flex';
+    setAuthMode('login');
+    showAuthGate('You are logged out. Sign in again or create another temporary account.');
+    log.replaceChildren();
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'Sign in to load the chat.';
+    log.append(empty);
+  });
+  $('logoutBtn').addEventListener('click', async () => {
+    if (!accountAuthenticated) return showAuthGate('Please sign in first.');
+    const confirmed = await showSiteDialog({
+      title: 'Log out?',
+      message: 'You will need your username and password to sign in again. Your temporary account stays available until the server restarts.',
+      confirmText: 'Log out',
+      cancelText: 'Stay signed in',
+      danger: true
+    });
+    if (confirmed) socket.emit('auth:logout');
+  });
+  socket.on('connect', () => {
+    if (accountSessionToken) {
+      authMessage.textContent = 'Restoring your temporary account…';
+      socket.emit('auth:resume', { sessionToken: accountSessionToken });
+    } else {
+      showAuthGate();
+    }
+  });
+  socket.on('connect_error', () => {
+    showAuthGate('Cannot reach the chat server. Check your connection and try again.');
+  });
+  setAuthMode('login');
 
   // Shared music queue. Catalogue search and audio playback use same-origin routes only.
   const musicPanel = $('musicPanel');
@@ -1586,7 +1760,7 @@ function start() {
   });
 
   setInterval(() => {
-    if (room !== 'music' || !socket.connected) return;
+    if (room !== 'music' || !socket.connected || !accountAuthenticated) return;
     const requestId = ++musicSyncRequestId;
     musicPendingSyncRequests.set(requestId, performance.now());
     socket.emit('music:sync-request', { requestId });
@@ -1596,8 +1770,10 @@ function start() {
     }
   }, 5000);
   log.innerHTML = EMPTY;
-  const join = () => socket.emit('join', { room, tok, adminToken: adminSessionToken });
-  socket.on('connect', join);
+  joinAuthenticated = () => {
+    if (!accountAuthenticated || !accountSessionToken || !socket.connected) return;
+    socket.emit('join', { room, tok, adminToken: adminSessionToken });
+  };
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const down = () => { log.scrollTop = log.scrollHeight; };
@@ -3190,7 +3366,6 @@ try {
 } catch (e) {}
 if (agreed) {
   start();
-  if (!welcomeGuideSeen) showWelcomeGuide();
 } else {
   $('rules').style.display = 'flex';
   $('agree').onclick = () => {
