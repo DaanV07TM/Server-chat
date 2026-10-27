@@ -1380,12 +1380,12 @@ function start() {
     message.classList.toggle('is-error', !result || !result.ok);
     if (result && result.ok) {
       $('currentPassword').value = '';
-      $('newPassword').value = '';
       $('confirmNewPassword').value = '';
-      $('newPassword').type = 'password';
-      $('confirmNewPassword').type = 'password';
-      $('toggleNewPassword').textContent = 'Show';
-      showToast('Password updated. Keep the new password somewhere safe.', 'success', 7000);
+      // Keep the chosen/generated password visible until account settings closes, so it can be copied.
+      $('newPassword').type = 'text';
+      $('toggleNewPassword').textContent = 'Hide';
+      message.textContent = 'Password updated. Copy it now; it will be cleared when you close these settings.';
+      showToast('Password updated. Copy and save it before closing settings.', 'success', 7000);
     }
   });
 
