@@ -1374,6 +1374,7 @@ io.on('connection', (socket) => {
     }
     socket.data.banned = false;
     socket.join(room);
+    if (socket.data.admin) socket.emit('admin', true);
     socket.emit('config', { images: imagesAllowed(room) });
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
