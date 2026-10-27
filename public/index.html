@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A modern anonymous chat with private-room encryption, live voice, shared music, and thoughtful moderation.">
 <meta name="theme-color" content="#5667e8">
+<link rel="icon" href="/app-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Server Chat · Hang out together</title>
 <style>
@@ -1588,6 +1589,7 @@ function start() {
       d.dataset.mid = m.mid;
       d.dataset.own = isOwnMessage && !isAdminMessage ? '1' : '';
       d.dataset.admin = isAdminMessage ? '1' : '';
+      d.dataset.timestamp = String(Number(m.t) || Date.now());
     }
     if (isFlashBanner || isPinnedInfo || isPersistentAnnouncement) {
       const badge = document.createElement('div');
@@ -1699,7 +1701,10 @@ function start() {
       beginReply(mid, messageNode.querySelector('.message-author b')?.textContent || 'Anonymous', content?.textContent || (messageNode.querySelector('img') ? 'Image message' : 'Referenced message'));
     }, 'add');
     if (own && !isAdminMessage) {
-      if (!messageNode.querySelector('img')) mk('Edit', 'Edit your message', () => beginEdit(messageNode), 'add');
+      const ageMs = Date.now() - Number(messageNode.dataset.timestamp || 0);
+      if (!messageNode.querySelector('img') && ageMs >= 0 && ageMs <= 15 * 60 * 1000) {
+        mk('Edit', 'Edit your message', () => beginEdit(messageNode), 'add');
+      }
       mk('Delete', 'Delete your message', async () => {
         const confirmed = await showSiteDialog({
           title: 'Delete your message?',
