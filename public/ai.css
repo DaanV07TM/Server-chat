@@ -96,6 +96,7 @@ body[data-room="ai"] .auth-gate { z-index:16000; }
 .ai-private-badge.is-shared { border-color:color-mix(in srgb,var(--accent) 25%,var(--line)); color:var(--accent); background:var(--accent-soft,rgba(110,100,241,.09)); }
 .ai-top-actions { display:flex; flex:0 0 auto; align-items:center; gap:7px; }
 .ai-primary-btn, .ai-secondary-btn, .ai-icon-btn {
+  text-decoration:none;
   display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:35px; padding:8px 11px;
   border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--panel);
   font:750 10px/1.2 system-ui,sans-serif; cursor:pointer; white-space:nowrap;
