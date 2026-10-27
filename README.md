@@ -103,3 +103,8 @@ Admins can trigger a server-wide party event with `/party` or `/party your messa
 
 
 Party Mode additionally runs lightweight visual effects in each connected browser: a gentle chat-panel shake, dancing message bubbles and a single batch of at most 24 confetti pieces. Animations use CSS transforms, confetti is removed as it falls, and the effect stops automatically after the event's remaining two-minute lifetime or immediately with `/partyoff`. Browsers configured to prefer reduced motion skip the motion and confetti. The server only broadcasts the event; it does not send repeated animation work or load-generating requests.
+
+
+## Admin desktop workspace and staff messages
+
+The admin console uses a desktop-style workspace with a title bar, a navigable sidebar on wider screens, grouped cards, and a compact horizontal navigation on phones. Its selected section and scroll position are preserved during live status refreshes. Messages sent by an authenticated admin in regular chat receive a distinctive animated gradient staff card and a staff label, but behave like normal chat messages and are not automatically removed after two minutes. Global announcements remain time-limited and visually separate.

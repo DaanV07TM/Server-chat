@@ -394,6 +394,74 @@ button:active:not(:disabled){transform:translateY(0)}
  #admbody .server-log-entry{grid-template-columns:46px minmax(0,1fr);gap:6px}
 }
 
+ 
+/* Desktop-like Server Chat Admin Console */
+#adm.admin-window-overlay{padding:2vh 1.5vw;align-items:center;justify-content:center;background:rgba(8,12,24,.76);backdrop-filter:blur(14px)}
+#adm .box.admin-window{width:min(1520px,98vw);max-width:min(1520px,98vw);height:min(94vh,1040px);max-height:96vh;padding:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(148,163,184,.36);border-radius:18px;background:var(--panel);box-shadow:0 32px 100px rgba(0,0,0,.48),0 0 0 1px rgba(99,102,241,.12)}
+#adm .admin-window-titlebar{flex:0 0 auto;display:flex;align-items:center;gap:16px;min-height:76px;padding:14px 20px;background:linear-gradient(105deg,#101728,#202b42 58%,#25234e);border-bottom:1px solid rgba(148,163,184,.28);color:#f8fafc}
+#adm .admin-window-identity{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+#adm .admin-window-appicon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border:1px solid rgba(255,255,255,.35);border-radius:13px;background:linear-gradient(145deg,#8b5cf6,#2563eb 62%,#06b6d4);box-shadow:0 5px 18px rgba(79,70,229,.35);font-size:21px;color:#fff}
+#adm .admin-window-titles{min-width:0}
+#adm .admin-window-titlebar h2{margin:0;color:#fff;font-size:clamp(15px,1.3vw,20px);letter-spacing:-.025em;line-height:1.25}
+#adm .admin-window-subtitle{display:block;margin-top:5px;color:#a5b4fc;font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.14em}
+#adm .admin-window-status{display:flex;align-items:center;gap:8px;color:#bbf7d0;font:800 10px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+.admin-live-indicator{display:inline-block;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.13),0 0 12px rgba(74,222,128,.55)}
+#adm .admin-window-controls{display:flex;align-items:center;gap:7px;padding-left:12px;border-left:1px solid rgba(255,255,255,.14)}
+#adm .window-dot{width:9px;height:9px;border-radius:50%;display:block}
+#adm .window-dot.amber{background:#fbbf24}
+#adm .window-dot.green{background:#34d399}
+#adm .admin-window-close{display:grid!important;place-items:center;width:33px!important;height:33px;min-height:33px;padding:0!important;margin:0 0 0 7px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:9px!important;background:rgba(248,113,113,.15)!important;color:#fecaca!important;font:500 24px/1 system-ui,sans-serif!important}
+#adm .admin-window-close:hover{background:#dc2626!important;color:white!important}
+#adm #admbody{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:0;background:var(--bg)}
+#adm .admin-desktop-shell{display:grid;grid-template-columns:226px minmax(0,1fr);gap:0;flex:1;min-width:0;min-height:0;height:100%;overflow:hidden;background:var(--bg)}
+#adm .admin-desktop-sidebar{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;overflow:auto;padding:16px 12px 12px;background:var(--panel);border-right:1px solid var(--line)}
+#adm .admin-sidebar-brand{display:flex;align-items:center;gap:10px;padding:4px 5px 18px;border-bottom:1px solid var(--line);color:var(--ink)}
+#adm .admin-sidebar-brand-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#4f46e5,#9333ea);color:#fff;font-size:13px;font-weight:1000;box-shadow:0 5px 15px rgba(79,70,229,.2)}
+#adm .admin-sidebar-brand b,#adm .admin-sidebar-brand small{display:block}
+#adm .admin-sidebar-brand b{font-size:11px;letter-spacing:.08em}
+#adm .admin-sidebar-brand small{margin-top:4px;color:var(--mute);font:700 8px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.06em}
+#adm .admin-sidebar-caption{margin:10px 8px 3px;color:var(--mute);font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.16em}
+#adm .admin-desktop-nav{display:flex;flex-direction:column;gap:4px}
+#adm .admin-nav-item{display:flex!important;align-items:center;gap:10px;width:100%!important;min-height:39px;margin:0!important;padding:8px 10px!important;border:1px solid transparent!important;border-radius:9px!important;background:transparent!important;color:var(--mute)!important;text-align:left;font:700 12px/1.3 system-ui,sans-serif!important;box-shadow:none!important}
+#adm .admin-nav-item:hover{background:rgba(99,102,241,.08)!important;color:var(--ink)!important;transform:translateX(2px)!important}
+#adm .admin-nav-item.is-active{border-color:rgba(99,102,241,.24)!important;background:linear-gradient(100deg,rgba(99,102,241,.16),rgba(139,92,246,.08))!important;color:var(--accent)!important;box-shadow:inset 3px 0 0 #818cf8!important}
+#adm .admin-nav-glyph{display:grid;place-items:center;width:23px;height:23px;flex:0 0 23px;border-radius:7px;background:rgba(148,163,184,.12);font-size:14px}
+#adm .admin-nav-item.is-active .admin-nav-glyph{background:linear-gradient(145deg,#6366f1,#a855f7);color:#fff}
+#adm .admin-sidebar-footer{display:flex;align-items:center;gap:9px;margin-top:auto;padding:12px 8px 3px;border-top:1px solid var(--line)}
+#adm .admin-sidebar-footer b,#adm .admin-sidebar-footer small{display:block}
+#adm .admin-sidebar-footer b{font:800 8px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--ink)}
+#adm .admin-sidebar-footer small{margin-top:3px;font-size:10px;color:var(--mute)}
+#adm .admin-desktop-main{min-width:0;min-height:0;overflow:auto;padding:18px 20px 34px;scroll-behavior:smooth;overscroll-behavior:contain}
+#adm .admin-desktop-card{position:relative;min-width:0;margin:0 0 16px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 5px 18px rgba(15,23,42,.035);scroll-margin-top:14px;overflow-wrap:anywhere}
+#adm .admin-desktop-card>.sec{margin:0 0 12px;padding:10px 12px;border:1px solid rgba(99,102,241,.15);border-left:3px solid #6366f1;border-radius:8px;background:linear-gradient(100deg,rgba(99,102,241,.09),rgba(139,92,246,.035));color:var(--ink);font-size:11px;letter-spacing:.11em}
+#adm .admin-desktop-card>p{line-height:1.55}
+#adm .admin-overview-card{overflow:hidden;border-color:rgba(99,102,241,.24);background:linear-gradient(140deg,var(--panel),rgba(99,102,241,.035))}
+#adm .admin-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:16px;padding:2px 2px 14px;border-bottom:1px solid var(--line)}
+#adm .admin-overview-kicker{color:#818cf8;font:900 9px/1.3 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.15em}
+#adm .admin-overview-heading h3{margin:6px 0 5px;color:var(--ink);font-size:clamp(19px,2vw,27px);letter-spacing:-.04em}
+#adm .admin-overview-heading p{margin:0;color:var(--mute);font-size:12px;line-height:1.5}
+#adm .admin-overview-orb{display:grid;place-items:center;width:58px;height:58px;flex:0 0 58px;border-radius:18px;background:linear-gradient(145deg,#7c3aed,#4f46e5 55%,#0891b2);color:#fff;font-size:27px;box-shadow:0 12px 30px rgba(99,102,241,.28)}
+#adm .admin-overview-card .admin-stats{grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:9px;margin:0}
+#adm .admin-overview-card .admin-stats .stat{border-color:var(--line);background:var(--bg);border-radius:11px;padding:11px}
+#adm .admin-overview-card .admin-stats .stat b{font-size:clamp(20px,2vw,26px);letter-spacing:-.045em}
+#adm #admmsg.admin-window-statusbar{flex:0 0 auto;min-height:34px;margin:0;padding:9px 18px;border-top:1px solid var(--line);background:var(--panel);color:var(--mute);font:11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace}
+#adm .admin-desktop-card .server-log-list{max-height:340px}
+#adm .admin-desktop-card .admin-image-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+@media(max-width:900px){#adm .admin-window-status{display:none}#adm .admin-desktop-shell{grid-template-columns:190px minmax(0,1fr)}#adm .admin-desktop-main{padding:12px}}
+@media(max-width:680px){#adm.admin-window-overlay{padding:7px}#adm .box.admin-window{width:100%;max-width:100%;height:96vh;max-height:96vh;border-radius:13px}#adm .admin-window-titlebar{min-height:65px;padding:10px 12px;gap:8px}#adm .admin-window-appicon{width:35px;height:35px;flex-basis:35px;border-radius:10px}#adm .admin-window-subtitle{font-size:7px;letter-spacing:.08em}#adm .window-dot{display:none}#adm .admin-window-controls{padding-left:6px}#adm .admin-desktop-shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}#adm .admin-desktop-sidebar{padding:8px 10px 9px;border-right:0;border-bottom:1px solid var(--line);overflow:visible;gap:4px}#adm .admin-sidebar-brand,#adm .admin-sidebar-caption,#adm .admin-sidebar-footer{display:none}#adm .admin-desktop-nav{flex-direction:row;gap:5px;overflow-x:auto;padding:1px 1px 4px;scrollbar-width:thin}#adm .admin-nav-item{width:auto!important;min-width:max-content;min-height:34px;padding:6px 9px!important;font-size:11px!important}#adm .admin-nav-glyph{width:19px;height:19px;flex-basis:19px}#adm .admin-desktop-main{padding:10px 9px 22px}#adm .admin-desktop-card{padding:11px;margin-bottom:10px}#adm .admin-overview-orb{width:40px;height:40px;flex-basis:40px;border-radius:13px;font-size:20px}#adm .admin-overview-heading p{max-width:42ch}}
+/* Ordinary admin chat posts: vivid staff cards, separate from timed global announcements. */
+.m.admin-message:not(.announcement){position:relative;isolation:isolate;overflow:hidden;border:2px solid rgba(165,243,252,.9);border-radius:17px;background:linear-gradient(125deg,#21165e 0%,#5b21b6 33%,#be185d 68%,#155e75 100%);color:#fff;box-shadow:0 8px 26px rgba(91,33,182,.24),0 0 0 2px rgba(103,232,249,.1);animation:adminChatGlow 3.6s ease-in-out infinite}
+.m.admin-message:not(.announcement)::before{content:"";position:absolute;z-index:0;inset:-20% -40%;pointer-events:none;background:linear-gradient(110deg,transparent 38%,rgba(255,255,255,.17) 49%,transparent 60%);transform:translateX(-40%);animation:adminMessageShine 6s ease-in-out infinite}
+.m.admin-message:not(.announcement)>*{position:relative;z-index:1}
+.m.admin-message:not(.announcement) .admin-tag{background:linear-gradient(90deg,#fef08a,#a5f3fc);border-color:#fff;color:#312e81;box-shadow:0 3px 12px rgba(0,0,0,.18)}
+.m.admin-message:not(.announcement) .message-author b{color:#fff!important}
+.m.admin-message:not(.announcement) .message-time{color:rgba(255,255,255,.72)}
+.m.admin-message:not(.announcement) .message-content{display:block;color:#fff;font-weight:700;line-height:1.55;text-shadow:0 1px 3px rgba(0,0,0,.24)}
+.m.admin-message:not(.announcement) .rx button{border-color:rgba(255,255,255,.35);color:#fff}
+.m.admin-message:not(.announcement):hover{box-shadow:0 10px 32px rgba(91,33,182,.32),0 0 0 3px rgba(103,232,249,.2)}
+@keyframes adminMessageShine{0%,35%{transform:translateX(-50%)}70%,100%{transform:translateX(45%)}}
+@keyframes adminChatGlow{0%,100%{box-shadow:0 8px 26px rgba(91,33,182,.24),0 0 0 2px rgba(103,232,249,.1)}50%{box-shadow:0 10px 30px rgba(190,24,93,.28),0 0 0 3px rgba(103,232,249,.18)}}
+@media(prefers-reduced-motion:reduce){.m.admin-message:not(.announcement),.m.admin-message:not(.announcement)::before{animation:none!important}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -684,13 +752,25 @@ button:active:not(:disabled){transform:translateY(0)}
     <button id="repX" type="button" class="plain">Cancel</button>
   </div>
 </div>
-<div id="adm" class="ov" role="dialog" aria-modal="true" aria-labelledby="admT">
-  <div class="box">
-    <h2 id="admT">Admin</h2>
+<div id="adm" class="ov admin-window-overlay" role="dialog" aria-modal="true" aria-labelledby="admT">
+  <div class="box admin-window">
+    <div class="admin-window-titlebar">
+      <div class="admin-window-identity">
+        <span class="admin-window-appicon" aria-hidden="true">◆</span>
+        <div class="admin-window-titles">
+          <h2 id="admT">Server Chat · Admin Console</h2>
+          <span class="admin-window-subtitle">SERVER OPERATIONS / MODERATION WORKSPACE</span>
+        </div>
+      </div>
+      <div class="admin-window-status"><span class="admin-live-indicator"></span> LIVE SESSION</div>
+      <div class="admin-window-controls" aria-label="Window controls">
+        <span class="window-dot amber" aria-hidden="true"></span>
+        <span class="window-dot green" aria-hidden="true"></span>
+        <button id="admX" type="button" class="admin-window-close" aria-label="Close admin console" title="Close">×</button>
+      </div>
+    </div>
     <div id="admbody"></div>
-
-    <p id="admmsg" aria-live="polite" style="color:var(--mute);min-height:20px"></p>
-    <button id="admX" type="button" class="plain">Close</button>
+    <p id="admmsg" class="admin-window-statusbar" aria-live="polite">Ready · admin tools connected</p>
   </div>
 </div>
 <div id="siteDialog" class="ov site-dialog" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle" aria-describedby="siteDialogMessage" hidden>
@@ -2225,7 +2305,7 @@ function start() {
     const isPinnedInfo = m.pinned === true;
     const isPersistentAnnouncement = room === 'announcements' && m.persistentAnnouncement === true;
     const isPersistentAdminPost = room === 'announcements' && isAdminMessage && !isAnnouncement;
-    const isFlashBanner = !isPinnedInfo && (isAnnouncement || (isAdminMessage && !isPersistentAdminPost));
+    const isFlashBanner = !isPinnedInfo && isAnnouncement;
     const age = Number.isFinite(Number(m.t)) ? Math.max(0, Date.now() - Number(m.t)) : 0;
 
     if (isFlashBanner && age >= FLASH_BANNER_MS) return;
@@ -2250,13 +2330,13 @@ function start() {
       d.dataset.admin = isAdminMessage ? '1' : '';
       d.dataset.timestamp = String(Number(m.t) || Date.now());
     }
-    if (isFlashBanner || isPinnedInfo || isPersistentAnnouncement) {
+    if (isFlashBanner || isPinnedInfo || isPersistentAnnouncement || (isAdminMessage && !isAnnouncement && !isPersistentAdminPost)) {
       const badge = document.createElement('div');
       badge.className = isPinnedInfo ? 'pinned-info-tag' : isPersistentAnnouncement ? 'persistent-announcement-tag' : 'admin-tag';
       badge.textContent = isPinnedInfo ? '📌 PINNED SERVER INFO' :
         isPersistentAnnouncement ? '📢 OFFICIAL ANNOUNCEMENT · ARCHIVED' :
         isPartyEvent ? '🎉 PARTY MODE · SERVER EVENT · 2 MINUTES' :
-        isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT · DISAPPEARS IN 2 MINUTES' : '⚡ MESSAGE FROM SERVER ADMIN';
+        isAnnouncement ? '📢 OFFICIAL SERVER ADMIN ANNOUNCEMENT · DISAPPEARS IN 2 MINUTES' : '✦ SERVER ADMIN · OFFICIAL MESSAGE';
       d.append(badge);
     }
     if (!m.bot) {
@@ -3491,7 +3571,125 @@ function start() {
       '<div class="load-track"><div class="load-fill ' + tone + '" style="width:' + width + '%"></div></div>' +
       '<div class="load-detail">' + h(detail) + '</div></div>';
   }
+  function layoutAdminDesktop(previousPanel = 'overview', previousMainScroll = 0, previousSideScroll = 0) {
+    const body = $('admbody');
+    if (!body) return;
+    const originalNodes = [...body.childNodes];
+    const oldQuickNav = body.querySelector('.admin-quicknav');
+    const stats = body.querySelector('.admin-stats');
+    if (!stats) return;
+
+    const panelForTitle = title => {
+      const value = String(title || '').toLowerCase();
+      if (value.includes('server load')) return 'server load';
+      if (value.includes('server connection')) return 'server connection';
+      if (value.includes('active screen shares')) return 'active screen shares';
+      if (value.includes('image activity')) return 'image activity';
+      if (value === 'chat') return 'chat';
+      if (value.includes('global announcement studio')) return 'global announcement studio';
+      if (value.includes('admin events')) return 'admin events';
+      if (value.includes('reports')) return 'reports';
+      if (value.includes('blocked words')) return 'blocked words';
+      if (value === 'alerts') return 'alerts';
+      if (value.includes('ai control center')) return 'ai control center';
+      if (value.includes('server logs')) return 'server logs';
+      if (value.includes('server reboot')) return 'server reboot';
+      if (value.includes('danger zone')) return 'danger zone';
+      return 'overview';
+    };
+
+    const workspace = document.createElement('div');
+    workspace.className = 'admin-desktop-shell';
+    const sidebar = document.createElement('aside');
+    sidebar.className = 'admin-desktop-sidebar';
+    const sidebarBrand = document.createElement('div');
+    sidebarBrand.className = 'admin-sidebar-brand';
+    sidebarBrand.innerHTML = '<span class="admin-sidebar-brand-icon">SC</span><span><b>CONTROL DESK</b><small>SERVER ADMINISTRATION</small></span>';
+    sidebar.appendChild(sidebarBrand);
+    const navCaption = document.createElement('div');
+    navCaption.className = 'admin-sidebar-caption';
+    navCaption.textContent = 'WORKSPACE';
+    sidebar.appendChild(navCaption);
+    const nav = document.createElement('nav');
+    nav.className = 'admin-desktop-nav';
+    nav.setAttribute('aria-label', 'Admin workspace');
+    const items = [
+      ['overview', 'Overview', '▦'],
+      ['server load', 'Performance', '◴'],
+      ['server connection', 'Connection', '⌁'],
+      ['active screen shares', 'Screen shares', '▣'],
+      ['image activity', 'Image review', '▧'],
+      ['chat', 'Chat controls', '☷'],
+      ['global announcement studio', 'Announcements', '✦'],
+      ['admin events', 'Live events', '✷'],
+      ['reports', 'Reports', '⚑'],
+      ['blocked words', 'Blocked words', '⊘'],
+      ['alerts', 'Alerts', '♢'],
+      ['ai control center', 'AI Studio', '✧'],
+      ['server logs', 'Server logs', '≡'],
+      ['server reboot', 'Restart', '↻'],
+      ['danger zone', 'Danger zone', '⚠']
+    ];
+    for (const [key, label, icon] of items) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'admin-nav-item' + (key === previousPanel ? ' is-active' : '');
+      button.dataset.adminJump = key;
+      const glyph = document.createElement('span');
+      glyph.className = 'admin-nav-glyph';
+      glyph.textContent = icon;
+      const name = document.createElement('span');
+      name.className = 'admin-nav-label';
+      name.textContent = label;
+      button.append(glyph, name);
+      nav.appendChild(button);
+    }
+    sidebar.appendChild(nav);
+    const sidebarFooter = document.createElement('div');
+    sidebarFooter.className = 'admin-sidebar-footer';
+    sidebarFooter.innerHTML = '<span class="admin-live-indicator"></span><span><b>SERVER LINK ACTIVE</b><small>Live status refresh · 5 sec</small></span>';
+    sidebar.appendChild(sidebarFooter);
+
+    const main = document.createElement('main');
+    main.className = 'admin-desktop-main';
+    const overview = document.createElement('section');
+    overview.className = 'admin-desktop-card admin-overview-card';
+    overview.dataset.adminPanel = 'overview';
+    const overviewHeader = document.createElement('div');
+    overviewHeader.className = 'admin-overview-heading';
+    overviewHeader.innerHTML = '<div><span class="admin-overview-kicker">SERVER CONTROL CENTER / OVERVIEW</span><h3>Good to see you, Admin.</h3><p>Monitor service health, manage your community and launch server-wide events.</p></div><span class="admin-overview-orb" aria-hidden="true">✦</span>';
+    overview.appendChild(overviewHeader);
+    overview.appendChild(stats);
+    main.appendChild(overview);
+
+    let activePanel = null;
+    for (const node of originalNodes) {
+      if (node === oldQuickNav || node === stats) continue;
+      if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) continue;
+      if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('sec')) {
+        activePanel = document.createElement('section');
+        activePanel.className = 'admin-desktop-card';
+        activePanel.dataset.adminPanel = panelForTitle(node.textContent);
+        activePanel.appendChild(node);
+        main.appendChild(activePanel);
+      } else {
+        (activePanel || overview).appendChild(node);
+      }
+    }
+
+    workspace.append(sidebar, main);
+    body.replaceChildren(workspace);
+    const activeNav = [...nav.querySelectorAll('.admin-nav-item')].find(button => button.dataset.adminJump === previousPanel);
+    if (activeNav) activeNav.classList.add('is-active');
+    main.scrollTop = Math.max(0, Number(previousMainScroll) || 0);
+    sidebar.scrollTop = Math.max(0, Number(previousSideScroll) || 0);
+  }
+
   function renderAdmin(st) {
+    const oldAdminBody = $('admbody');
+    const previousPanel = oldAdminBody?.querySelector('.admin-nav-item.is-active')?.dataset.adminJump || 'overview';
+    const previousMainScroll = oldAdminBody?.querySelector('.admin-desktop-main')?.scrollTop || 0;
+    const previousSideScroll = oldAdminBody?.querySelector('.admin-desktop-sidebar')?.scrollTop || 0;
     const load = st.load || {};
     const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
     const hasContainerRam = load.rssPct !== null && load.rssPct !== undefined && Number.isFinite(Number(load.rssPct));
@@ -3607,6 +3805,7 @@ function start() {
       '<div class="sec">Danger zone</div>' +
       B('Clear this room', '/clear', 'red', 'Clear all messages in this room?') + B('Wipe all messages', '/wipe', 'red', 'Delete ALL messages in ALL rooms?') +
       B('Log out', '/logout', 'plain');
+    layoutAdminDesktop(previousPanel, previousMainScroll, previousSideScroll);
     renderAdminImageReview();
   }
   const closeAdm = () => { admOpen = false; clearInterval(admTimer); clearAdminMonitor(true); $('adm').style.display = 'none'; };
@@ -3691,8 +3890,12 @@ function start() {
     const jump = e.target.closest('button[data-admin-jump]');
     if (jump) {
       const wanted = jump.dataset.adminJump;
-      const target = wanted === 'overview' ? $('admbody').querySelector('.admin-stats') : [...$('admbody').querySelectorAll('.sec')].find(el => el.textContent.toLowerCase().includes(wanted));
-      if (target) target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      const panels = [...$('admbody').querySelectorAll('.admin-desktop-card')];
+      const target = panels.find(panel => panel.dataset.adminPanel === wanted) || (wanted === 'overview' ? $('admbody').querySelector('.admin-stats') : [...$('admbody').querySelectorAll('.sec')].find(el => el.textContent.toLowerCase().includes(wanted)));
+      if (target) {
+        target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        $('admbody').querySelectorAll('.admin-nav-item').forEach(button => button.classList.toggle('is-active', button.dataset.adminJump === wanted));
+      }
       return;
     }
     const imageAction = e.target.closest('button[data-image-action]');
