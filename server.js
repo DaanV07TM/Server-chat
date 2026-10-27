@@ -1962,7 +1962,9 @@ io.on('connection', (socket) => {
     reportTimes[k] = (reportTimes[k] || []).filter(t => now - t < 600000);
     if (reportTimes[k].length >= 5) return socket.emit('sys', 'You sent too many reports. Please wait a few minutes.');
     const m = (rooms[room] || []).find(x => x.mid === d.mid);
-    if (!m || m.bot || m.id === socket.id || m.rep.includes(k)) return;
+    // Every regular user's message may be reported, including one's own.
+    // Admin/moderator posts are never reportable, even if a client forges a report event.
+    if (!m || m.bot || m.admin || m.rep.includes(k)) return;
     reportTimes[k].push(now);
     m.rep.push(k);
     let e = reportLog.get(m.mid);
