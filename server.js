@@ -580,6 +580,10 @@ const reportLog = new Map();   // kept 24h in memory, so you can review reports 
 const reportTimes = {};
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
+function adminPasswordMatches(password) {
+  if (!ADMIN || typeof password !== 'string' || !password || password.length > 128) return false;
+  return crypto.timingSafeEqual(sha(password), sha(ADMIN));
+}
 function login(pw) {
   if (!ADMIN) return 'nopw';
   const now = Date.now();
@@ -1938,6 +1942,21 @@ io.on('connection', (socket) => {
     if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
+
+    // Same ordinary login form: if the password matches ADMIN_PASSWORD, create an admin session
+    // directly and ignore the username. No temporary user account is created or stored.
+    if (adminPasswordMatches(password)) {
+      clearAuthAttempts(socket, 'login');
+      const token = issueAdminSession();
+      socket.data.admin = true;
+      socket.data.adminToken = token;
+      socket.data.tok = 'admin:' + token;
+      socket.emit('admin:session', token);
+      socket.emit('auth:result', { ok: true, isAdmin: true, username: 'Server Admin', resumed: false });
+      console.log('[admin] signed in through the standard login form (no temporary account)');
+      return;
+    }
+
     const accountKey = username.toLowerCase();
     if (!validAccountUsername(username) || !password || password.length > 128) {
       return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
