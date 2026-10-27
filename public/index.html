@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A modern chat with temporary username and password accounts, private-room encryption, live voice, shared music, and thoughtful moderation.">
-<meta name="theme-color" content="#5667e8">
+<meta name="theme-color" content="#77216f">
 <link rel="icon" href="/app-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Server Chat · Hang out together</title>
@@ -585,6 +585,7 @@ button:active:not(:disabled){transform:translateY(0)}
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
 <link rel="stylesheet" href="/accounts.css">
+<link rel="stylesheet" href="/ubuntu-cosmic.css">
 </head>
 <body>
 <header>
@@ -593,6 +594,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="searchToggle" type="button" title="Search messages in this room (Ctrl+F)">⌕ Search</button>
   <button id="channelPaletteToggle" type="button" title="Switch channel (Ctrl+K)">⌘ Channels</button>
   <button id="themeToggle" type="button" title="Switch light/dark appearance">☾ Theme</button>
+  <button id="accentPaletteToggle" type="button" title="Choose accent palette" aria-expanded="false" aria-controls="accentPalettePanel">◈ Colors</button>
   <button id="profileStatusBtn" type="button" title="Set your current status">● Online</button>
   <button id="installApp" type="button" hidden>Install app</button>
   <button id="quickGuide" type="button" title="Open the quick guide">Quick guide</button>
@@ -608,13 +610,28 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <nav id="channelNav" aria-label="Official channels">
-  <a class="channel-link" data-channel="general" href="/?room=general"><span aria-hidden="true">#</span><span>general</span></a>
+  <div class="sidebar-brand">
+    <span class="sidebar-brand-mark" aria-hidden="true">SC</span>
+    <span class="sidebar-brand-copy"><strong>Server Chat</strong><small>COMMUNITY SPACE</small></span>
+    <span class="sidebar-brand-pulse" aria-hidden="true"></span>
+  </div>
+  <div class="sidebar-section-label">WORKSPACE</div>
+  <a class="channel-link" data-channel="general" href="/?room=general"><span class="channel-glyph" aria-hidden="true">#</span><span>general</span></a>
+  <div class="sidebar-section-label">COMMUNITY</div>
   <a class="channel-link" data-channel="announcements" href="/?room=announcements"><span aria-hidden="true">📢</span><span>announcements</span><span class="channel-badge">OFFICIAL</span></a>
   <a class="channel-link" data-channel="help" href="/?room=help"><span aria-hidden="true">❔</span><span>help</span></a>
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
-  <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
+  <a class="channel-link" data-channel="music" href="/?room=music"><span class="channel-glyph" aria-hidden="true">♫</span><span>music</span></a>
+  <div class="sidebar-section-label">APPS</div>
   <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
-  <a class="channel-link status-page-link" href="/status.html"><span aria-hidden="true">🖥️</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
+  <a class="channel-link status-page-link" href="/status.html"><span class="channel-glyph" aria-hidden="true">◷</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
+  <div class="sidebar-spacer" aria-hidden="true"></div>
+  <div class="sidebar-dock" aria-label="Quick launch">
+    <a class="sidebar-dock-item" href="/?room=general" aria-label="Open general chat" title="General chat"><span class="dock-glyph dock-chat">#</span><small>Chat</small></a>
+    <a class="sidebar-dock-item" href="/?room=ai" aria-label="Open private AI Studio" title="AI Studio"><span class="dock-glyph dock-ai">✦</span><small>AI</small></a>
+    <a class="sidebar-dock-item" href="/status.html" aria-label="Open server status" title="Server status"><span class="dock-glyph dock-status">⌁</span><small>Status</small></a>
+  </div>
+  <div class="sidebar-footer"><span class="sidebar-footer-dot" aria-hidden="true"></span><span><strong>Server connected</strong><small>Secure community space</small></span></div>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -744,6 +761,15 @@ button:active:not(:disabled){transform:translateY(0)}
   <div class="sticker-picker-tabs"><button type="button" class="sticker-picker-tab is-active" data-sticker-tab="emoji">😀 Emoji</button><button type="button" class="sticker-picker-tab" data-sticker-tab="stickers">✨ Stickers</button></div>
   <div id="stickerPickerGrid" class="sticker-picker-grid"></div>
   <div class="sticker-picker-foot">Stickers are built-in, lightweight and available in every room. Private-room message text remains encrypted.</div>
+</div>
+<div id="accentPalettePanel" class="accent-palette-panel" role="dialog" aria-label="Choose accent palette" hidden>
+  <div class="accent-palette-head"><div><strong>Choose your colors</strong><small>Saved on this device only</small></div><button type="button" id="accentPaletteClose" aria-label="Close color themes">×</button></div>
+  <div class="accent-palette-options">
+    <button type="button" data-accent-choice="ubuntu" aria-pressed="true"><span class="palette-swatch ubuntu" aria-hidden="true"></span><span><strong>Ubuntu COSMIC</strong><small>Orange · Aubergine</small></span><span class="palette-check">✓</span></button>
+    <button type="button" data-accent-choice="arctic" aria-pressed="false"><span class="palette-swatch arctic" aria-hidden="true"></span><span><strong>Arctic Blue</strong><small>Blue · Indigo</small></span><span class="palette-check">✓</span></button>
+    <button type="button" data-accent-choice="matrix" aria-pressed="false"><span class="palette-swatch matrix" aria-hidden="true"></span><span><strong>Matrix Green</strong><small>Green · Forest</small></span><span class="palette-check">✓</span></button>
+    <button type="button" data-accent-choice="rose" aria-pressed="false"><span class="palette-swatch rose" aria-hidden="true"></span><span><strong>Rose Quartz</strong><small>Pink · Plum</small></span><span class="palette-check">✓</span></button>
+  </div>
 </div>
 <div id="commandPalette" class="ov" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle" hidden>
   <div class="box">
@@ -953,6 +979,43 @@ let savedTheme = '';
 try { savedTheme = localStorage.getItem('chatTheme') || ''; } catch (_) {}
 applyTheme(savedTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 $('themeToggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+const ACCENT_PALETTES = {
+  ubuntu: { label:'Ubuntu COSMIC' },
+  arctic: { label:'Arctic Blue' },
+  matrix: { label:'Matrix Green' },
+  rose: { label:'Rose Quartz' }
+};
+function applyAccentPalette(palette, announce = false) {
+  const selected = Object.prototype.hasOwnProperty.call(ACCENT_PALETTES, palette) ? palette : 'ubuntu';
+  document.documentElement.dataset.accent = selected;
+  try { localStorage.setItem('chatAccentPalette', selected); } catch (_) {}
+  document.querySelectorAll('[data-accent-choice]').forEach(button => {
+    button.setAttribute('aria-pressed', button.dataset.accentChoice === selected ? 'true' : 'false');
+  });
+  if (announce && typeof showToast === 'function') showToast(ACCENT_PALETTES[selected].label + ' theme applied.', 'success', 1800);
+}
+let savedAccentPalette = '';
+try { savedAccentPalette = localStorage.getItem('chatAccentPalette') || ''; } catch (_) {}
+applyAccentPalette(savedAccentPalette || 'ubuntu');
+const accentPalettePanel = $('accentPalettePanel');
+$('accentPaletteToggle').onclick = () => {
+  accentPalettePanel.hidden = !accentPalettePanel.hidden;
+  $('accentPaletteToggle').setAttribute('aria-expanded', accentPalettePanel.hidden ? 'false' : 'true');
+};
+$('accentPaletteClose').onclick = () => {
+  accentPalettePanel.hidden = true;
+  $('accentPaletteToggle').setAttribute('aria-expanded', 'false');
+};
+accentPalettePanel.querySelectorAll('[data-accent-choice]').forEach(button => {
+  button.addEventListener('click', () => applyAccentPalette(button.dataset.accentChoice, true));
+});
+document.addEventListener('pointerdown', event => {
+  if (!accentPalettePanel.hidden && !event.target.closest('#accentPalettePanel') && !event.target.closest('#accentPaletteToggle')) {
+    accentPalettePanel.hidden = true;
+    $('accentPaletteToggle').setAttribute('aria-expanded', 'false');
+  }
+}, { passive: true });
+
 
 function updateMessageSearch() {
   const panel = $('messageSearchPanel');

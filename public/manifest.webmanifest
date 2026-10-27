@@ -1,7 +1,7 @@
 {
-  "name": "Server Chat",
+  "name": "Server Chat · COSMIC",
   "short_name": "Chat",
-  "description": "A modern anonymous chat to hang out together.",
+  "description": "A modern community chat with an Ubuntu COSMIC-inspired design.",
   "start_url": "/?room=general",
   "scope": "/",
   "display": "standalone",
@@ -9,8 +9,8 @@
     "standalone",
     "minimal-ui"
   ],
-  "background_color": "#0e121b",
-  "theme_color": "#5667e8",
+  "background_color": "#17111c",
+  "theme_color": "#77216f",
   "orientation": "any",
   "icons": [
     {

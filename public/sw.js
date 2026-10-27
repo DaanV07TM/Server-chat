@@ -1,6 +1,6 @@
 /* Server Chat service worker: caches the visual shell only; chat/API/signalling remain online-only. */
-const CACHE_NAME = 'server-chat-shell-v1';
-const SHELL_ASSETS = ['/offline.html', '/experience.css', '/manifest.webmanifest', '/app-icon.svg'];
+const CACHE_NAME = 'server-chat-shell-v2';
+const SHELL_ASSETS = ['/offline.html', '/experience.css', '/ubuntu-cosmic.css', '/status.html', '/status.js', '/manifest.webmanifest', '/app-icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
