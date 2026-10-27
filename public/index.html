@@ -394,6 +394,7 @@ button:active:not(:disabled){transform:translateY(0)}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
+<link rel="stylesheet" href="/accounts.css">
 </head>
 <body>
 <header>
@@ -408,6 +409,11 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="share" type="button">Copy link</button>
   <button id="private" type="button">New private room</button>
   <button id="rename" type="button">Profile</button>
+  <div class="account-chip" id="accountChip" aria-label="Signed-in account">
+    <span class="account-avatar" id="accountAvatar" aria-hidden="true">?</span>
+    <span class="account-name" id="accountName">Not signed in</span>
+  </div>
+  <button id="logoutBtn" class="account-logout" type="button" title="Log out of this temporary account">Log out</button>
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
 <nav id="channelNav" aria-label="Official channels">
@@ -552,6 +558,35 @@ button:active:not(:disabled){transform:translateY(0)}
       <button type="button" data-palette-room="music">🎵 <span>music</span><span class="palette-shortcut">Listen together</span></button>
     </div>
     <button id="commandPaletteClose" class="plain" type="button">Close</button>
+  </div>
+</div>
+<div id="authGate" class="ov auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle" hidden>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="auth-brand-mark" aria-hidden="true">✦</span>
+      <span><strong>Server Chat</strong><small>YOUR SPACE. YOUR PEOPLE.</small></span>
+    </div>
+    <span class="auth-eyebrow">TEMPORARY ACCOUNT</span>
+    <h2 id="authTitle">Welcome back</h2>
+    <p id="authIntro" class="auth-intro">Sign in to continue to your conversations.</p>
+    <div class="auth-tabs" role="tablist" aria-label="Account access">
+      <button id="authTabLogin" type="button" role="tab" aria-selected="true">Log in</button>
+      <button id="authTabRegister" type="button" role="tab" aria-selected="false">Create account</button>
+    </div>
+    <form id="authForm" autocomplete="on" novalidate>
+      <label class="auth-label" for="authUsername">Username</label>
+      <input id="authUsername" name="username" type="text" minlength="3" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. daan_07" required>
+      <p class="auth-hint">3–20 characters · letters, numbers, _ or -</p>
+      <label class="auth-label" for="authPassword">Password</label>
+      <input id="authPassword" name="password" type="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="Your password" required>
+      <div id="authConfirmWrap" hidden>
+        <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
+        <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
+      </div>
+      <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
+      <button id="authSubmit" class="auth-submit" type="submit">Log in</button>
+    </form>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Your password is securely hashed. Accounts are stored in server memory and are cleared when the server restarts. Choose a password you don't use elsewhere.</span></div>
   </div>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
