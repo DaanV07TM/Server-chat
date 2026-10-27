@@ -35,8 +35,6 @@ app.get('/healthz', (_req, res) => {
 app.set('trust proxy', 1);
 const AI_API_KEY = String(process.env.GROQ_API_KEY || '').trim();
 const AI_MODEL = String(process.env.GROQ_MODEL || 'openai/gpt-oss-20b').trim();
-const POLLINATIONS_API_KEY = String(process.env.POLLINATIONS_API_KEY || '').trim();
-const POLLINATIONS_IMAGE_MODEL = String(process.env.POLLINATIONS_IMAGE_MODEL || 'flux').trim();
 const AI_CONVERSATIONS = new Map(); // account key -> Map(conversation id -> conversation)
 const AI_PUBLIC_SHARES = new Map(); // random unlisted link id -> read-only conversation snapshot
 const AI_RATE_LIMIT = new Map();
@@ -45,20 +43,12 @@ const AI_RATE_MAX = 18;
 const AI_GLOBAL_REQUESTS = [];
 const AI_GLOBAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AI_GLOBAL_MAX = 300;
-const AI_IMAGE_RATE_LIMIT = new Map();
-const AI_IMAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
-const AI_IMAGE_PER_ACCOUNT_MAX = 3;
-const AI_IMAGE_GLOBAL_REQUESTS = [];
-const AI_IMAGE_GLOBAL_MAX = 20;
 const AI_MAX_CONVERSATIONS_PER_ACCOUNT = 40;
 const AI_MAX_MESSAGES_PER_CONVERSATION = 80;
 const AI_MAX_CHARS_PER_CONVERSATION = 50000;
 const AI_MAX_CHARS_PER_ACCOUNT = 300000;
 const AI_MAX_PUBLIC_SHARES = 200;
-const AI_IMAGE_MAX_STORED_TOTAL = 200;
 const AI_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const AI_IMAGE_MAX_BYTES = 800 * 1024;
-const AI_IMAGE_MAX_PER_ACCOUNT_TOTAL = 10;
 
 function aiAccountFromRequest(req) {
   const authHeader = String(req.headers.authorization || '');
@@ -86,15 +76,7 @@ function aiPublicConversation(conversation) {
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     shareId: conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId) ? conversation.shareId : null,
-    messages: conversation.messages.map(message => {
-      const result = { role: message.role, content: message.content, createdAt: message.createdAt };
-      if (message.kind === 'image' && typeof message.imageData === 'string') {
-        result.kind = 'image';
-        result.imageData = message.imageData;
-        result.imagePrompt = message.imagePrompt || '';
-      }
-      return result;
-    })
+    messages: conversation.messages.map(message => ({ role: message.role, content: message.content, createdAt: message.createdAt }))
   };
 }
 
@@ -126,8 +108,6 @@ app.get('/api/ai/status', (_req, res) => {
   res.json({
     available: Boolean(AI_API_KEY),
     model: AI_API_KEY ? AI_MODEL : null,
-    imageAvailable: Boolean(POLLINATIONS_API_KEY),
-    imageProvider: POLLINATIONS_API_KEY ? 'Pollinations' : null
   });
 });
 
@@ -337,7 +317,7 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   }
   const contextualMessages = conversation.messages.slice(-12).map(message => ({
     role: message.role,
-    content: message.kind === 'image' ? '[An image was generated from this prompt: ' + String(message.imagePrompt || '').slice(0, 700) + ']' : message.content
+    content: message.content
   })).filter(message => typeof message.content === 'string' && message.content.trim());
   try {
     const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -389,112 +369,6 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
     if (timedOut) return res.status(504).json({ error: 'The AI response took too long. Please try again.' });
     console.warn('[ai] Request failed before a response was available.');
     return res.status(502).json({ error: 'The AI service is temporarily unreachable.' });
-  }
-});
-
-app.post('/api/ai/image', express.json({ limit: '4kb', strict: true }), async (req, res) => {
-  aiSetNoStore(res);
-  const auth = aiAccountFromRequest(req);
-  if (!auth) return res.status(401).json({ error: 'Sign in again to generate images in your private AI workspace.' });
-  if (!POLLINATIONS_API_KEY) {
-    return res.status(503).json({
-      error: 'Image generation is not enabled yet. The administrator must configure POLLINATIONS_API_KEY. A key may consume Pollen credits; generation stays disabled until explicitly configured.'
-    });
-  }
-
-  const conversationId = String(req.body && req.body.conversationId || '');
-  const prompt = typeof (req.body && req.body.prompt) === 'string' ? req.body.prompt.trim() : '';
-  if (!/^[a-f0-9]{32}$/.test(conversationId) || !prompt || prompt.length > 1200) {
-    return res.status(400).json({ error: 'Select a conversation and enter an image description of 1–1200 characters.' });
-  }
-  const conversations = aiConversationsFor(auth.accountKey);
-  const conversation = conversations && conversations.get(conversationId);
-  if (!conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
-  if (conversation.messages.length >= AI_MAX_MESSAGES_PER_CONVERSATION) {
-    return res.status(429).json({ error: 'This conversation reached its message limit. Start a new conversation to continue.' });
-  }
-  const accountConversations = aiConversationsFor(auth.accountKey);
-  const storedImages = accountConversations
-    ? [...accountConversations.values()].reduce((total, item) => total + item.messages.filter(message => message.kind === 'image').length, 0)
-    : 0;
-  if (storedImages >= AI_IMAGE_MAX_PER_ACCOUNT_TOTAL) {
-    return res.status(429).json({ error: 'This account has reached its limit of 10 stored AI images. Delete an old AI conversation to make room.' });
-  }
-  const globalStoredImages = [...AI_CONVERSATIONS.values()].reduce((accountTotal, conversations) =>
-    accountTotal + [...conversations.values()].reduce((conversationTotal, item) =>
-      conversationTotal + item.messages.filter(message => message.kind === 'image').length, 0), 0);
-  if (globalStoredImages >= AI_IMAGE_MAX_STORED_TOTAL) {
-    return res.status(429).json({ error: 'The shared temporary image-storage limit is full. Delete an old AI conversation or try later.' });
-  }
-  const currentConversationChars = conversation.messages.reduce((sum, message) => sum + String(message.content || '').length, 0);
-  const accountConversationChars = [...accountConversations.values()].reduce((sum, item) =>
-    sum + item.messages.reduce((part, message) => part + String(message.content || '').length, 0), 0);
-  const imageTextCost = prompt.length * 2 + 80;
-  if (currentConversationChars + imageTextCost > AI_MAX_CHARS_PER_CONVERSATION ||
-      accountConversationChars + imageTextCost > AI_MAX_CHARS_PER_ACCOUNT) {
-    return res.status(429).json({ error: 'Your temporary AI history reached its storage limit. Delete an old conversation to make room.' });
-  }
-
-  const now = Date.now();
-  const recent = (AI_IMAGE_RATE_LIMIT.get(auth.accountKey) || []).filter(time => now - time < AI_IMAGE_WINDOW_MS);
-  if (recent.length >= AI_IMAGE_PER_ACCOUNT_MAX) {
-    AI_IMAGE_RATE_LIMIT.set(auth.accountKey, recent);
-    return res.status(429).json({ error: 'This account has reached its limit of 3 generated images per 24 hours.' });
-  }
-  const globalRecent = AI_IMAGE_GLOBAL_REQUESTS.filter(time => now - time < AI_IMAGE_WINDOW_MS);
-  if (globalRecent.length >= AI_IMAGE_GLOBAL_MAX) {
-    AI_IMAGE_GLOBAL_REQUESTS.splice(0, AI_IMAGE_GLOBAL_REQUESTS.length, ...globalRecent);
-    return res.status(429).json({ error: 'The shared image-generation allowance has been reached for today.' });
-  }
-
-  recent.push(now);
-  AI_IMAGE_RATE_LIMIT.set(auth.accountKey, recent);
-  globalRecent.push(now);
-  AI_IMAGE_GLOBAL_REQUESTS.splice(0, AI_IMAGE_GLOBAL_REQUESTS.length, ...globalRecent);
-  try {
-    const upstream = await fetch('https://gen.pollinations.ai/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + POLLINATIONS_API_KEY,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        model: POLLINATIONS_IMAGE_MODEL,
-        prompt,
-        n: 1,
-        response_format: 'b64_json'
-      }),
-      signal: AbortSignal.timeout(90000)
-    });
-    if (!upstream.ok) {
-      console.warn('[ai-image] Image provider request failed with status ' + upstream.status);
-      if (upstream.status === 429) return res.status(429).json({ error: 'The image service is busy or its rate limit was reached. Try again later.' });
-      if (upstream.status === 402) return res.status(402).json({ error: 'The image provider reports that its Pollen balance is exhausted. No more images will be requested until the administrator checks the provider budget.' });
-      return res.status(502).json({ error: 'The image service could not complete the request.' });
-    }
-    const payload = await upstream.json();
-    const encoded = payload && Array.isArray(payload.data) && payload.data[0] && payload.data[0].b64_json;
-    if (typeof encoded !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(encoded)) {
-      return res.status(502).json({ error: 'The image provider returned no usable image data.' });
-    }
-    const bytes = Buffer.from(encoded, 'base64');
-    if (!bytes.length || bytes.length > AI_IMAGE_MAX_BYTES) {
-      return res.status(502).json({ error: 'The generated image was too large to store in this temporary workspace.' });
-    }
-    const dataUrl = 'data:image/png;base64,' + bytes.toString('base64');
-    const userMessage = { role: 'user', content: 'Create an image: ' + prompt, createdAt: now };
-    const imageMessage = { role: 'assistant', content: 'Generated image for: ' + prompt, kind: 'image', imageData: dataUrl, imagePrompt: prompt, createdAt: Date.now() };
-    conversation.messages.push(userMessage, imageMessage);
-    conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
-    if (!conversation.messages.some(message => message.role === 'assistant' && message.kind !== 'image')) {
-      conversation.title = aiCleanTitle(prompt);
-    }
-    conversation.updatedAt = Date.now();
-    return res.status(200).json({ image: aiPublicConversation(conversation).messages.slice(-1)[0], conversation: aiPublicConversation(conversation) });
-  } catch (error) {
-    console.warn('[ai-image] Request failed before a response was available.');
-    return res.status(502).json({ error: 'The image service is temporarily unreachable.' });
   }
 });
 
@@ -2138,7 +2012,6 @@ io.on('connection', (socket) => {
       for (const [shareId, share] of [...AI_PUBLIC_SHARES.entries()]) {
         if (share && share.ownerKey === account.key) AI_PUBLIC_SHARES.delete(shareId);
       }
-      AI_IMAGE_RATE_LIMIT.delete(account.key);
 
       TEMP_ACCOUNTS.delete(account.key);
       const revokedAdminTokens = new Set();
