@@ -630,6 +630,120 @@ button:active:not(:disabled){transform:translateY(0)}
 const $ = id => document.getElementById(id);
 let activeSiteDialogCancel = null;
 
+// Persist the visual preference locally; no account or profile server is required.
+function applyTheme(theme) {
+  const selected = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = selected;
+  try { localStorage.setItem('chatTheme', selected); } catch (_) {}
+  const button = $('themeToggle');
+  if (button) {
+    button.textContent = selected === 'dark' ? '☀ Light' : '☾ Dark';
+    button.setAttribute('aria-label', selected === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  }
+}
+let savedTheme = '';
+try { savedTheme = localStorage.getItem('chatTheme') || ''; } catch (_) {}
+applyTheme(savedTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+$('themeToggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+function updateMessageSearch() {
+  const panel = $('messageSearchPanel');
+  const input = $('messageSearchInput');
+  const log = $('log');
+  if (!panel || !input || !log || panel.hidden) return;
+  const query = input.value.trim().toLocaleLowerCase();
+  const messages = [...log.querySelectorAll('.m')];
+  let matches = 0;
+  for (const message of messages) {
+    const hit = !query || message.textContent.toLocaleLowerCase().includes(query);
+    message.hidden = !hit;
+    if (hit) matches++;
+  }
+  $('messageSearchCount').textContent = query ? matches + ' result' + (matches === 1 ? '' : 's') : messages.length + ' messages';
+}
+function closeMessageSearch() {
+  $('messageSearchPanel').hidden = true;
+  $('messageSearchInput').value = '';
+  for (const node of $('log').querySelectorAll('.m')) node.hidden = false;
+}
+$('searchToggle').addEventListener('click', () => {
+  const panel = $('messageSearchPanel');
+  panel.hidden = !panel.hidden;
+  if (panel.hidden) closeMessageSearch();
+  else { $('messageSearchInput').focus(); updateMessageSearch(); }
+});
+$('messageSearchInput').addEventListener('input', updateMessageSearch);
+$('messageSearchClose').addEventListener('click', closeMessageSearch);
+
+function openCommandPalette() {
+  const modal = $('commandPalette');
+  modal.hidden = false;
+  modal.style.display = 'flex';
+  $('commandPaletteInput').value = '';
+  filterCommandPalette();
+  $('commandPaletteInput').focus();
+}
+function closeCommandPalette() {
+  $('commandPalette').style.display = 'none';
+  $('commandPalette').hidden = true;
+  $('channelPaletteToggle').focus();
+}
+function filterCommandPalette() {
+  const query = $('commandPaletteInput').value.trim().toLocaleLowerCase();
+  $('commandPaletteList').querySelectorAll('button[data-palette-room]').forEach(button => {
+    button.hidden = !button.textContent.toLocaleLowerCase().includes(query);
+  });
+}
+$('channelPaletteToggle').addEventListener('click', openCommandPalette);
+$('commandPaletteClose').addEventListener('click', closeCommandPalette);
+$('commandPaletteInput').addEventListener('input', filterCommandPalette);
+$('commandPalette').addEventListener('click', event => {
+  if (event.target === $('commandPalette')) closeCommandPalette();
+});
+$('commandPaletteList').addEventListener('click', event => {
+  const button = event.target.closest('button[data-palette-room]');
+  if (button) location.href = '/?room=' + encodeURIComponent(button.dataset.paletteRoom);
+});
+document.addEventListener('keydown', event => {
+  const target = event.target;
+  const isTyping = target && (target.matches('input,textarea,select') || target.isContentEditable);
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault(); openCommandPalette(); return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    if ($('messageSearchPanel').hidden) $('searchToggle').click();
+    else $('messageSearchInput').focus();
+    return;
+  }
+  if (event.key === 'Escape') {
+    if (!$('commandPalette').hidden) closeCommandPalette();
+    if (!$('messageSearchPanel').hidden) closeMessageSearch();
+    return;
+  }
+  if (event.key === '/' && !isTyping && !$('rules').style.display.includes('flex')) {
+    event.preventDefault(); $('text').focus();
+  }
+});
+
+// Installability is optional: browsers that support the prompt will expose an install action.
+let pendingInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  pendingInstallPrompt = event;
+  $('installApp').hidden = false;
+});
+$('installApp').addEventListener('click', async () => {
+  if (!pendingInstallPrompt) return;
+  pendingInstallPrompt.prompt();
+  await pendingInstallPrompt.userChoice.catch(() => null);
+  pendingInstallPrompt = null;
+  $('installApp').hidden = true;
+});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 function showToast(message, type = 'info', duration = 3600) {
   const region = $('toastRegion');
   if (!region) return;
