@@ -31,16 +31,16 @@ To use voice, open `#voice`, click **Join voice**, and allow microphone access i
 
 ## Built-in AI assistant
 
-The chat interface includes a private-by-default AI helper for questions, writing help, learning, and ideas. It receives only the messages a user deliberately types into the AI panel; it does not automatically read channel history, room messages, or encrypted private chats. The API key stays on the server. The service sends explicit prompts to OpenAI's Responses API with response storage disabled, limits input size and request frequency, and does not log prompts.
+The chat interface includes a private-by-default AI helper for questions, writing help, learning, and ideas. It only receives messages a user deliberately types into the AI panel; it does not automatically read channel history, room messages, or encrypted private chats. The API key stays on the server. Requests go to Groq's OpenAI-compatible chat-completions endpoint; the app does not send the AI conversation to OpenAI's API.
 
-To activate it on Render:
+### Enable the AI without paying
 
-1. Create an API key in the [OpenAI API platform](https://platform.openai.com/api-keys) and make sure API billing is configured.
-2. In the Render service, open **Environment** and add `OPENAI_API_KEY` with the key as its value. Never add the key to GitHub or browser code.
-3. Optionally set `OPENAI_MODEL` to a model available to your API project. If omitted, the server uses the cost-efficient `gpt-6-luna` model. As safeguards, each IP is limited to 18 requests per 10 minutes and the service has a shared rolling allowance of 300 requests per 24 hours (in-memory, so it resets on a server restart).
-4. Save the environment changes and redeploy/restart the service. The AI button will show when the endpoint is ready.
+1. Create a free account at [Groq Console](https://console.groq.com/) and generate a key at [API Keys](https://console.groq.com/keys).
+2. In Render, open the web service and go to **Environment**. Add `GROQ_API_KEY` with that key as its value. Do not put it in GitHub or browser code.
+3. Leave `GROQ_MODEL` unset to use `openai/gpt-oss-20b`, which appears in Groq's available model list. You do not need to configure OpenAI API billing for this provider.
+4. Save the environment changes and let Render redeploy/restart the service.
 
-**Costs:** API usage is billed separately from ChatGPT Go/Plus/Pro subscriptions and depends on model usage. Check the [current API pricing](https://developers.openai.com/api/docs/pricing) and configure spending limits before enabling it for other visitors. Without `OPENAI_API_KEY`, the AI panel remains visible but politely reports that setup is required.
+**Important:** Keep the Groq account on its **Free** tier and do not upgrade to its paid Developer plan. Groq's Free tier has request/token limits; when those limits are reached, requests may fail temporarily rather than requiring an upgrade. Check the current [model list](https://console.groq.com/docs/models), [rate limits](https://console.groq.com/docs/rate-limits), and [billing FAQ](https://console.groq.com/docs/billing-faqs). The app also caps usage to 18 requests per IP per 10 minutes and 300 requests per rolling 24 hours. The app limits are held in memory and reset on a server restart.
 
 ## Privacy and safety
 
