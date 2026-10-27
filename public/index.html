@@ -526,6 +526,61 @@ button:active:not(:disabled){transform:translateY(0)}
 #adm .admin-taskbar-clock{margin-left:10px;padding-left:10px;border-left:1px solid rgba(255,255,255,.14);color:#cbd5e1;font:800 9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.1em;white-space:nowrap}
 #adm #admmsg.admin-window-statusbar{min-height:31px;padding:7px 14px;font-size:10px}
 @media(max-width:720px){#adm .box.admin-window{width:98vw!important;max-width:98vw!important;height:96dvh!important;max-height:96dvh!important}#adm .admin-desktop-home{padding:16px}#adm .admin-desktop-welcome{margin-bottom:17px}#adm .admin-desktop-tip{font-size:10px}#adm .admin-desktop-icons{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}#adm .admin-desktop-icon-button{min-height:120px;padding:10px 5px!important}#adm .admin-desktop-icon{width:45px;height:45px;flex-basis:45px;font-size:23px;border-radius:13px}#adm .admin-desktop-icon-button small{font-size:8px}#adm .admin-app-window{margin:7px}#adm .admin-active-app-subtitle{max-width:130px}#adm .admin-window-toolbar-button{padding:7px!important;font-size:9px!important}#adm .admin-taskbar-live{display:none}#adm .admin-taskbar-clock{margin-left:auto}}
+
+/* Shared sticker picker and lightweight chat widgets */
+#bar{position:sticky;isolation:isolate}
+#stickerButton{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:13px;width:42px;min-width:42px;height:42px;font-size:20px}
+.sticker-picker{position:fixed;right:14px;bottom:86px;z-index:80;width:min(370px,calc(100vw - 24px));max-height:min(480px,65vh);overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--panel);color:var(--ink);box-shadow:0 18px 60px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.sticker-picker[hidden]{display:none!important}
+.sticker-picker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.sticker-picker-head strong{font-size:13px}.sticker-picker-head small{display:block;margin-top:3px;color:var(--mute);font-size:10px}
+.sticker-picker-close{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:17px}
+.sticker-picker-tabs{display:flex;gap:5px;padding:9px 10px 0}
+.sticker-picker-tab{flex:1;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--mute);padding:8px;font-size:11px;font-weight:800}
+.sticker-picker-tab.is-active{border-color:#8b5cf6;background:rgba(139,92,246,.12);color:#a78bfa}
+.sticker-picker-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:12px;overflow:auto;overscroll-behavior:contain}
+.picker-emoji{display:grid;place-items:center;min-width:0;aspect-ratio:1;border:1px solid transparent;border-radius:11px;background:var(--bg);font-size:25px}
+.picker-emoji:hover,.picker-emoji:focus-visible{border-color:var(--accent);background:rgba(139,92,246,.12)}
+.picker-sticker{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:86px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);padding:7px 4px;text-align:center}
+.picker-sticker>span{font-size:25px}.picker-sticker>small{font-size:9px;line-height:1.2;color:var(--mute);font-weight:800}
+.sticker-picker-foot{border-top:1px solid var(--line);padding:9px 13px;color:var(--mute);font-size:10px;line-height:1.4}
+.m.sticker-message{align-self:flex-start;min-width:150px;max-width:min(84%,360px);padding:12px 14px;border:1px solid rgba(167,139,250,.48);border-radius:17px;background:linear-gradient(145deg,rgba(99,102,241,.12),rgba(217,70,239,.11),var(--panel));box-shadow:0 6px 22px rgba(99,102,241,.09)}
+.m.sticker-message.me{align-self:flex-end;background:linear-gradient(145deg,rgba(79,70,229,.2),rgba(6,182,212,.1),var(--mine));color:var(--mine-ink)}
+.sticker-art{display:grid;place-items:center;min-height:92px;margin:2px auto 8px;padding:10px;border-radius:13px;background:radial-gradient(circle at 50% 10%,rgba(255,255,255,.85),rgba(196,181,253,.25) 44%,transparent 80%);font-size:clamp(44px,8vw,72px);line-height:1;text-shadow:0 5px 16px rgba(99,102,241,.22);animation:stickerPop .28s cubic-bezier(.18,.89,.32,1.28) both}
+.sticker-message .sticker-caption{display:block;text-align:center;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#a78bfa}
+.sticker-party .sticker-art{background:radial-gradient(circle,rgba(251,191,36,.2),rgba(217,70,239,.1) 58%,transparent 80%)}
+.sticker-hype .sticker-art{background:radial-gradient(circle,rgba(34,211,238,.24),rgba(99,102,241,.12) 58%,transparent 80%)}
+.sticker-love .sticker-art{background:radial-gradient(circle,rgba(251,113,133,.25),rgba(217,70,239,.1) 58%,transparent 80%)}
+@keyframes stickerPop{from{transform:scale(.78) rotate(-5deg);opacity:.2}to{transform:scale(1) rotate(0);opacity:1}}
+.poll-card{margin-top:10px;padding:13px;border:1px solid rgba(129,140,248,.35);border-radius:14px;background:linear-gradient(145deg,rgba(99,102,241,.08),rgba(139,92,246,.035),var(--panel));color:var(--ink);min-width:0}
+.poll-kicker{display:flex;align-items:center;gap:7px;margin-bottom:8px;color:#8b5cf6;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.poll-question{margin-bottom:11px;font-size:14px;line-height:1.45;font-weight:850;overflow-wrap:anywhere}
+.poll-options{display:grid;gap:7px}
+.poll-option{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;min-height:48px;margin:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);text-align:left;overflow:hidden}
+.poll-option:hover:not(:disabled){border-color:#8b5cf6;background:rgba(139,92,246,.07)}
+.poll-option.is-selected{border-color:#8b5cf6;box-shadow:inset 3px 0 0 #8b5cf6;background:rgba(139,92,246,.1)}
+.poll-option:disabled{cursor:default;opacity:1}
+.poll-option-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:750}
+.poll-option-count{flex-shrink:0;color:var(--mute);font-size:10px;font-variant-numeric:tabular-nums}
+.poll-option-track{height:4px;border-radius:8px;background:var(--line);overflow:hidden}
+.poll-option-track span{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#6366f1,#d946ef);transition:width .2s ease}
+.poll-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;color:var(--mute);font-size:10px}
+@media(prefers-reduced-motion:reduce){.sticker-art{animation:none}.poll-option-track span{transition:none}}
+/* Live server health cards */
+.server-center-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px;margin-bottom:12px;border:1px solid rgba(99,102,241,.24);border-radius:13px;background:linear-gradient(120deg,rgba(99,102,241,.12),rgba(8,145,178,.07))}
+.server-center-hero h4{margin:0 0 5px;font-size:15px;color:var(--ink)}.server-center-hero p{margin:0;font-size:11px;line-height:1.5;color:var(--mute)}
+.server-center-hero .server-center-openpage{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;padding:9px 11px;border:1px solid rgba(129,140,248,.3);border-radius:9px;background:rgba(99,102,241,.1);color:var(--ink);font-size:11px;font-weight:850;text-decoration:none}
+.server-center-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:13px}
+.server-center-kpi{min-width:0;padding:11px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.server-center-kpi strong{display:block;font-size:clamp(20px,2vw,28px);font-variant-numeric:tabular-nums;letter-spacing:-.04em}.server-center-kpi span{display:block;margin-top:4px;color:var(--mute);font-size:10px}
+.server-center-health{display:flex;align-items:center;gap:9px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:11px;font-weight:850}
+.server-center-health[data-level="normal"]{border-color:rgba(34,197,94,.45);color:#16a34a}.server-center-health[data-level="healthy"]{border-color:rgba(34,197,94,.45);color:#16a34a}.server-center-health[data-level="high"]{border-color:rgba(234,179,8,.55);color:#ca8a04;background:rgba(234,179,8,.07)}.server-center-health[data-level="critical"]{border-color:rgba(239,68,68,.55);color:#ef4444;background:rgba(239,68,68,.08)}.server-center-health[data-level="unknown"]{color:var(--mute)}
+.server-center-health i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.server-center-warnings{display:grid;gap:7px;margin-bottom:14px}.server-center-warning{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.server-center-warning .warning-icon{font-size:16px;line-height:1.3}.server-center-warning b{display:block;font-size:11px}.server-center-warning small{display:block;margin-top:3px;color:var(--mute);font-size:10px;line-height:1.45}.server-center-warning.critical{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.06)}.server-center-warning.warning{border-color:rgba(234,179,8,.45);background:rgba(234,179,8,.05)}.server-center-warning.healthy{border-color:rgba(34,197,94,.35)}
+.server-center-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px}.server-center-column{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.server-center-column h4{margin:0 0 10px;font-size:12px;color:var(--ink)}
+.server-center-channel-list,.server-center-activity-list{display:grid;gap:6px}.server-center-channel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}.server-center-channel-name{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;font-weight:750}.server-center-channel-name i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#94a3b8}.server-center-channel[data-active="true"] .server-center-channel-name i{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.6)}.server-center-channel-count{flex-shrink:0;color:var(--mute);font-size:10px}
+.server-center-activity{display:grid;grid-template-columns:58px minmax(0,1fr);gap:6px;padding:8px 0;border-bottom:1px solid var(--line);font-size:10px;line-height:1.4}.server-center-activity:last-child{border-bottom:0}.server-center-activity time{color:var(--mute);font-variant-numeric:tabular-nums}.server-center-activity span{overflow-wrap:anywhere;color:var(--ink)}.server-center-empty{padding:12px;color:var(--mute);font-size:11px;text-align:center}
+@media(max-width:780px){.server-center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.server-center-columns{grid-template-columns:minmax(0,1fr)}.server-center-hero{align-items:flex-start;flex-direction:column}.sticker-picker{right:8px;bottom:80px}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -559,6 +614,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <a class="channel-link" data-channel="voice" href="/?room=voice"><span aria-hidden="true">🎙️</span><span>voice lounge</span></a>
   <a class="channel-link" data-channel="music" href="/?room=music"><span aria-hidden="true">🎵</span><span>music</span></a>
   <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
+  <a class="channel-link status-page-link" href="/status.html"><span aria-hidden="true">🖥️</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -679,8 +735,15 @@ button:active:not(:disabled){transform:translateY(0)}
   <input id="file" type="file" accept="image/*" hidden>
   <button class="icon" id="photo" type="button" aria-label="Send a photo or GIF" hidden>📎</button>
   <button class="icon" id="screenShareBtn" type="button" aria-label="Share your screen" title="Share your screen">🖥️</button>
-  <input id="text" maxlength="500" placeholder="Write a message… (/roll)" autocomplete="off" aria-label="Message">
+  <button class="icon" id="stickerButton" type="button" aria-label="Open emoji and sticker library" title="Emoji & stickers">😊</button>
+  <input id="text" maxlength="500" placeholder="Write a message… (/help)" autocomplete="off" aria-label="Message">
   <button id="send" type="button">Send</button>
+</div>
+<div id="stickerPicker" class="sticker-picker" role="dialog" aria-label="Emoji and sticker library" hidden>
+  <div class="sticker-picker-head"><div><strong>Emoji & Stickers</strong><small>Shared reactions for your Server Chat</small></div><button type="button" id="stickerPickerClose" class="sticker-picker-close" aria-label="Close emoji and sticker library">×</button></div>
+  <div class="sticker-picker-tabs"><button type="button" class="sticker-picker-tab is-active" data-sticker-tab="emoji">😀 Emoji</button><button type="button" class="sticker-picker-tab" data-sticker-tab="stickers">✨ Stickers</button></div>
+  <div id="stickerPickerGrid" class="sticker-picker-grid"></div>
+  <div class="sticker-picker-foot">Stickers are built-in, lightweight and available in every room. Private-room message text remains encrypted.</div>
 </div>
 <div id="commandPalette" class="ov" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle" hidden>
   <div class="box">
@@ -1244,6 +1307,21 @@ function start() {
     if (link.dataset.channel === room) link.setAttribute('aria-current', 'page');
   });
   const log = $('log'), text = $('text'), socket = io();
+  const STICKER_LIBRARY = [
+    { id:'party', emoji:'🎉', label:'Party time', caption:'LET’S GO!', theme:'party' },
+    { id:'hype', emoji:'🚀', label:'Hype', caption:'LEVEL UP', theme:'hype' },
+    { id:'love', emoji:'💖', label:'Sending love', caption:'GOOD VIBES', theme:'love' },
+    { id:'gg', emoji:'🏆', label:'Good game', caption:'GG WP', theme:'gold' },
+    { id:'coffee', emoji:'☕', label:'Coffee break', caption:'BRB · COFFEE', theme:'coffee' },
+    { id:'facepalm', emoji:'🤦', label:'Facepalm', caption:'OH NO', theme:'purple' },
+    { id:'bruh', emoji:'🫠', label:'Bruh', caption:'I CANNOT', theme:'bruh' },
+    { id:'fire', emoji:'🔥', label:'Fire', caption:'ABSOLUTE FIRE', theme:'fire' },
+    { id:'nice', emoji:'😎', label:'Nice', caption:'SMOOTH', theme:'nice' },
+    { id:'cat', emoji:'🐱', label:'Cat vibes', caption:'MEOW', theme:'cat' },
+    { id:'clap', emoji:'👏', label:'Applause', caption:'WELL DONE', theme:'clap' },
+    { id:'wow', emoji:'🤯', label:'Mind blown', caption:'WHAT?!', theme:'wow' }
+  ];
+  const CHAT_EMOJI_LIBRARY = ['😀','😄','😂','🤣','🥹','😍','🥰','😘','😎','🤔','🫡','😴','😭','😡','🤯','🫠','🙃','😈','👀','👍','👎','👏','🙏','🤝','💀','❤️','💖','💯','🔥','✨','🎉','🎊','🎮','🚀','☕','🐱','✅','❌','💻','⚡'];
   // Party effects are local, CSS-driven and strictly bounded: max 24 confetti pieces, no animation loops in JS.
   const partyConfettiLayer = document.createElement('div');
   partyConfettiLayer.className = 'party-confetti-layer';
