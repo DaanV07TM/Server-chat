@@ -1337,6 +1337,7 @@ function start() {
     $('accountAvatar').textContent = 'A';
     $('accountChip').setAttribute('aria-label', 'Signed in as server administrator');
     hideAuthGate();
+    window.dispatchEvent(new Event('server-chat:account-ready'));
     showToast('🛡 Admin access granted. No user account was created.', 'success', 7000);
     joinAuthenticated();
   });
