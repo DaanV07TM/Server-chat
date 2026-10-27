@@ -1484,7 +1484,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 5;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout']);
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout']); // password changes/deletion require a valid session
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -1533,12 +1533,12 @@ function clearAuthAttempts(socket, kind = 'login') {
   map.delete(authAddress(socket));
 }
 
-function issueTemporaryAccountSession(socket, account, sessionToken = '') {
+function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
   let token = sessionToken;
   if (!token) {
     if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
-      const oldest = ACCOUNT_SESSIONS.keys().next().value;
-      ACCOUNT_SESSIONS.delete(oldest);
+      const oldestToken = ACCOUNT_SESSIONS.keys().next().value;
+      ACCOUNT_SESSIONS.delete(oldestToken);
     }
     token = crypto.randomBytes(32).toString('hex');
     ACCOUNT_SESSIONS.set(token, account.key);
@@ -1546,12 +1546,15 @@ function issueTemporaryAccountSession(socket, account, sessionToken = '') {
   socket.data.account = { key: account.key, username: account.username, token: account.token };
   socket.data.authSessionToken = token;
   socket.data.tok = account.token;
-  socket.emit('auth:result', {
+  const result = {
     ok: true,
     username: account.username,
     sessionToken: token,
     resumed: Boolean(sessionToken)
-  });
+  };
+  // A generated password is only returned once at account creation and is never saved as plaintext.
+  if (generatedPassword) result.generatedPassword = generatedPassword;
+  socket.emit('auth:result', result);
 }
 
 io.on('connection', (socket) => {
@@ -1572,33 +1575,36 @@ io.on('connection', (socket) => {
     return next();
   });
 
-  socket.on('auth:register', async (d) => {
-    if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
-    if (!allowAuthAttempt(socket, 'register')) return socket.emit('auth:result', { ok: false, message: 'Too many account-creation attempts. Please wait one hour.' });
-    const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
-    const password = typeof (d && d.password) === 'string' ? d.password : '';
-    const accountKey = username.toLowerCase();
-    if (!validAccountUsername(username)) {
-      return socket.emit('auth:result', { ok: false, message: 'Username must be 3–20 characters and use only letters, numbers, _ or -.' });
+  socket.on('auth:register', async () => {
+    if (socket.data.account) {
+      return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
     }
-    if (Buffer.byteLength(password, 'utf8') < 10 || password.length > 128) {
-      return socket.emit('auth:result', { ok: false, message: 'Choose a password of at least 10 characters (maximum 128).' });
-    }
-    if (['admin', 'server', 'system', 'anonymous'].includes(accountKey)) {
-      return socket.emit('auth:result', { ok: false, message: 'That username is reserved. Please choose another one.' });
-    }
-    if (TEMP_ACCOUNTS.has(accountKey) || AUTH_REGISTRATION_LOCKS.has(accountKey)) {
-      return socket.emit('auth:result', { ok: false, message: 'That username is already taken. Try another one.' });
+    if (!allowAuthAttempt(socket, 'register')) {
+      return socket.emit('auth:result', { ok: false, message: 'Too many account creations. Please wait one hour.' });
     }
     if (TEMP_ACCOUNTS.size >= MAX_TEMP_ACCOUNTS) {
       return socket.emit('auth:result', { ok: false, message: 'The temporary account limit has been reached. Please try again later.' });
     }
+
+    let username = '';
+    let accountKey = '';
+    for (let attempt = 0; attempt < 10; attempt++) {
+      username = 'temp-' + crypto.randomBytes(7).toString('hex');
+      accountKey = username.toLowerCase();
+      if (!TEMP_ACCOUNTS.has(accountKey) && !AUTH_REGISTRATION_LOCKS.has(accountKey)) break;
+      username = '';
+    }
+    if (!username || !accountKey) {
+      return socket.emit('auth:result', { ok: false, message: 'Could not generate a unique temporary account. Please try again.' });
+    }
+
+    const generatedPassword = crypto.randomBytes(18).toString('base64url');
     AUTH_REGISTRATION_LOCKS.add(accountKey);
     try {
       const salt = crypto.randomBytes(16).toString('hex');
-      const passwordHash = await scryptPassword(password, salt);
+      const passwordHash = await scryptPassword(generatedPassword, salt);
       if (TEMP_ACCOUNTS.has(accountKey)) {
-        return socket.emit('auth:result', { ok: false, message: 'That username is already taken. Try another one.' });
+        return socket.emit('auth:result', { ok: false, message: 'A collision occurred while generating credentials. Please try again.' });
       }
       const account = {
         key: accountKey,
@@ -1609,10 +1615,10 @@ io.on('connection', (socket) => {
         createdAt: Date.now()
       };
       TEMP_ACCOUNTS.set(accountKey, account);
-      issueTemporaryAccountSession(socket, account);
+      issueTemporaryAccountSession(socket, account, '', generatedPassword);
     } catch (error) {
-      console.warn('[accounts] Account registration failed due to a server-side error.');
-      socket.emit('auth:result', { ok: false, message: 'The account could not be created. Please try again.' });
+      console.warn('[accounts] Temporary account creation failed due to a server-side error.');
+      socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
     } finally {
       AUTH_REGISTRATION_LOCKS.delete(accountKey);
     }
@@ -1640,6 +1646,174 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.warn('[accounts] Login failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'Login is temporarily unavailable. Please try again.' });
+    }
+  });
+
+  socket.on('auth:change-password', async (d) => {
+    const session = socket.data.account;
+    const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
+    const currentPassword = typeof (d && d.currentPassword) === 'string' ? d.currentPassword : '';
+    const newPassword = typeof (d && d.newPassword) === 'string' ? d.newPassword : '';
+    if (!account || !currentPassword || currentPassword.length > 128) {
+      return socket.emit('auth:password-changed', { ok: false, message: 'Enter your current password.' });
+    }
+    if (Buffer.byteLength(newPassword, 'utf8') < 10 || newPassword.length > 128) {
+      return socket.emit('auth:password-changed', { ok: false, message: 'The new password must be 10–128 characters.' });
+    }
+    if (currentPassword === newPassword) {
+      return socket.emit('auth:password-changed', { ok: false, message: 'Choose a different password.' });
+    }
+    try {
+      const candidate = await scryptPassword(currentPassword, account.salt);
+      if (!crypto.timingSafeEqual(candidate, account.passwordHash)) {
+        return socket.emit('auth:password-changed', { ok: false, message: 'Your current password is incorrect.' });
+      }
+      const salt = crypto.randomBytes(16).toString('hex');
+      const passwordHash = await scryptPassword(newPassword, salt);
+      account.salt = salt;
+      account.passwordHash = passwordHash;
+
+      const currentSessionToken = socket.data.authSessionToken;
+      for (const [otherToken, otherAccountKey] of [...ACCOUNT_SESSIONS.entries()]) {
+        if (otherAccountKey !== account.key || otherToken === currentSessionToken) continue;
+        ACCOUNT_SESSIONS.delete(otherToken);
+        for (const client of io.sockets.sockets.values()) {
+          if (client.data.authSessionToken !== otherToken) continue;
+          if (client.data.adminToken) adminSessions.delete(client.data.adminToken);
+          for (const joinedRoom of [...client.rooms]) {
+            if (joinedRoom === client.id) continue;
+            if (joinedRoom === 'voice') removeVoiceParticipant(client.id);
+            endScreenShare(client.id);
+            client.leave(joinedRoom);
+            io.to(joinedRoom).emit('online', io.sockets.adapter.rooms.get(joinedRoom)?.size || 0);
+          }
+          client.data.account = null;
+          client.data.authSessionToken = null;
+          client.data.tok = null;
+          client.data.admin = false;
+          client.data.adminToken = null;
+          client.emit('admin', false);
+          client.emit('auth:session-revoked');
+        }
+      }
+      socket.emit('auth:password-changed', { ok: true, message: 'Password updated. Other sessions were signed out.' });
+    } catch (error) {
+      console.warn('[accounts] Password change failed due to a server-side error.');
+      socket.emit('auth:password-changed', { ok: false, message: 'The password could not be changed. Please try again.' });
+    }
+  });
+
+  socket.on('auth:delete-account', async (d) => {
+    const session = socket.data.account;
+    const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
+    const currentPassword = typeof (d && d.password) === 'string' ? d.password : '';
+    if (!account || !currentPassword || currentPassword.length > 128) {
+      return socket.emit('auth:delete-result', { ok: false, message: 'Enter your current password to delete the account.' });
+    }
+    try {
+      const candidate = await scryptPassword(currentPassword, account.salt);
+      if (!crypto.timingSafeEqual(candidate, account.passwordHash)) {
+        return socket.emit('auth:delete-result', { ok: false, message: 'Your password is incorrect. Nothing has been deleted.' });
+      }
+      const accountToken = account.token;
+      const ownedMids = [];
+      for (const roomName of Object.keys(rooms)) {
+        for (const message of rooms[roomName]) {
+          if (message.tok === accountToken && Number.isSafeInteger(message.mid)) ownedMids.push(message.mid);
+        }
+      }
+
+      // Remove every chat message and uploaded image posted by this account in every room.
+      for (const mid of ownedMids) {
+        reportLog.delete(mid);
+        removeMsg(mid);
+      }
+
+      // Remove this account's reports on other users' messages and all reports about its own messages.
+      for (const [mid, report] of [...reportLog.entries()]) {
+        if (report.tok === accountToken) {
+          reportLog.delete(mid);
+          continue;
+        }
+        if (Array.isArray(report.reporters)) {
+          report.reporters = report.reporters.filter(item => item && item.tok !== accountToken);
+          report.reasons = report.reporters.map(item => item.reason);
+          if (!report.reporters.length) reportLog.delete(mid);
+        }
+      }
+      for (const roomName of Object.keys(rooms)) {
+        for (const message of rooms[roomName]) {
+          if (Array.isArray(message.rep)) message.rep = message.rep.filter(token => token !== accountToken);
+        }
+      }
+      delete reportTimes[accountToken];
+      delete timeouts[accountToken];
+      delete strikes[accountToken];
+      userBans.delete(accountToken);
+
+      // Remove all shared music submitted by this account, including its temporary audio and cache files.
+      for (let i = musicQueue.length - 1; i >= 0; i--) {
+        if (musicQueue[i] && musicQueue[i].addedByToken === accountToken) {
+          releaseMusicTrack(musicQueue[i]);
+          musicQueue.splice(i, 1);
+        }
+      }
+      if (musicCurrent && musicCurrent.addedByToken === accountToken) {
+        releaseMusicTrack(musicCurrent);
+        musicCurrent = musicQueue.length ? musicQueue.shift() : null;
+        const now = Date.now();
+        if (musicCurrent) {
+          const ready = musicCurrent.source !== 'addon' || !!musicCurrent.relayCachePath;
+          const shouldPlay = ready && !musicPausedByAdmin;
+          musicPlayback = { isPlaying: shouldPlay, position: 0, startedAt: shouldPlay ? now : null, changedBy: null };
+          if (musicCurrent.source === 'addon' && !musicCurrent.relayCachePath) prepareCurrentMusicTrack(musicCurrent);
+        } else {
+          musicPlayback = { isPlaying: false, position: 0, startedAt: null, changedBy: null };
+        }
+      }
+      broadcastMusicState();
+
+      TEMP_ACCOUNTS.delete(account.key);
+      const revokedAdminTokens = new Set();
+      for (const [sessionToken, accountKey] of [...ACCOUNT_SESSIONS.entries()]) {
+        if (accountKey === account.key) ACCOUNT_SESSIONS.delete(sessionToken);
+      }
+      for (const client of io.sockets.sockets.values()) {
+        if (!client.data.account || client.data.account.key !== account.key) continue;
+        if (client.data.adminToken) revokedAdminTokens.add(client.data.adminToken);
+        for (const joinedRoom of [...client.rooms]) {
+          if (joinedRoom === client.id) continue;
+          if (joinedRoom === 'voice') removeVoiceParticipant(client.id);
+          endScreenShare(client.id);
+          client.leave(joinedRoom);
+          io.to(joinedRoom).emit('online', io.sockets.adapter.rooms.get(joinedRoom)?.size || 0);
+        }
+        client.data.account = null;
+        client.data.authSessionToken = null;
+        client.data.tok = null;
+        client.data.banned = false;
+        client.data.admin = false;
+        client.data.adminToken = null;
+        client.emit('admin', false);
+        client.emit('auth:deleted');
+      }
+      for (const token of revokedAdminTokens) adminSessions.delete(token);
+      for (const [, adminClient] of io.sockets.sockets) {
+        if (adminClient.data.adminToken && revokedAdminTokens.has(adminClient.data.adminToken)) {
+          adminClient.data.admin = false;
+          adminClient.data.adminToken = null;
+          adminClient.emit('admin', false);
+          adminClient.emit('admin:session-revoked');
+        }
+      }
+      for (const [, adminClient] of io.sockets.sockets) {
+        if (adminClient.data.admin) adminClient.emit('images:admin:list-result', { images: getAdminImageList() });
+      }
+      socket.emit('auth:delete-result', { ok: true, message: 'The account and its chat data were deleted.' });
+      console.log('[accounts] temporary account and associated data deleted.');
+    } catch (error) {
+      console.warn('[accounts] Account deletion failed due to a server-side error.');
+      socket.emit('auth:delete-result', { ok: false, message: 'The account could not be deleted. Please try again.' });
     }
   });
 
@@ -2027,7 +2201,7 @@ io.on('connection', (socket) => {
     if ([musicCurrent, ...musicQueue].some(track => track && track.source === 'addon' && track.sourceTrackId === selected.sourceId)) {
       return socket.emit('music:error', { message: 'That track is already in the current song or queue.', catalogId });
     }
-    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
+    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && (track.addedByToken === key() || track.addedById === socket.id)).length;
     if (sameUserCount >= MUSIC_MAX_PER_USER) {
       return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.', catalogId });
     }
@@ -2047,6 +2221,7 @@ io.on('connection', (socket) => {
       permalink: selected.permalink || null,
       addedBy: safeName(d && d.name),
       addedById: socket.id,
+      addedByToken: key(),
       addedAt: now,
       streamUrl: null,
       streamUrlExpiresAt: 0
@@ -2113,6 +2288,7 @@ io.on('connection', (socket) => {
       title,
       addedBy: safeName(d.name),
       addedById: socket.id,
+      addedByToken: key(),
       addedAt: now,
       extension,
       mimeType,
@@ -2392,8 +2568,10 @@ io.on('connection', (socket) => {
     reportTimes[k].push(now);
     m.rep.push(k);
     let e = reportLog.get(m.mid);
-    if (!e) { e = { mid: m.mid, name: m.name, text: m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]'), tok: m.tok, reasons: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
-    e.reasons.push(d.reason);
+    if (!e) { e = { mid: m.mid, name: m.name, text: m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]'), tok: m.tok, reasons: [], reporters: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
+    if (!Array.isArray(e.reporters)) e.reporters = [];
+    e.reporters.push({ tok: k, reason: d.reason });
+    e.reasons = e.reporters.map(report => report.reason);
     const urgent = d.reason === 'illegal' || d.reason === 'threat';
     const remove = d.reason === 'illegal' || m.rep.length >= REPORT_LIMIT;
     const notifyNow = m.rep.length === 1 || remove || (urgent && !e.urgent);
