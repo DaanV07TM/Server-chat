@@ -577,8 +577,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <p id="authIntro" class="auth-intro">Sign in to continue to your conversations.</p>
     <div class="auth-tabs" role="tablist" aria-label="Account access">
       <button id="authTabLogin" type="button" role="tab" aria-selected="true">Log in</button>
-      <button id="authTabRegister" type="button" role="tab" aria-selected="false">New account</button>
-      <button id="authTabAdmin" type="button" role="tab" aria-selected="false">🛡 Admin</button>
+      <button id="authTabRegister" type="button" role="tab" aria-selected="false">New temporary account</button>
     </div>
     <form id="authForm" autocomplete="on" novalidate>
       <div id="authLoginFields">
@@ -591,11 +590,6 @@ button:active:not(:disabled){transform:translateY(0)}
           <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
           <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
         </div>
-      </div>
-      <div id="authAdminFields" hidden>
-        <label class="auth-label" for="authAdminPassword">Server administrator password</label>
-        <input id="authAdminPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="ADMIN_PASSWORD from your server settings">
-        <p class="auth-hint">This logs you in as the administrator directly. No ordinary user account is created.</p>
       </div>
       <div id="authCreateInfo" class="auth-create-info" hidden>
         <span class="auth-create-icon" aria-hidden="true">✦</span>
@@ -1191,58 +1185,42 @@ function start() {
     authGate.style.display = 'flex';
     authMessage.textContent = message;
     authMessage.classList.toggle('is-error', !!message);
-    if (authMode === 'register') authSubmit.focus();
-    else if (authMode === 'admin') $('authAdminPassword').focus();
-    else $('authUsername').focus();
+    if (authMode === 'register') authSubmit.focus(); else $('authUsername').focus();
   }
   function hideAuthGate() {
     authGate.style.display = 'none';
     authGate.hidden = true;
   }
   function setAuthMode(mode) {
-    authMode = mode === 'register' ? 'register' : mode === 'admin' ? 'admin' : 'login';
+    authMode = mode === 'register' ? 'register' : 'login';
     const registering = authMode === 'register';
-    const adminLogin = authMode === 'admin';
-    $('authTabLogin').setAttribute('aria-selected', String(authMode === 'login'));
+    $('authTabLogin').setAttribute('aria-selected', String(!registering));
     $('authTabRegister').setAttribute('aria-selected', String(registering));
-    $('authTabAdmin').setAttribute('aria-selected', String(adminLogin));
-    $('authTitle').textContent = registering ? 'Create a disposable account' : adminLogin ? 'Administrator access' : 'Welcome back';
+    $('authTitle').textContent = registering ? 'Create a disposable account' : 'Welcome back';
     $('authIntro').textContent = registering
       ? 'No form-filling needed. We generate your login details automatically.'
-      : adminLogin ? 'Sign in directly as the server administrator — no normal account needed.'
       : 'Sign in with the username and password you saved.';
-    $('authLoginFields').hidden = registering || adminLogin;
-    $('authAdminFields').hidden = !adminLogin;
+    $('authLoginFields').hidden = registering;
     $('authCreateInfo').hidden = !registering;
-    $('authUsername').required = !registering && !adminLogin;
-    authPasswordInput.required = !registering && !adminLogin;
-    $('authAdminPassword').required = adminLogin;
-    if (!adminLogin) $('authAdminPassword').value = '';
+    $('authUsername').required = !registering;
+    authPasswordInput.required = !registering;
     authPasswordInput.setAttribute('autocomplete', 'current-password');
     authPasswordInput.setAttribute('placeholder', 'Your password');
     authConfirmWrap.hidden = true;
     authConfirmInput.required = false;
-    authSubmit.textContent = registering ? 'Generate account and password' : adminLogin ? '🛡 Sign in as admin' : 'Log in';
+    authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
     authMessage.textContent = '';
     authMessage.classList.remove('is-error');
   }
   $('authTabLogin').addEventListener('click', () => setAuthMode('login'));
   $('authTabRegister').addEventListener('click', () => setAuthMode('register'));
-  $('authTabAdmin').addEventListener('click', () => setAuthMode('admin'));
   authForm.addEventListener('submit', event => {
     event.preventDefault();
     if (authBusy || !socket.connected) {
       if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
       return;
     }
-    if (authMode === 'admin') {
-      const password = $('authAdminPassword').value;
-      if (!password || password.length > 128) {
-        authMessage.textContent = 'Enter the server administrator password.';
-        authMessage.classList.add('is-error');
-        return;
-      }
-    } else if (authMode === 'login') {
+    if (authMode === 'login') {
       const username = $('authUsername').value.trim();
       const password = authPasswordInput.value;
       if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
@@ -1259,13 +1237,11 @@ function start() {
 
     authBusy = true;
     authSubmit.disabled = true;
-    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : authMode === 'admin' ? 'Verifying admin access…' : 'Signing in…';
-    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : authMode === 'admin' ? 'Verifying your server admin password…' : 'Connecting securely…';
+    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
+    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Connecting securely…';
     authMessage.classList.remove('is-error');
     if (authMode === 'register') {
       socket.emit('auth:register', {});
-    } else if (authMode === 'admin') {
-      socket.emit('auth:admin-login', { password: $('authAdminPassword').value });
     } else {
       socket.emit('auth:login', {
         username: $('authUsername').value.trim(),
@@ -1286,6 +1262,25 @@ function start() {
         setAuthMode('login');
       }
       if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Could not sign in. Please try again.');
+      return;
+    }
+    if (data.isAdmin === true) {
+      // Admin password was entered through the normal login fields. Do not save it as an account session.
+      accountSessionToken = '';
+      accountUsername = '';
+      accountAuthenticated = false;
+      try { localStorage.removeItem('accountSessionToken'); } catch (_) {}
+      name = 'Server Admin';
+      try { localStorage.setItem('displayName', name); sessionStorage.setItem('name', name); } catch (_) {}
+      $('accountName').textContent = 'Server Admin';
+      $('accountAvatar').textContent = 'A';
+      $('accountChip').setAttribute('aria-label', 'Signed in as server administrator');
+      authPasswordInput.value = '';
+      authConfirmInput.value = '';
+      hideAuthGate();
+      joinAuthenticated();
+      window.dispatchEvent(new Event('server-chat:account-ready'));
+      showToast('Administrator access granted. No user account was created.', 'success', 7000);
       return;
     }
     accountSessionToken = data.sessionToken;
@@ -1326,30 +1321,11 @@ function start() {
     if (!data || !data.ok) {
       clearStoredAdminSession();
       window.dispatchEvent(new Event('server-chat:session-ended'));
-      setAuthMode('admin');
-      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Your saved admin session expired. Sign in again.');
+      setAuthMode('login');
+      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Your saved session expired. Sign in again.');
       return;
     }
     hideAuthGate();
-    joinAuthenticated();
-  });
-  socket.on('auth:admin-result', data => {
-    authBusy = false;
-    authSubmit.disabled = false;
-    if (!data || !data.ok) {
-      if (!isSharedAIView) showAuthGate(data && data.message ? data.message : 'Administrator sign-in failed.');
-      return;
-    }
-    $('authAdminPassword').value = '';
-    accountAuthenticated = false;
-    accountUsername = '';
-    name = 'Server Admin';
-    $('accountName').textContent = 'Server Admin';
-    $('accountAvatar').textContent = 'A';
-    $('accountChip').setAttribute('aria-label', 'Signed in as server administrator');
-    hideAuthGate();
-    window.dispatchEvent(new Event('server-chat:account-ready'));
-    showToast('🛡 Admin access granted. No user account was created.', 'success', 7000);
     joinAuthenticated();
   });
   socket.on('auth:required', () => {
@@ -1357,8 +1333,8 @@ function start() {
       if (adminSessionToken) {
         clearStoredAdminSession();
         window.dispatchEvent(new Event('server-chat:session-ended'));
-        setAuthMode('admin');
-        showAuthGate('Your admin session expired. Sign in again with the server administrator password.');
+        setAuthMode('login');
+        showAuthGate('Your session expired. Sign in again.');
       } else showAuthGate('Please sign in to continue. Choose Admin for direct administrator access.');
     }
   });
@@ -3656,8 +3632,8 @@ function start() {
     clearStoredAdminSession();
     if (hadAdminSession && !accountAuthenticated) window.dispatchEvent(new Event('server-chat:session-ended'));
     if (!accountAuthenticated && !isSharedAIView) {
-      setAuthMode('admin');
-      showAuthGate('Your saved admin session is no longer valid. Sign in again.');
+      setAuthMode('login');
+      showAuthGate('Your saved session is no longer valid. Sign in again.');
     }
   });
   socket.on('admin:session-revoked', () => {
