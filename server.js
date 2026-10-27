@@ -81,6 +81,7 @@ function aiPublicConversation(conversation) {
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    shareId: conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId) ? conversation.shareId : null,
     messages: conversation.messages.map(message => {
       const result = { role: message.role, content: message.content, createdAt: message.createdAt };
       if (message.kind === 'image' && typeof message.imageData === 'string') {
