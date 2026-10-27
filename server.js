@@ -160,8 +160,28 @@ console.log = captureConsole(console.log, 'INFO');
 console.warn = captureConsole(console.warn, 'WARN');
 console.error = captureConsole(console.error, 'ERROR');
 
-// admin: password lives in Render (ADMIN_PASSWORD), never in the code
+// Admin session tokens are held only in memory. They automatically expire when this process restarts.
 const ADMIN = process.env.ADMIN_PASSWORD || '';
+const adminSessions = new Map();
+const MAX_ADMIN_SESSIONS = 100;
+function issueAdminSession() {
+  // Drop and revoke the oldest session if the in-memory session set reaches its safety limit.
+  if (adminSessions.size >= MAX_ADMIN_SESSIONS) {
+    const oldestToken = adminSessions.keys().next().value;
+    adminSessions.delete(oldestToken);
+    for (const client of io.sockets.sockets.values()) {
+      if (client.data.adminToken === oldestToken) {
+        client.data.admin = false;
+        client.data.adminToken = null;
+        client.emit('admin:session-revoked');
+        client.emit('admin', false);
+      }
+    }
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  adminSessions.set(token, Date.now());
+  return token;
+}
 // Controlled restart is requested by exiting after a global countdown. Render may
 // recover a failed instance, but this is best-effort without the authenticated API.
 let restartInProgress = false, restartSubmitted = false;
@@ -526,7 +546,20 @@ function adminCommand(socket, c, arg, room) {
     console.log('[admin] restart countdown cancelled');
   }
     else if (c === 'clearreports') { const n = reportLog.size; reportLog.clear(); for (const r in rooms) for (const m of rooms[r]) if (m.rep) m.rep = []; say(n + ' report(s) cleared.'); }
-  else if (c === 'logout') { removeScreenViewer(socket.id); socket.data.admin = false; socket.emit('admin', false); say('Logged out as moderator.'); }
+  else if (c === 'logout') {
+    const token = socket.data.adminToken;
+    if (token) adminSessions.delete(token);
+    for (const client of io.sockets.sockets.values()) {
+      if (client.id === socket.id || (token && client.data.adminToken === token)) {
+        removeScreenViewer(client.id);
+        client.data.admin = false;
+        client.data.adminToken = null;
+        client.emit('admin:session-revoked');
+        client.emit('admin', false);
+      }
+    }
+    say('Logged out as moderator.');
+  }
   else say(ADMIN_HELP);
 }
 
@@ -1315,6 +1348,15 @@ io.on('connection', (socket) => {
   const key = () => socket.data.tok || socket.id;
 
   socket.on('join', (d) => {
+    const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
+    if (/^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken)) {
+      socket.data.admin = true;
+      socket.data.adminToken = requestedAdminToken;
+    } else {
+      socket.data.admin = false;
+      socket.data.adminToken = null;
+      if (requestedAdminToken) socket.emit('admin:session-invalid');
+    }
     const nextRoom = roomName(d && d.room);
     if (socket.rooms.has(room) && room !== nextRoom) {
       removeVoiceParticipant(socket.id);
@@ -1830,8 +1872,15 @@ io.on('connection', (socket) => {
     if (text === '/admin' || text.startsWith('/admin ')) {
       last = now;
       const r = login(text.slice(6).trim());
-      if (r === 'ok') { socket.data.admin = true; socket.emit('admin', true); socket.emit('sys', 'Logged in as moderator. Tap ⚙ Admin in the header (or type /help).'); }
-      else socket.emit('sys', LOGIN_MSG[r]);
+      if (r === 'ok') {
+        let sessionToken = socket.data.adminToken;
+        if (!sessionToken || !adminSessions.has(sessionToken)) sessionToken = issueAdminSession();
+        socket.data.admin = true;
+        socket.data.adminToken = sessionToken;
+        socket.emit('admin:session', sessionToken);
+        socket.emit('admin', true);
+        socket.emit('sys', 'Logged in as moderator. You will stay logged in until the server restarts or you log out.');
+      } else socket.emit('sys', LOGIN_MSG[r]);
       return;
     }
     const [cmd, ...rest] = text.split(' ');
