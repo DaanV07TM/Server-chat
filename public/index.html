@@ -1224,34 +1224,9 @@ function start() {
     if (!accountAuthenticated) showAuthGate('Please log in with your temporary account to continue.');
   });
   socket.on('auth:logged-out', () => {
-    window.dispatchEvent(new Event('server-chat:session-ended'));
-    accountAuthenticated = false;
-    accountSessionToken = '';
-    accountUsername = '';
-    try {
-      localStorage.removeItem('accountSessionToken');
-      localStorage.removeItem('adminSessionToken');
-      localStorage.removeItem('displayName');
-      sessionStorage.removeItem('name');
-    } catch (_) {}
-    adminSessionToken = '';
-    name = 'Anonymous';
-    tok = rnd(16);
-    $('accountName').textContent = 'Not signed in';
-    $('accountAvatar').textContent = '?';
-    $('accountChip').setAttribute('aria-label', 'No account signed in');
-    authPasswordInput.value = '';
-    authConfirmInput.value = '';
-    $('authUsername').value = '';
-    $('authGate').hidden = false;
-    $('authGate').style.display = 'flex';
+    clearLocalAccountSession(false);
     setAuthMode('login');
     showAuthGate('You are logged out. Sign in again or create another temporary account.');
-    log.replaceChildren();
-    const empty = document.createElement('p');
-    empty.className = 'empty';
-    empty.textContent = 'Sign in to load the chat.';
-    log.append(empty);
   });
   $('logoutBtn').addEventListener('click', async () => {
     if (!accountAuthenticated) return showAuthGate('Please sign in first.');
@@ -1427,6 +1402,8 @@ function start() {
 
   function clearLocalAccountSession(removeAccountData = false) {
     const previousUsername = accountUsername;
+    const previousSessionToken = accountSessionToken;
+    const previousAdminSessionToken = adminSessionToken;
     accountAuthenticated = false;
     accountSessionToken = '';
     accountUsername = '';
@@ -1434,8 +1411,12 @@ function start() {
     name = 'Anonymous';
     tok = rnd(16);
     try {
-      localStorage.removeItem('accountSessionToken');
-      localStorage.removeItem('adminSessionToken');
+      if (removeAccountData || localStorage.getItem('accountSessionToken') === previousSessionToken) {
+        localStorage.removeItem('accountSessionToken');
+      }
+      if (removeAccountData || localStorage.getItem('adminSessionToken') === previousAdminSessionToken) {
+        localStorage.removeItem('adminSessionToken');
+      }
       localStorage.removeItem('displayName');
       if (removeAccountData && previousUsername) localStorage.removeItem('displayName:' + previousUsername.toLowerCase());
       sessionStorage.removeItem('name');
