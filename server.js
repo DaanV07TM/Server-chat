@@ -2273,7 +2273,7 @@ io.on('connection', (socket) => {
       return socket.emit('music:error', { message: 'The browser could not read this audio file’s duration, so the shared queue cannot auto-advance it. Try a supported MP3, M4A, OGG or WAV file.' });
     }
 
-    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && track.addedById === socket.id).length;
+    const sameUserCount = [musicCurrent, ...musicQueue].filter(track => track && (track.addedByToken === key() || track.addedById === socket.id)).length;
     if (sameUserCount >= MUSIC_MAX_PER_USER) {
       return socket.emit('music:error', { message: 'You can have up to ' + MUSIC_MAX_PER_USER + ' tracks in the shared list at once.' });
     }
