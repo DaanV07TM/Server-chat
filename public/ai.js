@@ -1,6 +1,5 @@
 (() => {
   'use strict';
-  const cssEscape = value => String(value).replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
   const messages = [];
   let available = false;
   let sending = false;
@@ -100,24 +99,30 @@
     addMessage('user', prompt);
     input.value = '';
     input.style.height = 'auto';
-    const prior = messages.slice(-10);
-    messages.push({role:'user', content:prompt});
+      messages.push({role:'user', content:prompt});
     setBusy(true);
     try {
       const response = await fetch('/api/ai/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json','Accept':'application/json'},
         cache:'no-store',
-        body:JSON.stringify({messages: messages.slice(-10)})
+        body:JSON.stringify({messages: (() => {
+          const context = messages.slice(-10).map(item => ({
+            role: item.role,
+            content: item.content.length > 2300 ? item.content.slice(0, 2300) : item.content
+          }));
+          while (context.length > 1 && context.reduce((sum, item) => sum + item.content.length, 0) > 10000) context.shift();
+          return context;
+        })()})
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 429) throw new Error('Je hebt de AI even vaak gebruikt. Wacht een minuutje en probeer opnieuw.');
+        if (response.status === 429) throw new Error('De AI heeft tijdelijk zijn gebruikslimiet bereikt. Probeer het later opnieuw.');
         if (response.status === 503) throw new Error('De ingebouwde AI is nog niet ingesteld door de beheerder.');
         throw new Error(data.error || 'De AI kon nu niet antwoorden. Probeer het straks opnieuw.');
       }
       if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('De AI stuurde een leeg antwoord. Probeer het opnieuw.');
-      messages.push({role:'assistant', content:data.reply});
+      messages.push({role:'assistant', content:data.reply.slice(0, 2300)});
       addMessage('assistant', data.reply);
     } catch (error) {
       // Don't let a failed request remain in the local conversation context.
