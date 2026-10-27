@@ -427,6 +427,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <button type="button" data-user-status="Gaming" aria-pressed="false">🎮 Gaming</button>
   <button type="button" data-user-status="Away" aria-pressed="false">◷ Away</button>
   <button type="button" data-user-status="Do not disturb" aria-pressed="false">⛔ Do not disturb</button>
+  <button id="enableNotifications" type="button">Enable desktop notifications</button>
 </section>
 <section id="voicePanel" class="voice-panel" hidden aria-label="Voice chat controls">
   <div class="voice-panel-top">
@@ -935,6 +936,56 @@ function start() {
     showToast('Your status is now ' + userStatus + '.', 'success');
   });
   $('title').textContent = '#' + room;
+  let unreadCount = 0;
+  const syncDocumentTitle = () => {
+    document.title = (unreadCount ? '(' + unreadCount + ') ' : '') + '#' + room + ' · Server Chat';
+  };
+  syncDocumentTitle();
+  const updateNotificationButton = () => {
+    const button = $('enableNotifications');
+    if (!('Notification' in window)) {
+      button.textContent = 'Desktop notifications unavailable';
+      button.disabled = true;
+    } else if (Notification.permission === 'granted') {
+      button.textContent = '✓ Desktop notifications enabled';
+      button.disabled = true;
+    } else if (Notification.permission === 'denied') {
+      button.textContent = 'Notifications blocked in browser settings';
+      button.disabled = true;
+    }
+  };
+  updateNotificationButton();
+  $('enableNotifications').addEventListener('click', async () => {
+    if (!('Notification' in window)) return showToast('This browser does not support desktop notifications.', 'error');
+    try {
+      const permission = await Notification.requestPermission();
+      updateNotificationButton();
+      showToast(permission === 'granted' ? 'Desktop notifications enabled.' : 'Notifications were not enabled.', permission === 'granted' ? 'success' : 'info');
+    } catch (_) {
+      showToast('Could not request notification permission in this browser.', 'error');
+    }
+  });
+  const notifyIncomingMessage = async message => {
+    if (!message || message.own || message.bot || message.admin || message.id === socket.id ||
+        !document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+    let body = message.text || (message.img ? 'Sent an image' : 'New message');
+    if (message.encryptedText) {
+      try { body = await decryptChatText(message.encryptedText); }
+      catch (_) { body = 'Sent an encrypted message'; }
+    }
+    try {
+      new Notification('#' + room, {
+        body: String((message.name || 'Anonymous') + ': ' + body).slice(0, 180),
+        icon: '/app-icon.svg',
+        tag: 'server-chat-' + room
+      });
+    } catch (_) {}
+  };
+  const clearUnreadCount = () => { unreadCount = 0; syncDocumentTitle(); };
+  window.addEventListener('focus', clearUnreadCount);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') clearUnreadCount();
+  });
   $('quickGuide').onclick = showWelcomeGuide;
   document.querySelectorAll('[data-channel]').forEach(link => {
     link.href = '/?room=' + encodeURIComponent(link.dataset.channel) + location.hash;
@@ -1757,6 +1808,11 @@ function start() {
   socket.on('msg', m => {
     // In #announcements use the archived copy, not the duplicate short-lived global banner.
     if (room === 'announcements' && m && m.announcement) return;
+    if (document.hidden && m && !m.own && !m.admin && !m.bot && m.id !== socket.id) {
+      unreadCount++;
+      syncDocumentTitle();
+      notifyIncomingMessage(m);
+    }
     queueServerMessage(m); $('typing').textContent = '';
   });
   socket.on('message:edited', async message => {
