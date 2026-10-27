@@ -4,6 +4,7 @@
   let available = false;
   let sending = false;
   let typingNode = null;
+  let activeController = null;
   const root = document.createElement('div');
   root.id = 'builtInAiRoot';
   root.innerHTML = `
@@ -102,10 +103,13 @@
       messages.push({role:'user', content:prompt});
     setBusy(true);
     try {
+      activeController = new AbortController();
+      const requestController = activeController;
       const response = await fetch('/api/ai/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json','Accept':'application/json'},
         cache:'no-store',
+        signal:requestController.signal,
         body:JSON.stringify({messages: (() => {
           const context = messages.slice(-10).map(item => ({
             role: item.role,
@@ -125,10 +129,13 @@
       messages.push({role:'assistant', content:data.reply.slice(0, 2300)});
       addMessage('assistant', data.reply);
     } catch (error) {
+      // An account logout/deletion can clear the in-memory conversation and abort the pending request.
+      if (error && error.name === 'AbortError') return;
       // Don't let a failed request remain in the local conversation context.
       if (messages.length && messages[messages.length - 1].role === 'user') messages.pop();
       addMessage('assistant', error && error.message ? error.message : 'Er ging iets mis.', true);
     } finally {
+      activeController = null;
       setBusy(false);
       if (available) input.focus();
     }
@@ -157,6 +164,19 @@
   });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && panel.classList.contains('is-open')) setOpen(false);
+  });
+  // AI chat history exists only in this page's memory. Clear it whenever an account session ends.
+  window.addEventListener('server-chat:session-ended', () => {
+    if (activeController) activeController.abort();
+    activeController = null;
+    messages.length = 0;
+    input.value = '';
+    input.style.height = 'auto';
+    if (typingNode) { typingNode.remove(); typingNode = null; }
+    sending = false;
+    sendButton.disabled = !available;
+    input.disabled = !available;
+    feed.innerHTML = '<div class="ai-welcome" id="aiWelcome"><h3>Fresh start</h3><p>Your previous AI conversation has been cleared.</p><div class="ai-suggestions"><button class="ai-suggestion" type="button" data-prompt="Leg dit eenvoudig uit, stap voor stap.">Leg iets uit</button><button class="ai-suggestion" type="button" data-prompt="Help me een vriendelijk en duidelijk bericht te schrijven.">Help met schrijven</button><button class="ai-suggestion" type="button" data-prompt="Geef me vijf originele ideeën om Server Chat beter te maken.">Ideeën voor de chatapp</button></div></div>';
   });
   // No channel/socket transcript is read here. The AI only receives this panel's explicit prompts.
   checkStatus();
