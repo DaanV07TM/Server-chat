@@ -1418,10 +1418,10 @@ function start() {
     name = 'Anonymous';
     tok = rnd(16);
     try {
-      if (removeAccountData || localStorage.getItem('accountSessionToken') === previousSessionToken) {
+      if (localStorage.getItem('accountSessionToken') === previousSessionToken && previousSessionToken) {
         localStorage.removeItem('accountSessionToken');
       }
-      if (removeAccountData || localStorage.getItem('adminSessionToken') === previousAdminSessionToken) {
+      if (localStorage.getItem('adminSessionToken') === previousAdminSessionToken && previousAdminSessionToken) {
         localStorage.removeItem('adminSessionToken');
       }
       localStorage.removeItem('displayName');
