@@ -818,9 +818,17 @@ button:active:not(:disabled){transform:translateY(0)}
         <p>A random username and a strong password will be created automatically. Copy and save them before you close the next screen — the password cannot be recovered later.</p>
         <span class="auth-create-badge">No email address required</span>
       </div>
+      <div id="authLegalConsent" class="auth-legal-consent" hidden>
+        <label class="auth-consent-line"><input id="acceptTerms" type="checkbox" required><span>I agree to the <a href="/legal.html#terms" target="_blank" rel="noopener">Terms of Service</a>.</span></label>
+        <label class="auth-consent-line"><input id="acceptPrivacy" type="checkbox" required><span>I have read the <a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy Notice</a>.</span></label>
+        <div id="botVerificationWrap" class="bot-verification-wrap" hidden><div id="turnstileWidget"></div></div>
+        <p id="botCheckNotice" class="bot-check-notice" role="status" aria-live="polite">Checking registration security settings…</p>
+        <label class="auth-honeypot" aria-hidden="true">Leave this field empty<input id="registrationWebsite" name="website" type="text" tabindex="-1" autocomplete="off"></label>
+      </div>
       <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="authSubmit" class="auth-submit" type="submit">Log in</button>
     </form>
+    <div class="auth-legal-links"><a href="/legal.html">Terms of Service &amp; Privacy Notice</a></div>
     <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, not the plaintext password. Accounts and chat history are cleared when the server restarts.</span></div>
   </div>
 </div>
@@ -1460,6 +1468,11 @@ function start() {
   let authMode = 'login';
   let authBusy = false;
   let newlyGeneratedPassword = '';
+  let securityConfig = { termsVersion: '2026-10-28-v1', turnstileEnabled: false, turnstileSiteKey: '' };
+  let turnstileWidgetId = null;
+  let turnstileToken = '';
+  let turnstileScriptRequested = false;
+  let pendingAuthMode = '';
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
 
@@ -1500,17 +1513,107 @@ function start() {
     authPasswordInput.setAttribute('placeholder', 'Your password');
     authConfirmWrap.hidden = true;
     authConfirmInput.required = false;
+    $('authLegalConsent').hidden = !registering;
+    if (!registering) resetTurnstileChallenge();
     authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
     authMessage.textContent = '';
     authMessage.classList.remove('is-error');
   }
+
+  function resetTurnstileChallenge() {
+    turnstileToken = '';
+    if (securityConfig.turnstileEnabled && window.turnstile && turnstileWidgetId !== null) {
+      try { window.turnstile.reset(turnstileWidgetId); } catch (_) {}
+    }
+  }
+  function renderTurnstileWidget() {
+    if (!securityConfig.turnstileEnabled || !window.turnstile || turnstileWidgetId !== null) return;
+    const mount = $('turnstileWidget');
+    if (!mount) return;
+    try {
+      turnstileWidgetId = window.turnstile.render(mount, {
+        sitekey: securityConfig.turnstileSiteKey,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+        callback: token => {
+          turnstileToken = token;
+          $('botCheckNotice').textContent = 'Security check completed.';
+        },
+        'expired-callback': () => {
+          turnstileToken = '';
+          $('botCheckNotice').textContent = 'The security check expired. Please complete it again.';
+        },
+        'error-callback': () => {
+          turnstileToken = '';
+          $('botCheckNotice').textContent = 'The security check could not be completed. Check your connection or content blocker.';
+        }
+      });
+    } catch (_) {
+      $('botCheckNotice').textContent = 'The security check could not be loaded. Please reload and try again.';
+    }
+  }
+  function prepareTurnstileWidget() {
+    if (!securityConfig.turnstileEnabled) return;
+    $('botVerificationWrap').hidden = false;
+    if (window.turnstile) return renderTurnstileWidget();
+    if (turnstileScriptRequested) return;
+    turnstileScriptRequested = true;
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', renderTurnstileWidget, { once: true });
+    script.addEventListener('error', () => {
+      $('botCheckNotice').textContent = 'The bot check could not load. Allow challenges.cloudflare.com or try again later.';
+    }, { once: true });
+    document.head.appendChild(script);
+  }
+  async function initRegistrationSecurity() {
+    const notice = $('botCheckNotice');
+    try {
+      const response = await fetch('/api/security-config', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Security configuration unavailable');
+      const config = await response.json();
+      if (typeof config.termsVersion === 'string') securityConfig.termsVersion = config.termsVersion;
+      securityConfig.turnstileEnabled = config.turnstileEnabled === true && typeof config.turnstileSiteKey === 'string' && config.turnstileSiteKey.length > 0;
+      securityConfig.turnstileSiteKey = securityConfig.turnstileEnabled ? config.turnstileSiteKey : '';
+      if (securityConfig.turnstileEnabled) {
+        $('botVerificationWrap').hidden = false;
+        notice.textContent = 'Complete the anti-bot check before creating an account.';
+        if (authMode === 'register') prepareTurnstileWidget();
+      } else {
+        $('botVerificationWrap').hidden = true;
+        notice.textContent = 'Automatic rate limits and abuse protection are active. The interactive bot check is not configured on this server.';
+      }
+    } catch (_) {
+      notice.textContent = 'Server-side abuse protection remains active, but registration security settings could not be loaded. Please reload the page if registration fails.';
+    }
+  }
+
   $('authTabLogin').addEventListener('click', () => setAuthMode('login'));
   $('authTabRegister').addEventListener('click', () => setAuthMode('register'));
+  initRegistrationSecurity();
   authForm.addEventListener('submit', event => {
     event.preventDefault();
     if (authBusy || !socket.connected) {
       if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
       return;
+    }
+    if (authMode === 'register') {
+      if (!$('acceptTerms').checked || !$('acceptPrivacy').checked) {
+        authMessage.textContent = 'Please agree to the Terms of Service and acknowledge the Privacy Notice.';
+        authMessage.classList.add('is-error');
+        return;
+      }
+      if ($('registrationWebsite').value.trim()) {
+        authMessage.textContent = 'Account creation could not be verified. Please try again.';
+        authMessage.classList.add('is-error');
+        return;
+      }
+      if (securityConfig.turnstileEnabled && !turnstileToken) {
+        authMessage.textContent = 'Complete the bot check before creating your account.';
+        authMessage.classList.add('is-error');
+        return;
+      }
     }
     if (authMode === 'login') {
       const username = $('authUsername').value.trim();
@@ -1527,13 +1630,20 @@ function start() {
       }
     }
 
+    pendingAuthMode = authMode;
     authBusy = true;
     authSubmit.disabled = true;
     authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
     authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Connecting securely…';
     authMessage.classList.remove('is-error');
     if (authMode === 'register') {
-      socket.emit('auth:register', {});
+      socket.emit('auth:register', {
+        acceptedTerms: $('acceptTerms').checked,
+        acceptedPrivacy: $('acceptPrivacy').checked,
+        termsVersion: securityConfig.termsVersion,
+        turnstileToken,
+        website: $('registrationWebsite').value
+      });
     } else {
       socket.emit('auth:login', {
         username: $('authUsername').value.trim(),
@@ -1543,6 +1653,9 @@ function start() {
   });
 
   socket.on('auth:result', data => {
+    const attemptedRegistration = pendingAuthMode === 'register';
+    pendingAuthMode = '';
+    if (attemptedRegistration) resetTurnstileChallenge();
     authBusy = false;
     authSubmit.disabled = false;
     setAuthMode(authMode);
