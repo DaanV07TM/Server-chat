@@ -1,4 +1,5 @@
 const express = require('express');
+const proxyaddr = require('proxy-addr');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -33,6 +34,185 @@ app.get('/healthz', (_req, res) => {
 
 // Private, per-account AI workspaces. Conversations are intentionally memory-only.
 app.set('trust proxy', 1);
+
+const SECURITY_TERMS_VERSION = '2026-10-28-v1';
+const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
+const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
+
+// In-memory application-layer abuse protection. Blocks expire automatically and are not persisted.
+const SECURITY_BLOCK_MS = 10 * 60 * 1000;
+const SECURITY_WINDOW_MS = 10 * 1000;
+const SECURITY_CONNECTION_WINDOW_MS = 60 * 1000;
+const SECURITY_MAX_API_REQUESTS = 180;
+const SECURITY_MAX_SOCKET_EVENTS = 240;
+const SECURITY_MAX_CONNECTIONS = 40;
+const SECURITY_IP_BLOCKS = new Map(); // client IP -> expiry timestamp
+const SECURITY_IP_ACTIVITY = new Map(); // per-IP rolling counters; never written to disk
+
+function clientIpForRequest(request) {
+  try {
+    return String(proxyaddr(request, app.get('trust proxy fn')) || 'unknown').slice(0, 100);
+  } catch (_) {
+    const remoteAddress = request && request.socket && request.socket.remoteAddress;
+    return String(remoteAddress || 'unknown').slice(0, 100);
+  }
+}
+
+function pruneSecurityState() {
+  const now = Date.now();
+  const staleBefore = now - 60 * 60 * 1000;
+  for (const [address, activity] of SECURITY_IP_ACTIVITY) {
+    if (!activity || activity.lastSeen < staleBefore) SECURITY_IP_ACTIVITY.delete(address);
+  }
+  for (const [address, until] of SECURITY_IP_BLOCKS) {
+    if (!until || until <= now) SECURITY_IP_BLOCKS.delete(address);
+  }
+  // Bound memory even if a large number of unique source addresses appear.
+  while (SECURITY_IP_ACTIVITY.size > 5000) SECURITY_IP_ACTIVITY.delete(SECURITY_IP_ACTIVITY.keys().next().value);
+  while (SECURITY_IP_BLOCKS.size > 5000) SECURITY_IP_BLOCKS.delete(SECURITY_IP_BLOCKS.keys().next().value);
+}
+
+function securityActivityFor(address) {
+  const now = Date.now();
+  let activity = SECURITY_IP_ACTIVITY.get(address);
+  if (!activity) {
+    if (SECURITY_IP_ACTIVITY.size >= 5000 || SECURITY_IP_BLOCKS.size >= 5000) pruneSecurityState();
+    activity = {
+      lastSeen: now,
+      eventWindowStartedAt: now,
+      eventCount: 0,
+      apiWindowStartedAt: now,
+      apiCount: 0,
+      connectionWindowStartedAt: now,
+      connectionCount: 0
+    };
+    SECURITY_IP_ACTIVITY.set(address, activity);
+  }
+  activity.lastSeen = now;
+  if (now - activity.eventWindowStartedAt >= SECURITY_WINDOW_MS) {
+    activity.eventWindowStartedAt = now;
+    activity.eventCount = 0;
+  }
+  if (now - activity.apiWindowStartedAt >= SECURITY_WINDOW_MS) {
+    activity.apiWindowStartedAt = now;
+    activity.apiCount = 0;
+  }
+  if (now - activity.connectionWindowStartedAt >= SECURITY_CONNECTION_WINDOW_MS) {
+    activity.connectionWindowStartedAt = now;
+    activity.connectionCount = 0;
+  }
+  return activity;
+}
+
+function blockedUntilFor(address) {
+  const until = SECURITY_IP_BLOCKS.get(address);
+  if (!until) return 0;
+  if (until <= Date.now()) {
+    SECURITY_IP_BLOCKS.delete(address);
+    return 0;
+  }
+  return until;
+}
+
+function securityBlockResponse(res, until) {
+  res.set('Cache-Control', 'no-store');
+  res.set('Retry-After', String(Math.max(1, Math.ceil((until - Date.now()) / 1000))));
+  return res.status(429).json({ error: 'Too much traffic from this network. Please wait a few minutes before trying again.' });
+}
+
+function blockClientAddress(address) {
+  if (!address || address === 'unknown') return 0;
+  const until = Date.now() + SECURITY_BLOCK_MS;
+  SECURITY_IP_BLOCKS.set(address, until);
+  SECURITY_IP_ACTIVITY.delete(address);
+  if (SECURITY_IP_BLOCKS.size > 5000) pruneSecurityState();
+  for (const client of io.sockets.sockets.values()) {
+    if (client.data.clientIp !== address || !client.connected) continue;
+    client.emit('security:blocked', { message: 'Too much traffic was detected from this network. Please wait 10 minutes before reconnecting.' });
+    client.disconnect(true);
+  }
+  // Never write raw IP addresses to application logs.
+  console.warn('[security] Applied a temporary automatic network block after excessive traffic.');
+  return until;
+}
+
+function allowSocketTraffic(socket) {
+  const address = socket.data.clientIp || clientIpForRequest(socket.request);
+  if (!address || address === 'unknown') return true;
+  const blockedUntil = blockedUntilFor(address);
+  if (blockedUntil) {
+    socket.emit('security:blocked', { message: 'Too much traffic was detected from this network. Please wait before reconnecting.' });
+    socket.disconnect(true);
+    return false;
+  }
+  const activity = securityActivityFor(address);
+  activity.eventCount += 1;
+  if (activity.eventCount > SECURITY_MAX_SOCKET_EVENTS) {
+    blockClientAddress(address);
+    return false;
+  }
+  return true;
+}
+
+async function verifyTurnstileToken(token) {
+  if (!TURNSTILE_ENABLED) return true;
+  if (typeof token !== 'string' || token.length < 10 || token.length > 4096) return false;
+  try {
+    const body = new URLSearchParams({ secret: TURNSTILE_SECRET_KEY, response: token });
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    return result && result.success === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  const address = clientIpForRequest(req);
+  const blockedUntil = blockedUntilFor(address);
+  if (blockedUntil) return securityBlockResponse(res, blockedUntil);
+  if (!address || address === 'unknown') return next();
+  const activity = securityActivityFor(address);
+  activity.apiCount += 1;
+  if (activity.apiCount > SECURITY_MAX_API_REQUESTS) {
+    return securityBlockResponse(res, blockClientAddress(address));
+  }
+  return next();
+});
+
+app.get('/api/security-config', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  res.json({
+    termsVersion: SECURITY_TERMS_VERSION,
+    turnstileEnabled: TURNSTILE_ENABLED,
+    turnstileSiteKey: TURNSTILE_ENABLED ? TURNSTILE_SITE_KEY : ''
+  });
+});
+
+io.use((socket, next) => {
+  const address = clientIpForRequest(socket.request);
+  socket.data.clientIp = address;
+  const blockedUntil = blockedUntilFor(address);
+  if (blockedUntil) return next(new Error('This network is temporarily blocked due to excessive traffic.'));
+  if (!address || address === 'unknown') return next();
+  const activity = securityActivityFor(address);
+  activity.connectionCount += 1;
+  if (activity.connectionCount > SECURITY_MAX_CONNECTIONS) {
+    blockClientAddress(address);
+    return next(new Error('This network is temporarily blocked due to excessive traffic.'));
+  }
+  return next();
+});
+
 const AI_API_KEY = String(process.env.GROQ_API_KEY || '').trim();
 const AI_MODEL = String(process.env.GROQ_MODEL || 'openai/gpt-oss-20b').trim();
 // Admins can pause/resume the built-in AI at runtime without changing provider secrets.
@@ -1913,7 +2093,7 @@ const MAX_ACCOUNT_SESSIONS = 10000;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
-const REGISTRATION_MAX_ATTEMPTS = 5;
+const REGISTRATION_MAX_ATTEMPTS = 12;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
 const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // login and public announcement sync can run before account auth
 
@@ -1931,9 +2111,7 @@ function scryptPassword(password, salt) {
 }
 
 function authAddress(socket) {
-  const forwardedFor = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
-  const forwardedAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : '';
-  return String(forwardedAddress || socket.handshake.address || 'unknown').slice(0, 100);
+  return String(socket.data.clientIp || clientIpForRequest(socket.request) || socket.handshake.address || 'unknown').slice(0, 100);
 }
 
 function allowAuthAttempt(socket, kind = 'login') {
@@ -2005,6 +2183,7 @@ io.on('connection', (socket) => {
 
   // Every non-auth socket packet must carry a currently valid temporary-account session.
   socket.use((packet, next) => {
+    if (!allowSocketTraffic(socket)) return next(new Error('Excessive traffic from this network.'));
     if (AUTH_EVENTS.has(packet && packet[0])) return next();
     // An authenticated admin session is a first-class login and does not require a temporary user account.
     if (socket.data.admin === true && socket.data.adminToken && adminSessions.has(socket.data.adminToken)) return next();
@@ -2044,12 +2223,27 @@ io.on('connection', (socket) => {
     console.log('[admin] direct administrator login (no temporary account)');
   });
 
-  socket.on('auth:register', async () => {
+  socket.on('auth:register', async (registrationData) => {
+    if (socket.data.registrationInProgress) {
+      return socket.emit('auth:result', { ok: false, message: 'Account creation is already in progress.' });
+    }
+    socket.data.registrationInProgress = true;
+    try {
     if (socket.data.account) {
       return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
     }
     if (!allowAuthAttempt(socket, 'register')) {
       return socket.emit('auth:result', { ok: false, message: 'Too many account creations. Please wait one hour.' });
+    }
+    const registration = registrationData && typeof registrationData === 'object' ? registrationData : {};
+    if (typeof registration.website === 'string' && registration.website.trim()) {
+      return socket.emit('auth:result', { ok: false, message: 'Account creation could not be verified. Please try again.' });
+    }
+    if (registration.acceptedTerms !== true || registration.acceptedPrivacy !== true || registration.termsVersion !== SECURITY_TERMS_VERSION) {
+      return socket.emit('auth:result', { ok: false, message: 'Please accept the current Terms of Service and acknowledge the Privacy Notice before creating an account.' });
+    }
+    if (TURNSTILE_ENABLED && !(await verifyTurnstileToken(registration.turnstileToken))) {
+      return socket.emit('auth:result', { ok: false, message: 'The bot check failed or expired. Complete the security check and try again.' });
     }
     if (TEMP_ACCOUNTS.size >= MAX_TEMP_ACCOUNTS) {
       return socket.emit('auth:result', { ok: false, message: 'The temporary account limit has been reached. Please try again later.' });
@@ -2081,7 +2275,9 @@ io.on('connection', (socket) => {
         salt,
         passwordHash,
         token: crypto.randomBytes(32).toString('hex'),
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        legalAcceptedAt: Date.now(),
+        legalTermsVersion: SECURITY_TERMS_VERSION
       };
       TEMP_ACCOUNTS.set(accountKey, account);
       issueTemporaryAccountSession(socket, account, '', generatedPassword);
@@ -2090,6 +2286,9 @@ io.on('connection', (socket) => {
       socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
     } finally {
       AUTH_REGISTRATION_LOCKS.delete(accountKey);
+    }
+    } finally {
+      socket.data.registrationInProgress = false;
     }
   });
 
