@@ -146,10 +146,55 @@ jobs:
           for marker in ("--bg:#17111c", "--purple:#ff865c", "rgba(119,33,111"):
               if marker not in status_html:
                   raise SystemExit(f"Status page is missing COSMIC colors: {marker}")
-          if "server-chat-shell-v2" not in sw or "'/ubuntu-cosmic.css'" not in sw:
+          if "server-chat-shell-v3" not in sw or "'/ubuntu-cosmic.css'" not in sw or "'/legal.html'" not in sw:
               raise SystemExit("The service worker must cache the updated theme under a new cache version.")
           if '"theme_color": "#77216f"' not in manifest:
               raise SystemExit("PWA theme color does not match the app branding.")
           PY
       - name: Validate web app manifest
         run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
+- name: Validate legal consent, bot verification and abuse protection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          server = Path("server.js").read_text(encoding="utf-8")
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          legal = Path("public/legal.html").read_text(encoding="utf-8")
+          css = Path("public/accounts.css").read_text(encoding="utf-8")
+          sw = Path("public/sw.js").read_text(encoding="utf-8")
+          readme = Path("README.md").read_text(encoding="utf-8")
+          for marker in (
+              "const proxyaddr = require('proxy-addr');",
+              "const SECURITY_MAX_API_REQUESTS = 180;",
+              "const SECURITY_MAX_SOCKET_EVENTS = 240;",
+              "const SECURITY_MAX_CONNECTIONS = 40;",
+              "const SECURITY_BLOCK_MS = 10 * 60 * 1000;",
+              "async function verifyTurnstileToken(token)",
+              "app.get('/api/security-config'",
+              "registration.acceptedTerms !== true",
+              "registration.acceptedPrivacy !== true",
+              "legalAcceptedAt: Date.now()",
+              "if (!allowSocketTraffic(socket))",
+          ):
+              if marker not in server:
+                  raise SystemExit(f"Missing server-side security control: {marker}")
+          for marker in (
+              'id="authLegalConsent"', 'id="acceptTerms"', 'id="acceptPrivacy"',
+              'id="turnstileWidget"', 'id="registrationWebsite"',
+              "initRegistrationSecurity()", "https://challenges.cloudflare.com/turnstile/v0/api.js",
+              "acceptedTerms:", "acceptedPrivacy:", "termsVersion: securityConfig.termsVersion"
+          ):
+              if marker not in html:
+                  raise SystemExit(f"Missing registration security UI: {marker}")
+          for marker in ('id="terms"', 'id="privacy"', "legal name", "client IP", "10 minutes", "Turnstile"):
+              if marker.lower() not in legal.lower():
+                  raise SystemExit(f"Missing legal/privacy notice detail: {marker}")
+          for marker in (".auth-legal-consent", ".auth-consent-line", ".bot-verification-wrap", ".auth-honeypot"):
+              if marker not in css:
+                  raise SystemExit(f"Missing registration security styling: {marker}")
+          if "server-chat-shell-v3" not in sw or "'/legal.html'" not in sw:
+              raise SystemExit("The legal page must be included in the refreshed service-worker shell.")
+          for marker in ("TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "10-minute temporary IP block", "application-layer controls"):
+              if marker not in readme:
+                  raise SystemExit(f"Missing security documentation: {marker}")
+          PY
