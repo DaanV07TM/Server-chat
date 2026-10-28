@@ -1469,6 +1469,7 @@ function start() {
   let authBusy = false;
   let newlyGeneratedPassword = '';
   let securityConfig = { termsVersion: '2026-10-28-v1', turnstileEnabled: false, turnstileSiteKey: '' };
+  let securityConfigLoaded = false;
   let turnstileWidgetId = null;
   let turnstileToken = '';
   let turnstileScriptRequested = false;
@@ -1574,6 +1575,7 @@ function start() {
       if (!response.ok) throw new Error('Security configuration unavailable');
       const config = await response.json();
       if (typeof config.termsVersion === 'string') securityConfig.termsVersion = config.termsVersion;
+      securityConfigLoaded = true;
       securityConfig.turnstileEnabled = config.turnstileEnabled === true && typeof config.turnstileSiteKey === 'string' && config.turnstileSiteKey.length > 0;
       securityConfig.turnstileSiteKey = securityConfig.turnstileEnabled ? config.turnstileSiteKey : '';
       if (securityConfig.turnstileEnabled) {
@@ -1585,7 +1587,8 @@ function start() {
         notice.textContent = 'Automatic rate limits and abuse protection are active. The interactive bot check is not configured on this server.';
       }
     } catch (_) {
-      notice.textContent = 'Server-side abuse protection remains active, but registration security settings could not be loaded. Please reload the page if registration fails.';
+      securityConfigLoaded = false;
+      notice.textContent = 'Server-side abuse protection remains active, but registration security settings could not be loaded. Reload the page before creating an account.';
     }
   }
 
@@ -1599,6 +1602,11 @@ function start() {
       return;
     }
     if (authMode === 'register') {
+      if (!securityConfigLoaded) {
+        authMessage.textContent = 'Registration security settings are not ready. Please reload the page and try again.';
+        authMessage.classList.add('is-error');
+        return;
+      }
       if (!$('acceptTerms').checked || !$('acceptPrivacy').checked) {
         authMessage.textContent = 'Please agree to the Terms of Service and acknowledge the Privacy Notice.';
         authMessage.classList.add('is-error');
