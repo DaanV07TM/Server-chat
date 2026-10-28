@@ -153,7 +153,7 @@ jobs:
           PY
       - name: Validate web app manifest
         run: node -e "JSON.parse(require('node:fs').readFileSync('public/manifest.webmanifest', 'utf8'))"
-- name: Validate legal consent, bot verification and abuse protection
+      - name: Validate legal consent, bot verification and abuse protection
         run: |
           python3 - <<'PY'
           from pathlib import Path
