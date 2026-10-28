@@ -2224,6 +2224,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('auth:register', async (registrationData) => {
+    if (socket.data.registrationInProgress) {
+      return socket.emit('auth:result', { ok: false, message: 'Account creation is already in progress.' });
+    }
+    socket.data.registrationInProgress = true;
+    try {
     if (socket.data.account) {
       return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
     }
@@ -2281,6 +2286,9 @@ io.on('connection', (socket) => {
       socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
     } finally {
       AUTH_REGISTRATION_LOCKS.delete(accountKey);
+    }
+    } finally {
+      socket.data.registrationInProgress = false;
     }
   });
 
