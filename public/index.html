@@ -1635,7 +1635,8 @@ function start() {
       showBotApprovalScreen('idle', 'Verify you’re not a bot', 'Tick the box below. Server Chat will verify your connection before you continue.');
     }
     if (serverApproved && !needsTurnstile) return;
-    try { botCheckInput.focus({ preventScroll: true }); } catch (_) { botCheckInput.focus(); }
+    const firstControl = serverApproved && needsTurnstile ? $('botApprovalClose') : botCheckInput;
+    try { firstControl.focus({ preventScroll: true }); } catch (_) { firstControl.focus(); }
   }
   function requestBotVerification() {
     if (authBusy) {
