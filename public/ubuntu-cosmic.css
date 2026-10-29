@@ -331,6 +331,8 @@ header::-webkit-scrollbar-thumb{border:0;background:color-mix(in srgb,var(--acce
 .sidebar-dock-item small{font-size:8px;font-weight:850;letter-spacing:.02em}
 .sidebar-footer{display:flex;align-items:center;gap:9px;padding:13px 7px 4px;color:#c6b7ce}
 .sidebar-footer-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#71dba0;box-shadow:0 0 9px rgba(113,219,160,.5)}
+.sidebar-footer-dot[data-state="connecting"],.sidebar-footer-dot[data-state="maintenance"]{background:#f4bb55;box-shadow:0 0 8px rgba(244,187,85,.35)}
+.sidebar-footer-dot[data-state="offline"]{background:#ff6b7e;box-shadow:0 0 8px rgba(255,107,126,.32)}
 .sidebar-footer strong,.sidebar-footer small{display:block}
 .sidebar-footer strong{font-size:9px;font-weight:850;color:#e9e0ee}
 .sidebar-footer small{margin-top:3px;font-size:8px;color:#a997b4}
