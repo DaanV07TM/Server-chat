@@ -632,7 +632,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <a class="sidebar-dock-item" href="/?room=ai" aria-label="Open private AI Studio" title="AI Studio"><span class="dock-glyph dock-ai">✦</span><small>AI</small></a>
     <a class="sidebar-dock-item" href="/status.html" aria-label="Open server status" title="Server status"><span class="dock-glyph dock-status">⌁</span><small>Status</small></a>
   </div>
-  <div class="sidebar-footer"><span class="sidebar-footer-dot" aria-hidden="true"></span><span><strong>Server connected</strong><small>Secure community space</small></span></div>
+  <div class="sidebar-footer"><span id="sidebarConnectionDot" class="sidebar-footer-dot" data-state="connecting" aria-hidden="true"></span><span><strong id="sidebarConnectionLabel">Connecting to server</strong><small id="sidebarConnectionDetail">Waiting for a live connection</small></span></div>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -1846,7 +1846,17 @@ function start() {
     });
     if (confirmed) socket.emit('auth:logout');
   });
+  function updateSidebarConnectionStatus(state, label, detail) {
+    const dot = $('sidebarConnectionDot');
+    const title = $('sidebarConnectionLabel');
+    const subtitle = $('sidebarConnectionDetail');
+    if (dot) dot.dataset.state = state;
+    if (title) title.textContent = label;
+    if (subtitle) subtitle.textContent = detail;
+  }
+
   socket.on('connect', () => {
+    updateSidebarConnectionStatus('connected', 'Server connected', 'Live connection ready');
     if (accountSessionToken) {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
@@ -1858,6 +1868,7 @@ function start() {
     }
   });
   socket.on('connect_error', () => {
+    updateSidebarConnectionStatus('offline', 'Server unreachable', 'Check your connection');
     if (!isSharedAIView) showAuthGate('Cannot reach the chat server. Check your connection and try again.');
   });
   function closeGeneratedCredentials() {
@@ -3049,8 +3060,14 @@ function start() {
   socket.on('config', c => { $('photo').hidden = !c.images; });
   socket.on('sys', t => { if ($('adm').style.display === 'flex') $('admmsg').textContent = t; else add({ bot: true, text: t }); });
   socket.on('closed', c => {
-    if (c) { log.innerHTML = '<p class="empty">The chat is temporarily offline.</p>'; $('online').textContent = 'offline'; }
-    else join();
+    if (c) {
+      updateSidebarConnectionStatus('maintenance', 'Chat unavailable', 'Temporarily in maintenance');
+      log.innerHTML = '<p class="empty">The chat is temporarily offline.</p>';
+      $('online').textContent = 'offline';
+    } else {
+      updateSidebarConnectionStatus('connected', 'Server connected', 'Live connection ready');
+      join();
+    }
   });
   socket.on('connect_error', () => $('online').textContent = 'offline');
   socket.on('disconnect', () => {
@@ -3058,6 +3075,7 @@ function start() {
       failLoginChallenge('Connection lost during the security check. Please try signing in again when connected.');
     }
     $('online').textContent = 'reconnecting…';
+    updateSidebarConnectionStatus('connecting', 'Reconnecting…', 'Waiting for server');
     if (localScreenStream) resetScreenShare();
     clearAdminMonitor(false);
     pendingPing = null;
