@@ -8,7 +8,7 @@ A real-time chat with temporary username/password accounts, plaintext public/off
 
 ## Login anti-bot check
 
-Every password-based login requests a short-lived, one-time proof-of-work challenge from the chat server. The browser performs a small SHA-256 search and the server validates the answer, connection binding, expiry and one-time use. It uses built-in cryptography rather than an external CAPTCHA provider. This raises the cost of scripted login attempts but cannot prove that a visitor is human or make automation impossible; keep the existing login rate limit in place. Session-token resume is a separate flow and does not ask for the password again.
+Before a temporary account is created or a password-based user/admin login is processed, the client requests a short-lived, one-time proof-of-work challenge from the chat server. The browser performs a small SHA-256 search (about 4,096 attempts on average) and the server validates the answer, connection binding, expiry and one-time use. A successful check approves that client IP for 10 minutes in server memory, so subsequent account/login actions from the same IP reuse the approval until it expires. It uses built-in cryptography rather than an external CAPTCHA provider. This raises the cost of scripted abuse but cannot prove that a visitor is human or make automation impossible; keep the existing rate limits in place. Session-token resume remains separate.
 
 ## Patch notes
 
