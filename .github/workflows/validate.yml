@@ -198,7 +198,7 @@ jobs:
               if marker not in readme:
                   raise SystemExit(f"Missing security documentation: {marker}")
           PY
-- name: Validate login proof-of-work, patch notes and UI cleanup
+      - name: Validate login proof-of-work, patch notes and UI cleanup
         run: |
           python3 - <<'PY'
           import re
@@ -225,13 +225,13 @@ jobs:
               "async function solveLoginChallenge(challenge)",
               "socket.emit('auth:challenge-request')",
               "challengeId: challenge.challengeId",
-              "id=\\"loginSecurityHint\\"",
-              'href=\\"/patch-notes.html\\"',
-              'aria-label=\\"Main navigation\\"',
-              'type=\\"button\\" class=\\"ab ',
+              'id="loginSecurityHint"',
+              'href="/patch-notes.html"',
+              'aria-label="Main navigation"',
+              'type="button" class="ab '
               "server-chat-shell-v4"
           ):
-              if marker not in html and marker != "server-chat-shell-v4":
+              if marker not in html:
                   raise SystemExit(f"Missing login or UI cleanup: {marker}")
           if html.count('id="empty"') != 1:
               raise SystemExit("The main chat HTML should have one static empty-state ID.")
@@ -252,7 +252,7 @@ jobs:
                   raise SystemExit(f"Missing dated patch-note entry: {date}")
           if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
               raise SystemExit("Patch notes must accurately describe the login security limitation.")
-          ids = re.findall(r'\\bid\\s*=\\s*["\']([^"\']+)["\']', html, flags=re.I)
+          ids = re.findall(r'id="([^"]+)"', html, flags=re.I)
           duplicates = sorted({item for item in ids if ids.count(item) > 1})
           if duplicates:
               raise SystemExit(f"Duplicate static HTML IDs found: {duplicates}")
