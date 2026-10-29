@@ -246,7 +246,8 @@ jobs:
               'aria-label="Main navigation"',
               'type="button" class="ab ',
               'id="sidebarConnectionDot"',
-              "function updateSidebarConnectionStatus(state, label, detail)",
+              "function updateSidebarConnectionStatus(state, label, detail, quality = 'unknown')",
+              "socket.emit('connection:ping'",
               "updateSidebarConnectionStatus('offline'",
               "updateSidebarConnectionStatus('connecting'",
               "updateSidebarConnectionStatus('maintenance'"
@@ -284,4 +285,41 @@ jobs:
           duplicates = sorted({item for item in ids if ids.count(item) > 1})
           if duplicates:
               raise SystemExit(f"Duplicate static HTML IDs found: {duplicates}")
+          PY
+
+      - name: Validate message tools, connection health and AI history
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          css = Path("public/ui-refresh.css").read_text(encoding="utf-8")
+          server = Path("server.js").read_text(encoding="utf-8")
+          ai_js = Path("public/ai.js").read_text(encoding="utf-8")
+          ai_css = Path("public/ai.css").read_text(encoding="utf-8")
+          status_html = Path("public/status.html").read_text(encoding="utf-8")
+          status_js = Path("public/status.js").read_text(encoding="utf-8")
+          sw = Path("public/sw.js").read_text(encoding="utf-8")
+          for marker in ("socket.on('connection:ping'", "socket.emit('connection:pong'"):
+              if marker not in server:
+                  raise SystemExit(f"Missing authenticated connection probe: {marker}")
+          for marker in ("connectionFooterDetail()", "connectionQualityFor(", "serverChatReconnects", "socket.emit('connection:ping'"):
+              if marker not in html:
+                  raise SystemExit(f"Missing sidebar connection metric: {marker}")
+          if "Message actions: the existing reply/reaction/edit/delete/report controls" not in css:
+              raise SystemExit("Message hover/focus action toolbar is missing.")
+          for marker in ('id="networkLatency"', 'id="networkLatencyQuality"', 'id="networkLatencyCard"'):
+              if marker not in status_html:
+                  raise SystemExit(f"Missing public status latency UI: {marker}")
+          if "performance.now() - startedAt" not in status_js or "render(data, performance.now() - startedAt)" not in status_js:
+              raise SystemExit("The status page must measure browser-to-server response time.")
+          for marker in ('id="aiHistorySearch"', 'id="aiRenameDialog"', 'setConversationPinned(', "method: 'PATCH'"):
+              if marker not in ai_js:
+                  raise SystemExit(f"Missing AI history action: {marker}")
+          for marker in (".ai-history-search", ".ai-history-actions", ".ai-rename-backdrop"):
+              if marker not in ai_css:
+                  raise SystemExit(f"Missing AI history styles: {marker}")
+          if "app.patch('/api/ai/conversations/:id'" not in server or "pinned: conversation.pinned === true" not in server:
+              raise SystemExit("AI rename/pin changes must use the account-authorized server API.")
+          if "server-chat-shell-v6" not in sw:
+              raise SystemExit("The UI shell cache must be bumped for the new interface.")
           PY
