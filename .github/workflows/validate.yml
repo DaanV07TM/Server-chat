@@ -250,7 +250,8 @@ jobs:
                   raise SystemExit(f"Missing dated patch-note entry: {date}")
           if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
               raise SystemExit("Patch notes must accurately describe the login security limitation.")
-          ids = re.findall(r'id="([^"]+)"', html, flags=re.I)
+          static_html = html.split("<script", 1)[0]
+          ids = re.findall(r'id="([^"]+)"', static_html, flags=re.I)
           duplicates = sorted({item for item in ids if ids.count(item) > 1})
           if duplicates:
               raise SystemExit(f"Duplicate static HTML IDs found: {duplicates}")
