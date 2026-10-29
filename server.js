@@ -2093,6 +2093,39 @@ const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;
 const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;
 const LOGIN_CHALLENGE_MAX_ENTRIES = 5000;
 const LOGIN_CHALLENGES = new Map();
+const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;
+const MAX_BOT_IP_APPROVALS = 10000;
+const VERIFIED_BOT_IPS = new Map(); // client IP -> ten-minute approval expiry
+
+function botApprovalUntil(socket) {
+  const address = authAddress(socket);
+  if (!address || address === 'unknown') return 0;
+  const until = VERIFIED_BOT_IPS.get(address) || 0;
+  if (until <= Date.now()) {
+    if (until) VERIFIED_BOT_IPS.delete(address);
+    return 0;
+  }
+  return until;
+}
+
+function isBotIpApproved(socket) {
+  return botApprovalUntil(socket) > Date.now();
+}
+
+function approveBotIp(socket) {
+  const address = authAddress(socket);
+  if (!address || address === 'unknown') return 0;
+  const now = Date.now();
+  for (const [ip, expiry] of VERIFIED_BOT_IPS) {
+    if (!expiry || expiry <= now) VERIFIED_BOT_IPS.delete(ip);
+  }
+  while (VERIFIED_BOT_IPS.size >= MAX_BOT_IP_APPROVALS) {
+    VERIFIED_BOT_IPS.delete(VERIFIED_BOT_IPS.keys().next().value);
+  }
+  const until = now + BOT_IP_APPROVAL_TTL_MS;
+  VERIFIED_BOT_IPS.set(address, until);
+  return until;
+}
 
 function pruneLoginChallenges() {
   const now = Date.now();
@@ -2106,6 +2139,9 @@ function pruneLoginChallenges() {
 
 function issueLoginChallenge(socket) {
   pruneLoginChallenges();
+  for (const [id, challenge] of LOGIN_CHALLENGES) {
+    if (challenge && challenge.socketId === socket.id) LOGIN_CHALLENGES.delete(id);
+  }
   const challengeId = crypto.randomBytes(24).toString('hex');
   const nonce = crypto.randomBytes(24).toString('hex');
   const expiresAt = Date.now() + LOGIN_CHALLENGE_TTL_MS;
@@ -2147,7 +2183,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 12;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:challenge-request', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // Authentication and public announcement sync can run before account auth
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:challenge-request', 'auth:challenge-solve', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // Authentication and public announcement sync can run before account auth
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -2234,7 +2270,23 @@ io.on('connection', (socket) => {
   });
 
   socket.on('auth:challenge-request', () => {
+    const approvedUntil = botApprovalUntil(socket);
+    if (approvedUntil) {
+      socket.emit('auth:challenge-approved', { approvedUntil, reused: true });
+      return;
+    }
     issueLoginChallenge(socket);
+  });
+
+  socket.on('auth:challenge-solve', data => {
+    if (!verifyLoginChallenge(socket, data)) {
+      return socket.emit('auth:challenge-failed', { message: 'The security check expired or failed. Please try again.' });
+    }
+    const approvedUntil = approveBotIp(socket);
+    if (!approvedUntil) {
+      return socket.emit('auth:challenge-failed', { message: 'The server could not verify this network address. Please reconnect and try again.' });
+    }
+    socket.emit('auth:challenge-approved', { approvedUntil, reused: false });
   });
 
   // Every non-auth socket packet must carry a currently valid temporary-account session.
@@ -2264,11 +2316,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('auth:admin-login', (d) => {
+    if (!isBotIpApproved(socket)) {
+      return socket.emit('auth:admin-result', { ok: false, message: 'Complete the server security check first. Verified networks stay approved for 10 minutes.' });
+    }
     if (!allowAuthAttempt(socket, 'login')) {
       return socket.emit('auth:admin-result', { ok: false, message: 'Too many login attempts. Please wait before trying again.' });
-    }
-    if (!verifyLoginChallenge(socket, d)) {
-      return socket.emit('auth:admin-result', { ok: false, message: 'The server security check expired or failed. Please try again.' });
     }
     const password = typeof (d && d.password) === 'string' ? d.password : '';
     const result = login(password);
@@ -2290,6 +2342,9 @@ io.on('connection', (socket) => {
     try {
     if (socket.data.account) {
       return socket.emit('auth:result', { ok: false, message: 'You are already logged in. Log out before creating another account.' });
+    }
+    if (!isBotIpApproved(socket)) {
+      return socket.emit('auth:result', { ok: false, message: 'Complete the server security check first. Verified networks stay approved for 10 minutes.' });
     }
     if (!allowAuthAttempt(socket, 'register')) {
       return socket.emit('auth:result', { ok: false, message: 'Too many account creations. Please wait one hour.' });
@@ -2353,10 +2408,10 @@ io.on('connection', (socket) => {
 
   socket.on('auth:login', async (d) => {
     if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in.' });
-    if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
-    if (!verifyLoginChallenge(socket, d)) {
-      return socket.emit('auth:result', { ok: false, message: 'The server security check expired or failed. Please try again.' });
+    if (!isBotIpApproved(socket)) {
+      return socket.emit('auth:result', { ok: false, message: 'Complete the server security check first. Verified networks stay approved for 10 minutes.' });
     }
+    if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
 
