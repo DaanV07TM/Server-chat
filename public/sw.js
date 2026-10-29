@@ -1,6 +1,6 @@
 /* Server Chat service worker: caches the visual shell only; chat/API/signalling remain online-only. */
-const CACHE_NAME = 'server-chat-shell-v3';
-const SHELL_ASSETS = ['/offline.html', '/experience.css', '/ubuntu-cosmic.css', '/status.html', '/status.js', '/legal.html', '/manifest.webmanifest', '/app-icon.svg'];
+const CACHE_NAME = 'server-chat-shell-v4';
+const SHELL_ASSETS = ['/offline.html', '/experience.css', '/ubuntu-cosmic.css', '/status.html', '/status.js', '/legal.html', '/patch-notes.html', '/manifest.webmanifest', '/app-icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -30,11 +30,22 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request).then(response => {
         if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('/', copy)).catch(() => {});
+          // Cache each page under its own URL; never let /legal.html overwrite the home page cache.
+          const cacheKey = url.pathname === '/' || url.pathname === '/index.html'
+            ? new Request(new URL('/', self.location.origin).toString())
+            : new Request(url.origin + url.pathname);
+          caches.open(CACHE_NAME).then(cache => cache.put(cacheKey, response.clone())).catch(() => {});
         }
         return response;
-      }).catch(async () => (await caches.match('/offline.html')) || Response.error())
+      }).catch(async () => {
+        const exactPage = await caches.match(request);
+        if (exactPage) return exactPage;
+        const pathPage = await caches.match(new Request(url.origin + url.pathname));
+        if (pathPage) return pathPage;
+        const homePage = await caches.match('/');
+        if (homePage) return homePage;
+        return (await caches.match('/offline.html')) || Response.error();
+      })
     );
     return;
   }
