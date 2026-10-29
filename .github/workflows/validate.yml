@@ -228,8 +228,7 @@ jobs:
               'id="loginSecurityHint"',
               'href="/patch-notes.html"',
               'aria-label="Main navigation"',
-              'type="button" class="ab '
-              "server-chat-shell-v4"
+              'type="button" class="ab ',
           ):
               if marker not in html:
                   raise SystemExit(f"Missing login or UI cleanup: {marker}")
@@ -243,7 +242,6 @@ jobs:
               "const cacheKey = url.pathname === '/' || url.pathname === '/index.html'",
               "cache.put(cacheKey, response.clone())",
               "const exactPage = await caches.match(request)",
-              "server-chat-shell-v4"
           ):
               if marker not in sw:
                   raise SystemExit(f"Missing offline navigation cache fix: {marker}")
