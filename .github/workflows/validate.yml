@@ -235,7 +235,7 @@ jobs:
               "socket.emit('auth:register', request.data)",
               "socket.emit('auth:login', request.data)",
               "pendingAuthRequest = null;",
-              "A successful check approves this IP for 10 minutes"
+              "A successful check approves this IP for 10 minutes",
               "challengeId: challenge.challengeId",
               'id="loginSecurityHint"',
               'href="/patch-notes.html"',
