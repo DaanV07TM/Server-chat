@@ -3593,8 +3593,14 @@ io.on('connection', (socket) => {
     socket.emit('images:admin:list-result', { images: getAdminImageList() });
   });
 
+  socket.on('connection:ping', d => {
+    // socket.use above requires an authenticated temporary account or administrator session.
+    if (!d || !Number.isSafeInteger(d.id)) return;
+    socket.emit('connection:pong', { id: d.id, serverTime: Date.now() });
+  });
+
   socket.on('health:ping', (d) => {
-    // Only authenticated moderators can use the dashboard's latency probe.
+    // The admin dashboard uses a separate probe so its measurement never conflicts with the sidebar RTT.
     if (!socket.data.admin || !d || !Number.isSafeInteger(d.id)) return;
     socket.emit('health:pong', { id: d.id, serverTime: Date.now() });
   });
