@@ -59,7 +59,7 @@
             <li>Added a one-time, server-issued proof-of-work challenge to password-based user and admin logins. The browser completes a small SHA-256 task; the server checks that it is valid, belongs to the current connection, has not expired and has not been used before.</li>
             <li>The login flow now shows progress and a clear error when the security check fails, expires or loses its connection.</li>
             <li>Admin command buttons explicitly use <code>type="button"</code> to avoid accidental form submissions.</li>
-            <li>Removed an unnecessary duplicate empty-state element ID in the offline message.</li>
+            <li>Removed unused empty-state element IDs to keep the DOM cleaner.</li>
             <li>Improved service-worker navigation caching so previously cached legal and patch-note pages can be opened offline.</li>
             <li>Added this page so changes have a visible date and explanation.</li>
           </ul>
