@@ -2156,17 +2156,60 @@ function start() {
     });
     if (confirmed) socket.emit('auth:logout');
   });
-  function updateSidebarConnectionStatus(state, label, detail) {
+  let connectionProbeSequence = 0;
+  let pendingConnectionProbe = null;
+  let lastConnectionLatencyMs = null;
+  let hasEstablishedSocketConnection = false;
+  let connectionReconnects = 0;
+  try {
+    const storedReconnects = Number(sessionStorage.getItem('serverChatReconnects') || 0);
+    connectionReconnects = Number.isSafeInteger(storedReconnects) && storedReconnects >= 0 ? storedReconnects : 0;
+  } catch (_) {}
+
+  function connectionQualityFor(ms) {
+    if (!Number.isFinite(ms)) return 'unknown';
+    return ms < 80 ? 'good' : ms < 180 ? 'moderate' : 'poor';
+  }
+  function connectionFooterDetail() {
+    const ping = lastConnectionLatencyMs === null ? 'Measuring ping…' : 'Ping ' + lastConnectionLatencyMs + ' ms';
+    return ping + ' · ' + connectionReconnects + (connectionReconnects === 1 ? ' reconnect' : ' reconnects');
+  }
+  function updateSidebarConnectionStatus(state, label, detail, quality = 'unknown') {
     const dot = $('sidebarConnectionDot');
     const title = $('sidebarConnectionLabel');
     const subtitle = $('sidebarConnectionDetail');
-    if (dot) dot.dataset.state = state;
+    if (dot) {
+      dot.dataset.state = state;
+      dot.dataset.quality = quality || 'unknown';
+    }
     if (title) title.textContent = label;
     if (subtitle) subtitle.textContent = detail;
   }
+  function requestConnectionPing() {
+    if (!socket.connected || !accountAuthenticated) return;
+    if (pendingConnectionProbe && performance.now() - pendingConnectionProbe.startedAt < 5000) return;
+    const id = ++connectionProbeSequence;
+    pendingConnectionProbe = { id, startedAt: performance.now() };
+    socket.emit('connection:ping', { id });
+  }
+  socket.on('connection:pong', data => {
+    if (!data || !pendingConnectionProbe || data.id !== pendingConnectionProbe.id) return;
+    lastConnectionLatencyMs = Math.max(0, Math.round(performance.now() - pendingConnectionProbe.startedAt));
+    pendingConnectionProbe = null;
+    const quality = connectionQualityFor(lastConnectionLatencyMs);
+    if (socket.connected) updateSidebarConnectionStatus('connected', 'Server connected', connectionFooterDetail(), quality);
+  });
+  setInterval(requestConnectionPing, 10000);
 
   socket.on('connect', () => {
-    updateSidebarConnectionStatus('connected', 'Server connected', 'Live connection ready');
+    if (hasEstablishedSocketConnection) {
+      connectionReconnects++;
+      try { sessionStorage.setItem('serverChatReconnects', String(connectionReconnects)); } catch (_) {}
+    }
+    hasEstablishedSocketConnection = true;
+    pendingConnectionProbe = null;
+    lastConnectionLatencyMs = null;
+    updateSidebarConnectionStatus('connected', 'Server connected', connectionFooterDetail());
     if (accountSessionToken) {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
@@ -2178,7 +2221,7 @@ function start() {
     }
   });
   socket.on('connect_error', () => {
-    updateSidebarConnectionStatus('offline', 'Server unreachable', 'Check your connection');
+    updateSidebarConnectionStatus('offline', 'Server unreachable', 'Connection attempt failed · ' + connectionReconnects + ' reconnects');
     if (!isSharedAIView) showAuthGate('Cannot reach the chat server. Check your connection and try again.');
   });
   function closeGeneratedCredentials() {
@@ -3381,11 +3424,13 @@ function start() {
   });
   socket.on('connect_error', () => $('online').textContent = 'offline');
   socket.on('disconnect', () => {
+    pendingConnectionProbe = null;
+    lastConnectionLatencyMs = null;
     if (pendingAuthRequest) {
       failLoginChallenge('Connection lost during the security check. Please try again when connected.');
     }
     $('online').textContent = 'reconnecting…';
-    updateSidebarConnectionStatus('connecting', 'Reconnecting…', 'Waiting for server');
+    updateSidebarConnectionStatus('connecting', 'Reconnecting…', connectionFooterDetail());
     if (localScreenStream) resetScreenShare();
     clearAdminMonitor(false);
     pendingPing = null;

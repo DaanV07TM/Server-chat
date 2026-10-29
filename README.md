@@ -148,3 +148,11 @@ The admin console opens to an app desktop with separate windows for overview, pe
 The current interface uses a shared Ubuntu COSMIC / macOS / Windows / Discord-inspired design system. The desktop layout has an aubergine channel rail with workspace sections and quick-launch dock; Ubuntu orange and aubergine accents; translucent desktop-style top chrome; rounded chat, composer and dialog surfaces; and coordinated AI Studio, admin desktop, account dialogs, stickers and status dashboard styling. On narrower screens the sidebar becomes a horizontal room switcher. The selected light/dark theme continues to apply, reduced-motion settings remain respected, and the service worker cache was bumped so stale CSS is replaced. This change is visual and layout-oriented; it intentionally preserves existing chat behavior and API flows.
 
 Theme personalization also includes an accent palette picker alongside the light/dark toggle. Four presets are available: Ubuntu COSMIC (orange/aubergine), Arctic Blue, Matrix Green, and Rose Quartz. The palette is stored only in the browser's local storage; it does not create a profile record or send appearance preferences to the server.
+
+
+## Conversation controls and connection health
+
+- Desktop chat messages expose reaction, reply, edit, delete and report controls in a compact hover/focus toolbar; touch devices keep the controls visible inline.
+- Authenticated chat sessions measure browser-to-server Socket.IO round-trip time. The sidebar shows a latency quality indicator and the number of successful reconnects during the current tab session.
+- The public live-status page measures the response time of its own status request. This is a browser-to-server measurement, not a server-only processing-time measurement.
+- AI Studio conversation titles can be searched, renamed and pinned. Rename and pin changes use an account-authorized PATCH endpoint, and pinned conversations appear first in private history.

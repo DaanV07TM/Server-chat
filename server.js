@@ -270,6 +270,7 @@ function aiPublicConversation(conversation) {
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    pinned: conversation.pinned === true,
     shareId: conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId) ? conversation.shareId : null,
     messages: conversation.messages.map(message => ({ role: message.role, content: message.content, createdAt: message.createdAt }))
   };
@@ -336,6 +337,7 @@ app.get('/api/ai/conversations', (req, res) => {
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    pinned: conversation.pinned === true,
     messageCount: conversation.messages.length,
     shared: Boolean(conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId)),
     shareId: conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId) ? conversation.shareId : null
@@ -359,7 +361,8 @@ app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), 
     createdAt: now,
     updatedAt: now,
     messages: [],
-    shareId: null
+    shareId: null,
+    pinned: false
   };
   conversations.set(id, conversation);
   return res.status(201).json({ conversation: aiPublicConversation(conversation) });
@@ -374,6 +377,37 @@ app.get('/api/ai/conversations/:id', (req, res) => {
   const conversation = aiConversationsFor(auth.accountKey)?.get(id);
   if (!/^[a-f0-9]{32}$/.test(id) || !conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
   return res.json({ conversation: aiPublicConversation(conversation) });
+});
+
+app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true }), (req, res) => {
+  aiSetNoStore(res);
+  const auth = aiAccountFromRequest(req);
+  if (!auth) return res.status(401).json({ error: 'Sign in again to update this private AI conversation.' });
+  const id = String(req.params.id || '');
+  const conversation = aiConversationsFor(auth.accountKey)?.get(id);
+  if (!/^[a-f0-9]{32}$/.test(id) || !conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const hasTitle = Object.prototype.hasOwnProperty.call(body, 'title');
+  const hasPinned = Object.prototype.hasOwnProperty.call(body, 'pinned');
+  if (!hasTitle && !hasPinned) return res.status(400).json({ error: 'No conversation changes were provided.' });
+  if (hasTitle) {
+    if (typeof body.title !== 'string' || !body.title.trim()) return res.status(400).json({ error: 'Enter a title for this conversation.' });
+    conversation.title = aiCleanTitle(body.title);
+    conversation.updatedAt = Date.now();
+  }
+  if (hasPinned) {
+    if (typeof body.pinned !== 'boolean') return res.status(400).json({ error: 'Pinned must be true or false.' });
+    conversation.pinned = body.pinned;
+  }
+  return res.json({ conversation: {
+    id: conversation.id,
+    title: conversation.title,
+    updatedAt: conversation.updatedAt,
+    pinned: conversation.pinned === true,
+    messageCount: conversation.messages.length,
+    shared: Boolean(conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId)),
+    shareId: conversation.shareId && AI_PUBLIC_SHARES.has(conversation.shareId) ? conversation.shareId : null
+  } });
 });
 
 app.delete('/api/ai/conversations/:id', (req, res) => {
@@ -3559,8 +3593,14 @@ io.on('connection', (socket) => {
     socket.emit('images:admin:list-result', { images: getAdminImageList() });
   });
 
+  socket.on('connection:ping', d => {
+    // socket.use above requires an authenticated temporary account or administrator session.
+    if (!d || !Number.isSafeInteger(d.id)) return;
+    socket.emit('connection:pong', { id: d.id, serverTime: Date.now() });
+  });
+
   socket.on('health:ping', (d) => {
-    // Only authenticated moderators can use the dashboard's latency probe.
+    // The admin dashboard uses a separate probe so its measurement never conflicts with the sidebar RTT.
     if (!socket.data.admin || !d || !Number.isSafeInteger(d.id)) return;
     socket.emit('health:pong', { id: d.id, serverTime: Date.now() });
   });

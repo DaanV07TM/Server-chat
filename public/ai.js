@@ -12,6 +12,7 @@
       '<aside id="aiSidebar" class="ai-sidebar">' +
         '<div class="ai-sidebar-brand"><span class="ai-brand-icon">✦</span><div><strong>AI Studio</strong><span>YOUR PRIVATE SPACE</span></div></div>' +
         '<button id="aiNewChat" class="ai-new-chat" type="button"><span>＋</span> New conversation</button>' +
+        '<label class="ai-history-search"><span aria-hidden="true">⌕</span><input id="aiHistorySearch" type="search" placeholder="Search conversations…" maxlength="80" autocomplete="off" aria-label="Search your AI conversations"></label>' +
         '<div class="ai-history-heading"><span>YOUR CHATS</span><span id="aiHistoryCount">0</span></div>' +
         '<div id="aiHistory" class="ai-history" aria-label="Your private AI conversations"></div>' +
         '<div class="ai-sidebar-footer"><span class="ai-lock-icon">♙</span><div><strong>Private by default</strong><p>Your chats belong to your account. Only a share link makes a read-only copy visible to others.</p></div></div>' +
@@ -31,6 +32,16 @@
           '<div class="ai-composer-foot"><span>AI can make mistakes. Don’t share passwords or sensitive information.</span><span id="aiComposerHint">Private to your account</span></div>' +
         '</form>' +
         '<div id="aiToast" class="ai-toast" role="status" aria-live="polite"></div>' +
+        '<div id="aiRenameDialog" class="ai-rename-backdrop" role="dialog" aria-modal="true" aria-labelledby="aiRenameTitle" hidden>' +
+          '<form id="aiRenameForm" class="ai-rename-dialog">' +
+            '<span class="ai-rename-kicker">YOUR PRIVATE WORKSPACE</span>' +
+            '<h2 id="aiRenameTitle">Rename conversation</h2>' +
+            '<label for="aiRenameInput">Conversation name</label>' +
+            '<input id="aiRenameInput" type="text" maxlength="72" autocomplete="off" required>' +
+            '<p id="aiRenameError" class="ai-rename-error" role="alert" hidden></p>' +
+            '<div class="ai-rename-actions"><button id="aiRenameCancel" class="ai-secondary-btn" type="button">Cancel</button><button id="aiRenameSave" class="ai-primary-btn" type="submit">Save name</button></div>' +
+          '</form>' +
+        '</div>' +
       '</section>' +
     '</main>';
   document.body.appendChild(root);
@@ -46,7 +57,9 @@
     busy: false,
     abortController: null,
     requestVersion: 0,
-    toastTimer: null
+    toastTimer: null,
+    historySearch: '',
+    renamingId: ''
   };
 
   const sessionToken = () => {
@@ -186,41 +199,162 @@
   function renderHistory() {
     const list = $('aiHistory');
     list.replaceChildren();
-    $('aiHistoryCount').textContent = String(state.conversations.length);
-    for (const item of state.conversations) {
+    const query = $('aiHistorySearch').value.trim().toLocaleLowerCase();
+    state.historySearch = query;
+    const ordered = [...state.conversations].sort((a, b) =>
+      Number(b.pinned === true) - Number(a.pinned === true) ||
+      (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)
+    );
+    const visible = ordered.filter(item => !query || String(item.title || 'New conversation').toLocaleLowerCase().includes(query));
+    $('aiHistoryCount').textContent = query ? visible.length + '/' + state.conversations.length : String(state.conversations.length);
+    for (const item of visible) {
+      const titleText = item.title || 'New conversation';
       const entry = document.createElement('div');
-      entry.className = 'ai-history-entry' + (item.id === state.activeId ? ' is-active' : '');
+      entry.className = 'ai-history-entry' + (item.id === state.activeId ? ' is-active' : '') + (item.pinned ? ' is-pinned' : '');
       const open = document.createElement('button');
       open.className = 'ai-history-open';
       open.type = 'button';
+      open.title = titleText;
       const title = document.createElement('span');
       title.className = 'ai-history-title';
-      title.textContent = item.title || 'New conversation';
+      title.textContent = titleText;
       const detail = document.createElement('small');
-      detail.textContent = displayTime(item.updatedAt) + (item.shared ? ' · Shared link' : '');
+      detail.textContent = (item.pinned ? '📌 Pinned · ' : '') + displayTime(item.updatedAt) + (item.shared ? ' · Shared link' : '');
       open.append(title, detail);
       open.addEventListener('click', () => openConversation(item.id));
       entry.appendChild(open);
+
+      const actions = document.createElement('div');
+      actions.className = 'ai-history-actions';
+      const pin = document.createElement('button');
+      pin.className = 'ai-history-pin';
+      pin.type = 'button';
+      pin.textContent = item.pinned ? '📌' : '☆';
+      pin.title = item.pinned ? 'Unpin conversation' : 'Pin conversation';
+      pin.setAttribute('aria-label', (item.pinned ? 'Unpin ' : 'Pin ') + titleText);
+      pin.setAttribute('aria-pressed', item.pinned ? 'true' : 'false');
+      pin.addEventListener('click', event => {
+        event.stopPropagation();
+        setConversationPinned(item.id, !item.pinned);
+      });
+      actions.appendChild(pin);
+
+      const rename = document.createElement('button');
+      rename.className = 'ai-history-rename';
+      rename.type = 'button';
+      rename.textContent = '✎';
+      rename.title = 'Rename conversation';
+      rename.setAttribute('aria-label', 'Rename ' + titleText);
+      rename.addEventListener('click', event => {
+        event.stopPropagation();
+        openRenameDialog(item.id);
+      });
+      actions.appendChild(rename);
+
       const remove = document.createElement('button');
       remove.className = 'ai-history-delete';
       remove.type = 'button';
       remove.textContent = '×';
       remove.title = 'Delete conversation';
-      remove.setAttribute('aria-label', 'Delete ' + (item.title || 'conversation'));
+      remove.setAttribute('aria-label', 'Delete ' + titleText);
       remove.addEventListener('click', event => {
         event.stopPropagation();
         deleteConversation(item.id);
       });
-      entry.appendChild(remove);
+      actions.appendChild(remove);
+      entry.appendChild(actions);
       list.appendChild(entry);
     }
-    if (!state.conversations.length) {
+    if (!visible.length) {
       const empty = document.createElement('p');
       empty.className = 'ai-history-empty';
-      empty.textContent = 'Your private conversations will appear here.';
+      empty.textContent = query ? 'No conversations match your search.' : 'Your private conversations will appear here.';
       list.appendChild(empty);
     }
   }
+
+  async function setConversationPinned(id, pinned) {
+    if (state.sharedView || !sessionToken() || state.busy) return;
+    try {
+      const result = await api('/api/ai/conversations/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: { pinned: Boolean(pinned) }
+      });
+      const updated = result.conversation;
+      state.conversations = state.conversations.map(item => item.id === id ? { ...item, ...updated } : item);
+      if (state.activeId === id && state.active) state.active.pinned = updated.pinned;
+      renderHistory();
+      toast(updated.pinned ? 'Conversation pinned to the top.' : 'Conversation unpinned.', 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  function closeRenameDialog() {
+    $('aiRenameDialog').hidden = true;
+    state.renamingId = '';
+  }
+
+  function openRenameDialog(id) {
+    if (state.sharedView || !sessionToken() || state.busy) return;
+    const item = state.conversations.find(entry => entry.id === id);
+    if (!item) return;
+    state.renamingId = id;
+    $('aiRenameInput').value = item.title || 'New conversation';
+    $('aiRenameError').hidden = true;
+    $('aiRenameError').textContent = '';
+    $('aiRenameDialog').hidden = false;
+    requestAnimationFrame(() => {
+      $('aiRenameInput').focus();
+      $('aiRenameInput').select();
+    });
+  }
+
+  $('aiRenameForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const id = state.renamingId;
+    const title = $('aiRenameInput').value.replace(/\s+/g, ' ').trim();
+    const errorNode = $('aiRenameError');
+    if (!id) return closeRenameDialog();
+    if (!title) {
+      errorNode.textContent = 'Enter a name for this conversation.';
+      errorNode.hidden = false;
+      $('aiRenameInput').focus();
+      return;
+    }
+    const save = $('aiRenameSave');
+    save.disabled = true;
+    try {
+      const result = await api('/api/ai/conversations/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: { title }
+      });
+      const updated = result.conversation;
+      state.conversations = state.conversations.map(item => item.id === id ? { ...item, ...updated } : item);
+      if (state.activeId === id && state.active) {
+        state.active = { ...state.active, title: updated.title, updatedAt: updated.updatedAt };
+        $('aiConversationTitle').textContent = updated.title;
+      }
+      closeRenameDialog();
+      renderHistory();
+      toast('Conversation renamed.', 'success');
+    } catch (error) {
+      errorNode.textContent = error.message || 'The conversation could not be renamed.';
+      errorNode.hidden = false;
+    } finally {
+      save.disabled = false;
+    }
+  });
+  $('aiRenameCancel').addEventListener('click', closeRenameDialog);
+  $('aiRenameDialog').addEventListener('click', event => {
+    if (event.target === $('aiRenameDialog')) closeRenameDialog();
+  });
+  $('aiRenameDialog').addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeRenameDialog();
+    }
+  });
 
   async function loadConversations() {
     if (state.sharedView) return;
@@ -451,6 +585,7 @@
     }
   }
 
+  $('aiHistorySearch').addEventListener('input', () => renderHistory());
   $('aiNewChat').addEventListener('click', () => newConversation());
   $('aiShareBtn').addEventListener('click', () => shareConversation());
   $('aiStopShareBtn').addEventListener('click', () => stopSharing());

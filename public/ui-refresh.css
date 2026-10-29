@@ -732,3 +732,40 @@ button:disabled {
   #botApprovalScreen .bot-approval-copy strong { font-size:16px; }
   .bot-approval-close { width:28px; height:28px; min-height:28px; }
 }
+
+
+/* Message actions: the existing reply/reaction/edit/delete/report controls become a compact toolbar. */
+#log .m[data-mid] { position: relative; }
+#log .m[data-mid] > .rx {
+  position: absolute; z-index: 12; top: -13px; right: 9px; display: flex; align-items: center; justify-content: flex-end;
+  flex-wrap: wrap; gap: 4px; width: max-content; max-width: min(96%, 430px); margin: 0; padding: 5px;
+  border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--panel);
+  box-shadow: 0 9px 28px rgba(12, 8, 20, .19); opacity: 0; visibility: hidden; transform: translateY(4px);
+  pointer-events: none; transition: opacity .14s ease, transform .14s ease, visibility .14s;
+}
+#log .m[data-mid]:hover > .rx,
+#log .m[data-mid]:focus-within > .rx { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
+#log .m[data-mid] > .rx button {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 29px; width: auto; margin: 0; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--panel);
+  font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap;
+}
+#log .m[data-mid] > .rx button:hover,
+#log .m[data-mid] > .rx button:focus-visible { border-color: color-mix(in srgb,var(--accent) 44%,var(--line)); background: var(--accent-soft); color: var(--ink); }
+#log .m[data-mid] > .rx button.action-danger:hover { border-color: color-mix(in srgb,var(--bad) 40%,var(--line)); background: color-mix(in srgb,var(--bad) 8%,var(--panel)); color: var(--bad); }
+#log .m.me[data-mid] > .rx { right: 9px; }
+#log .m.me[data-mid] > .rx button { border-color: var(--line); color: var(--ink); background: var(--panel); }
+@media (hover: none), (max-width: 680px) {
+  #log .m[data-mid] > .rx {
+    position: static; width: 100%; max-width: 100%; justify-content: flex-start; margin-top: 8px; padding: 0;
+    border: 0; border-radius: 0; background: transparent; box-shadow: none; opacity: 1; visibility: visible;
+    transform: none; pointer-events: auto;
+  }
+  #log .m[data-mid] > .rx button { min-height: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { #log .m[data-mid] > .rx { transition: none; } }
+
+/* Connection quality from the current browser, distinct from server resource health. */
+.sidebar-footer-dot[data-quality="good"] { background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.1), 0 0 10px rgba(34,197,94,.25); }
+.sidebar-footer-dot[data-quality="moderate"] { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,.1), 0 0 10px rgba(245,158,11,.2); }
+.sidebar-footer-dot[data-quality="poor"] { background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb,var(--bad) 12%,transparent); }
