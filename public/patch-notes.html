@@ -62,6 +62,8 @@
             <li>The server validates that each challenge is correct, belongs to the current connection, has not expired and has not been used before. The browser performs approximately 4,096 SHA-256 hashes on average, with visible progress and a timeout/error message if the registration or login flow stalls.</li>
             <li>Added a custom Server Chat “Verify I’m not a bot” checkbox for both account creation and login. Checking it runs the existing server-verified proof-of-work challenge and shows a short approval screen only after the server confirms the network.</li>
             <li>The checkbox remains approved for the same 10-minute server window and clears itself when that approval expires. The check is still validated on the server and is not treated as proof that a visitor is definitely human.</li>
+            <li>Refined the app header into grouped navigation, appearance, room and account controls. Light/dark mode and accent colors now live together in one Appearance panel.</li>
+            <li>Removed duplicated window controls and the repeated logo from the AI Studio conversation header, and unified panel spacing, borders and responsive layout across the interface.</li>
             <li>The login flow now shows progress and a clear error when the security check fails, expires or loses its connection.</li>
             <li>Admin command buttons explicitly use <code>type="button"</code> to avoid accidental form submissions.</li>
             <li>Removed unused empty-state element IDs to keep the DOM cleaner.</li>
