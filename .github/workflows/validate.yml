@@ -192,7 +192,7 @@ jobs:
           for marker in (".auth-legal-consent", ".auth-consent-line", ".bot-verification-wrap", ".auth-honeypot"):
               if marker not in css:
                   raise SystemExit(f"Missing registration security styling: {marker}")
-          if "server-chat-shell-v3" not in sw or "'/legal.html'" not in sw:
+          if "server-chat-shell-v4" not in sw or "'/legal.html'" not in sw or "'/patch-notes.html'" not in sw:
               raise SystemExit("The legal page must be included in the refreshed service-worker shell.")
           for marker in ("TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "10-minute temporary IP block", "application-layer controls"):
               if marker not in readme:
