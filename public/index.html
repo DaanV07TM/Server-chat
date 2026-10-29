@@ -625,28 +625,36 @@ button:active:not(:disabled){transform:translateY(0)}
 <link rel="stylesheet" href="/ai.css">
 <link rel="stylesheet" href="/accounts.css">
 <link rel="stylesheet" href="/ubuntu-cosmic.css">
+<link rel="stylesheet" href="/ui-refresh.css">
 </head>
 <body>
-<header>
-  <h1 id="title">Chat</h1>
-  <small id="online" aria-live="polite">Connecting…</small>
-  <button id="searchToggle" type="button" title="Search messages in this room (Ctrl+F)">⌕ Search</button>
-  <button id="channelPaletteToggle" type="button" title="Switch channel (Ctrl+K)">⌘ Channels</button>
-  <button id="themeToggle" type="button" title="Switch light/dark appearance">☾ Theme</button>
-  <button id="accentPaletteToggle" type="button" title="Choose accent palette" aria-expanded="false" aria-controls="accentPalettePanel">◈ Colors</button>
-  <button id="profileStatusBtn" type="button" title="Set your current status">● Online</button>
-  <button id="installApp" type="button" hidden>Install app</button>
-  <button id="quickGuide" type="button" title="Open the quick guide">Quick guide</button>
-  <button id="share" type="button">Copy link</button>
-  <button id="private" type="button">New private room</button>
-  <button id="rename" type="button">Profile</button>
-  <button class="account-chip" id="accountChip" type="button" aria-label="Open account settings">
-    <span class="account-avatar" id="accountAvatar" aria-hidden="true">?</span>
-    <span class="account-name" id="accountName">Not signed in</span>
-    <span class="account-chevron" aria-hidden="true">⌄</span>
-  </button>
-  <button id="logoutBtn" class="account-logout" type="button" title="Log out of this temporary account">Log out</button>
-  <button id="admbtn" type="button" hidden>⚙ Admin</button>
+<header class="app-header">
+  <div class="app-header-identity">
+    <h1 id="title">Chat</h1>
+    <small id="online" aria-live="polite">Connecting…</small>
+  </div>
+  <div class="app-header-navigation" aria-label="Navigation tools">
+    <button id="searchToggle" type="button" title="Search messages in this room (Ctrl+F)">⌕ Search</button>
+    <button id="channelPaletteToggle" type="button" title="Switch channel (Ctrl+K)">⌘ Channels</button>
+  </div>
+  <button id="accentPaletteToggle" class="app-header-appearance-trigger" type="button" title="Choose appearance settings" aria-label="Appearance settings" aria-expanded="false" aria-controls="accentPalettePanel">◐ Appearance</button>
+  <div class="app-header-room-actions" aria-label="Room and profile actions">
+    <button id="profileStatusBtn" type="button" title="Set your current status">● Online</button>
+    <button id="installApp" type="button" hidden>Install app</button>
+    <button id="quickGuide" type="button" title="Open the quick guide">Quick guide</button>
+    <button id="share" type="button">Copy link</button>
+    <button id="private" type="button">New private room</button>
+    <button id="rename" type="button">Profile</button>
+    <button id="admbtn" type="button" hidden>⚙ Admin</button>
+  </div>
+  <div class="app-header-account-actions" aria-label="Account controls">
+    <button class="account-chip" id="accountChip" type="button" aria-label="Open account settings">
+      <span class="account-avatar" id="accountAvatar" aria-hidden="true">?</span>
+      <span class="account-name" id="accountName">Not signed in</span>
+      <span class="account-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <button id="logoutBtn" class="account-logout" type="button" title="Log out of this temporary account">Log out</button>
+  </div>
 </header>
 <nav id="channelNav" aria-label="Main navigation">
   <div class="sidebar-brand">
@@ -802,8 +810,14 @@ button:active:not(:disabled){transform:translateY(0)}
   <div id="stickerPickerGrid" class="sticker-picker-grid"></div>
   <div class="sticker-picker-foot">Stickers are built-in, lightweight and available in every room. Private-room message text remains encrypted.</div>
 </div>
-<div id="accentPalettePanel" class="accent-palette-panel" role="dialog" aria-label="Choose accent palette" hidden>
-  <div class="accent-palette-head"><div><strong>Choose your colors</strong><small>Saved on this device only</small></div><button type="button" id="accentPaletteClose" aria-label="Close color themes">×</button></div>
+<div id="accentPalettePanel" class="accent-palette-panel appearance-panel" role="dialog" aria-label="Appearance settings" hidden>
+  <div class="accent-palette-head"><div><strong>Appearance</strong><small>Personalize how Server Chat looks</small></div><button type="button" id="accentPaletteClose" aria-label="Close appearance settings">×</button></div>
+  <div class="appearance-mode-row">
+    <span class="appearance-mode-icon" aria-hidden="true">◐</span>
+    <span class="appearance-mode-copy"><strong>Color mode</strong><small>Light or dark interface</small></span>
+    <button id="themeToggle" class="appearance-mode-toggle" type="button" title="Switch light/dark appearance">☾ Dark</button>
+  </div>
+  <div class="appearance-section-label">Accent color</div>
   <div class="accent-palette-options">
     <button type="button" data-accent-choice="ubuntu" aria-pressed="true"><span class="palette-swatch ubuntu" aria-hidden="true"></span><span><strong>Ubuntu COSMIC</strong><small>Orange · Aubergine</small></span><span class="palette-check">✓</span></button>
     <button type="button" data-accent-choice="arctic" aria-pressed="false"><span class="palette-swatch arctic" aria-hidden="true"></span><span><strong>Arctic Blue</strong><small>Blue · Indigo</small></span><span class="palette-check">✓</span></button>

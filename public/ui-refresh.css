@@ -1,0 +1,580 @@
+/* Server Chat — unified, calmer workspace chrome.
+   Loaded after the older theme layers so the controls stay consistent across routes. */
+:root {
+  --app-header-height: 68px;
+  --ui-radius: 14px;
+  --ui-surface-border: color-mix(in srgb, var(--line) 88%, transparent);
+}
+body {
+  overflow-x: hidden;
+}
+body > header.app-header {
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 var(--app-header-height) !important;
+  width: calc(100% - var(--sidebar-width, 236px)) !important;
+  height: var(--app-header-height) !important;
+  min-height: var(--app-header-height) !important;
+  max-height: var(--app-header-height) !important;
+  margin-left: var(--sidebar-width, 236px) !important;
+  padding: 0 16px !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  box-shadow: 0 2px 14px rgba(20, 13, 28, .035) !important;
+  backdrop-filter: blur(18px) saturate(1.12) !important;
+}
+body > header.app-header::before {
+  content: none !important;
+  display: none !important;
+}
+body > header.app-header [hidden] {
+  display: none !important;
+}
+body > header.app-header .app-header-identity {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 11px;
+  min-width: 0;
+}
+body > header.app-header h1#title {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  width: auto;
+  margin: 0 !important;
+  font-size: 15px !important;
+  line-height: 1.2;
+  letter-spacing: -.035em !important;
+}
+body > header.app-header h1#title::before {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+  border-radius: 11px;
+  margin: 0;
+  box-shadow: 0 3px 10px rgba(119, 33, 111, .14);
+}
+body > header.app-header small#online {
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+body > header.app-header .app-header-navigation,
+body > header.app-header .app-header-room-actions,
+body > header.app-header .app-header-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+body > header.app-header .app-header-navigation {
+  flex: 0 0 auto;
+  margin-left: 3px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+body > header.app-header .app-header-room-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+body > header.app-header .app-header-room-actions::-webkit-scrollbar,
+body > header.app-header .app-header-account-actions::-webkit-scrollbar {
+  display: none;
+}
+body > header.app-header .app-header-account-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+body > header.app-header .app-header-navigation button,
+body > header.app-header .app-header-room-actions button,
+body > header.app-header .app-header-account-actions button,
+body > header.app-header #accentPaletteToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+body > header.app-header .app-header-navigation button:hover:not(:disabled),
+body > header.app-header .app-header-room-actions button:hover:not(:disabled),
+body > header.app-header .app-header-account-actions button:hover:not(:disabled),
+body > header.app-header #accentPaletteToggle:hover:not(:disabled) {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--ink);
+}
+body > header.app-header #accentPaletteToggle {
+  flex: 0 0 auto;
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+body > header.app-header #share {
+  background: var(--surface-soft) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+body > header.app-header #private {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+body > header.app-header .app-header-account-actions .account-chip {
+  max-width: 180px;
+  padding: 4px 9px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+}
+body > header.app-header .app-header-account-actions .account-name {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body > header.app-header #logoutBtn {
+  border-color: var(--line) !important;
+  background: transparent !important;
+  color: var(--mute) !important;
+}
+body > header.app-header #logoutBtn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--bad) 32%, var(--line)) !important;
+  background: color-mix(in srgb, var(--bad) 6%, var(--panel)) !important;
+  color: var(--bad) !important;
+}
+body[data-room="ai"] > header.app-header {
+  width: 100% !important;
+  margin-left: 0 !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+body[data-room="ai"] > header.app-header .app-header-navigation,
+body[data-room="ai"] > header.app-header .app-header-room-actions {
+  display: none !important;
+}
+body[data-room="ai"] > header.app-header .app-header-identity {
+  flex: 0 0 auto;
+}
+body[data-room="ai"] > header.app-header .app-header-account-actions {
+  margin-left: auto;
+}
+body[data-room="ai"] > header.app-header #accentPaletteToggle {
+  margin-left: 0;
+}
+
+/* One simple appearance menu for mode and accent; no separate theme buttons cluttering the bar. */
+.accent-palette-panel.appearance-panel {
+  top: calc(var(--app-header-height) + 8px);
+  right: 16px;
+  width: min(350px, calc(100vw - 24px));
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--panel);
+  box-shadow: 0 20px 60px rgba(17, 12, 24, .2);
+  backdrop-filter: blur(22px) saturate(1.15);
+}
+.appearance-panel .accent-palette-head {
+  padding: 2px 1px 12px;
+}
+.appearance-panel .accent-palette-head strong {
+  font-size: 14px;
+  letter-spacing: -.02em;
+}
+.appearance-panel .accent-palette-head small {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.appearance-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.appearance-mode-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 19px;
+}
+.appearance-mode-copy {
+  flex: 1;
+  min-width: 0;
+}
+.appearance-mode-copy strong,
+.appearance-mode-copy small {
+  display: block;
+}
+.appearance-mode-copy strong {
+  font-size: 11px;
+  font-weight: 850;
+  color: var(--ink);
+}
+.appearance-mode-copy small {
+  margin-top: 3px;
+  color: var(--mute);
+  font-size: 9px;
+}
+.appearance-panel .appearance-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 78px;
+  min-height: 34px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 850;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.appearance-panel .appearance-mode-toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--accent-soft);
+}
+.appearance-section-label {
+  margin: 16px 2px 7px;
+  color: var(--mute);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.appearance-panel .accent-palette-options {
+  padding-top: 0;
+  gap: 4px;
+}
+.appearance-panel .accent-palette-options button {
+  min-height: 48px;
+  padding: 6px 8px;
+}
+.appearance-panel .palette-swatch {
+  width: 31px;
+  height: 31px;
+  flex-basis: 31px;
+  border-radius: 9px;
+}
+.appearance-panel #accentPaletteClose {
+  width: 31px;
+  height: 31px;
+  min-height: 31px;
+  border-radius: 9px;
+}
+
+/* Treat AI Studio as one workspace with a secondary conversation rail, not a floating window. */
+body[data-room="ai"] #aiStudioRoot {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+}
+body[data-room="ai"] .ai-workspace {
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+}
+body[data-room="ai"] .ai-sidebar {
+  flex: 0 0 260px;
+  width: 260px;
+  max-width: 260px;
+  padding: 24px 15px 14px;
+  border: 0 !important;
+  border-right: 1px solid var(--line) !important;
+  border-radius: 0;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+}
+body[data-room="ai"] .ai-sidebar-brand {
+  padding: 0 7px 18px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+body[data-room="ai"] .ai-new-chat {
+  min-height: 41px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+body[data-room="ai"] .ai-history-heading {
+  padding: 21px 8px 8px;
+  font-size: 9px;
+}
+body[data-room="ai"] .ai-history-entry {
+  border-radius: 10px;
+}
+body[data-room="ai"] .ai-main {
+  min-width: 0;
+  background: transparent;
+}
+body[data-room="ai"] .ai-topbar {
+  min-height: 76px;
+  padding: 17px clamp(18px, 2.8vw, 34px) 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+body[data-room="ai"] .ai-topbar h1 {
+  margin: 5px 0 5px;
+  font-size: 20px;
+  letter-spacing: -.04em;
+}
+body[data-room="ai"] .ai-status-line {
+  gap: 7px;
+  font-size: 10px;
+}
+body[data-room="ai"] .ai-thread {
+  padding: clamp(22px, 3.3vw, 42px) clamp(22px, 4vw, 56px) 25px;
+  gap: 24px;
+}
+body[data-room="ai"] .ai-empty-state {
+  max-width: 680px;
+  padding: 20px 0 28px;
+}
+body[data-room="ai"] .ai-empty-state h2 {
+  font-size: clamp(25px, 2.6vw, 32px);
+  letter-spacing: -.045em;
+}
+body[data-room="ai"] .ai-empty-state > p {
+  max-width: 470px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+body[data-room="ai"] .ai-starter-grid {
+  width: min(570px, 100%);
+  gap: 11px;
+  margin-top: 24px;
+}
+body[data-room="ai"] .ai-starter-grid button {
+  min-height: 70px;
+  padding: 13px;
+  border-radius: 12px;
+}
+body[data-room="ai"] .ai-starter-grid b {
+  font-size: 11px;
+}
+body[data-room="ai"] .ai-starter-grid small {
+  font-size: 9px;
+}
+body[data-room="ai"] .ai-composer {
+  max-width: 960px;
+  padding-bottom: 16px;
+}
+body[data-room="ai"] .ai-composer-field {
+  border-radius: 15px;
+  box-shadow: 0 4px 20px rgba(20, 12, 27, .045);
+}
+body[data-room="ai"] .ai-toast {
+  right: 20px;
+  bottom: 20px;
+  border-radius: 12px;
+}
+
+/* Give the regular chat, channel panels and dialogs the same visual rhythm. */
+#log {
+  scroll-padding-block: 18px;
+}
+.m:not(.announcement):not(.party-event) {
+  border-radius: 14px;
+}
+.m:not(.announcement):not(.party-event):not(.bot) {
+  box-shadow: 0 2px 8px rgba(20, 12, 27, .025);
+}
+#bar {
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 18px rgba(20, 12, 27, .035) !important;
+}
+#bar #text {
+  border-radius: 13px;
+}
+#bar #send {
+  border-radius: 12px;
+  box-shadow: none;
+}
+.ov {
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+.ov .box {
+  border-radius: 18px;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+@media (max-width: 1400px) {
+  body > header.app-header {
+    gap: 6px !important;
+    padding-right: 10px !important;
+    padding-left: 10px !important;
+  }
+  body > header.app-header .app-header-navigation {
+    margin-left: 0;
+    padding-left: 7px;
+  }
+  body > header.app-header .app-header-account-actions {
+    padding-left: 7px;
+  }
+  body > header.app-header .app-header-navigation button,
+  body > header.app-header .app-header-room-actions button,
+  body > header.app-header .app-header-account-actions button,
+  body > header.app-header #accentPaletteToggle {
+    padding-right: 7px;
+    padding-left: 7px;
+    font-size: 10px;
+  }
+  body > header.app-header .app-header-account-actions .account-chip {
+    max-width: 145px;
+  }
+}
+@media (max-width: 1000px) {
+  body > header.app-header {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+  body[data-room="ai"] #aiStudioRoot {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+  body[data-room="ai"] .ai-sidebar {
+    flex: 0 0 151px;
+    width: 100%;
+    height: 151px;
+    max-width: 100%;
+  }
+}
+@media (max-width: 680px) {
+  :root { --app-header-height: 64px; }
+  body > header.app-header {
+    height: 64px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+  }
+  body > header.app-header h1#title {
+    font-size: 12px !important;
+  }
+  body > header.app-header h1#title::before {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    border-radius: 9px;
+  }
+  body > header.app-header .app-header-identity {
+    gap: 5px;
+  }
+  body > header.app-header .app-header-navigation {
+    display: none !important;
+  }
+  body > header.app-header .app-header-room-actions {
+    gap: 2px;
+  }
+  body > header.app-header .app-header-appearance-trigger {
+    min-height: 32px;
+    padding: 6px 7px;
+    font-size: 10px;
+  }
+  body > header.app-header .app-header-account-actions {
+    gap: 3px;
+    padding-left: 5px;
+  }
+  body > header.app-header .app-header-account-actions .account-chip {
+    max-width: 105px;
+    padding-right: 6px;
+  }
+  body > header.app-header .app-header-account-actions .account-name {
+    max-width: 48px;
+    font-size: 9px;
+  }
+  body > header.app-header #logoutBtn {
+    min-height: 30px;
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+  .accent-palette-panel.appearance-panel {
+    top: calc(var(--app-header-height) + 7px);
+    right: 8px;
+  }
+  body[data-room="ai"] .ai-topbar {
+    min-height: 68px;
+    padding: 13px 14px 11px;
+  }
+  body[data-room="ai"] .ai-topbar h1 {
+    font-size: 17px;
+  }
+  body[data-room="ai"] .ai-thread {
+    padding: 19px 14px 20px;
+    gap: 19px;
+  }
+  body[data-room="ai"] .ai-empty-state h2 {
+    font-size: 24px;
+  }
+  body[data-room="ai"] .ai-starter-grid {
+    gap: 7px;
+    margin-top: 17px;
+  }
+  body[data-room="ai"] .ai-starter-grid button {
+    grid-template-columns: 23px minmax(0, 1fr);
+    gap: 3px 7px;
+    min-height: 62px;
+    padding: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body > header.app-header *,
+  .accent-palette-panel *,
+  .ai-starter-grid button {
+    transition: none !important;
+  }
+}
