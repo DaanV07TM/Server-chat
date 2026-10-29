@@ -206,6 +206,7 @@ jobs:
           server = Path("server.js").read_text(encoding="utf-8")
           html = Path("public/index.html").read_text(encoding="utf-8")
           css = Path("public/accounts.css").read_text(encoding="utf-8")
+          cosmic_css = Path("public/ubuntu-cosmic.css").read_text(encoding="utf-8")
           sw = Path("public/sw.js").read_text(encoding="utf-8")
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
           for marker in (
@@ -237,7 +238,7 @@ jobs:
           ):
               if marker not in html:
                   raise SystemExit(f"Missing login or UI cleanup: {marker}")
-          if '.sidebar-footer-dot[data-state="offline"]' not in css:
+          if '.sidebar-footer-dot[data-state="offline"]' not in cosmic_css:
               raise SystemExit("The sidebar needs a visible offline connection state.")
           if 'id="empty"' in html:
               raise SystemExit("Unused empty-state IDs should not be present.")
