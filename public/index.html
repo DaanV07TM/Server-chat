@@ -1470,13 +1470,14 @@ function start() {
   let authMode = 'login';
   let authBusy = false;
   let newlyGeneratedPassword = '';
-  let securityConfig = { termsVersion: '2026-10-28-v1', turnstileEnabled: false, turnstileSiteKey: '' };
+  let securityConfig = { termsVersion: '2026-10-29-v1', turnstileEnabled: false, turnstileSiteKey: '' };
   let securityConfigLoaded = false;
   let turnstileWidgetId = null;
   let turnstileToken = '';
   let turnstileScriptRequested = false;
   let pendingAuthMode = '';
   let pendingLoginCredentials = null;
+  let pendingAuthRequest = null;
   let loginChallengeTimer = null;
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
@@ -1589,7 +1590,7 @@ function start() {
         if (authMode === 'register') prepareTurnstileWidget();
       } else {
         $('botVerificationWrap').hidden = true;
-        notice.textContent = 'Automatic rate limits and abuse protection are active. The interactive bot check is not configured on this server.';
+        notice.textContent = 'A lightweight local check runs before registration. A successful check approves this IP for 10 minutes. The optional interactive CAPTCHA is not configured.';
       }
     } catch (_) {
       securityConfigLoaded = false;
@@ -1605,7 +1606,7 @@ function start() {
     if (!challenge || typeof challenge.challengeId !== 'string' ||
         !/^[a-f0-9]{48}$/.test(challenge.challengeId) ||
         typeof challenge.nonce !== 'string' || !/^[a-f0-9]{48}$/.test(challenge.nonce) ||
-        challenge.difficultyBits !== 16 ||
+        challenge.difficultyBits !== 12 ||
         !Number.isFinite(challenge.expiresAt) || challenge.expiresAt <= Date.now()) {
       throw new Error('The server returned an invalid or expired security challenge.');
     }
@@ -1617,7 +1618,7 @@ function start() {
       if (challenge.expiresAt <= Date.now()) throw new Error('The security check expired. Please try again.');
       const input = encoder.encode(challenge.nonce + ':' + String(proof));
       const digest = new Uint8Array(await window.crypto.subtle.digest('SHA-256', input));
-      if (digest[0] === 0 && digest[1] === 0) return proof;
+      if (digest[0] === 0 && (digest[1] & 0xf0) === 0) return proof;
       if (proof > 0 && proof % 128 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
       }
@@ -1629,41 +1630,70 @@ function start() {
     if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
     loginChallengeTimer = null;
     pendingLoginCredentials = null;
+    pendingAuthRequest = null;
     authBusy = false;
     authSubmit.disabled = false;
     $('authTabLogin').disabled = false;
     $('authTabRegister').disabled = false;
-    authSubmit.textContent = 'Log in';
+    authSubmit.textContent = authMode === 'register' ? 'Generate account and password' : 'Log in';
     authMessage.textContent = message;
     authMessage.classList.add('is-error');
   }
 
   socket.on('auth:challenge', async challenge => {
-    const credentials = pendingLoginCredentials;
-    if (!credentials || !authBusy) return;
+    const request = pendingAuthRequest;
+    if (!request || request.submitted || !authBusy) return;
     try {
-      authMessage.textContent = 'Completing the server security check on this device…';
+      authMessage.textContent = 'Completing the local server security check…';
       authMessage.classList.remove('is-error');
       const proof = await solveLoginChallenge(challenge);
-      if (pendingLoginCredentials !== credentials || !authBusy) return;
+      if (pendingAuthRequest !== request || request.submitted || !authBusy) return;
       if (!socket.connected) throw new Error('The server connection was lost. Please try again.');
-      socket.emit('auth:login', {
-        username: credentials.username,
-        password: credentials.password,
+      socket.emit('auth:challenge-solve', {
         challengeId: challenge.challengeId,
         proof
       });
-      authMessage.textContent = 'Security check passed. Signing in…';
+      authMessage.textContent = 'Security check calculated. Asking the server to verify this network…';
     } catch (error) {
-      if (pendingLoginCredentials !== credentials) return;
+      if (pendingAuthRequest !== request) return;
       failLoginChallenge(error && error.message ? error.message : 'The server security check failed. Please try again.');
     }
+  });
+
+  socket.on('auth:challenge-approved', data => {
+    const request = pendingAuthRequest;
+    if (!request || request.submitted || !authBusy) return;
+    request.submitted = true;
+    const approvedUntil = data && Number.isFinite(data.approvedUntil) ? data.approvedUntil : Date.now() + 10 * 60 * 1000;
+    const minutesLeft = Math.max(1, Math.ceil((approvedUntil - Date.now()) / 60000));
+    const approvalDuration = minutesLeft === 1 ? '1 minute' : minutesLeft + ' minutes';
+    authMessage.classList.remove('is-error');
+    if (request.kind === 'register') {
+      authSubmit.textContent = 'Generating credentials…';
+      authMessage.textContent = 'Security check passed. This IP is approved for ' + approvalDuration + '. Creating your account…';
+      socket.emit('auth:register', request.data);
+    } else if (request.kind === 'login') {
+      authSubmit.textContent = 'Signing in…';
+      authMessage.textContent = 'Security check passed. This IP is approved for ' + approvalDuration + '. Signing in…';
+      socket.emit('auth:login', request.data);
+    } else {
+      failLoginChallenge('The pending authentication action was not recognized. Please try again.');
+    }
+  });
+
+  socket.on('auth:challenge-failed', data => {
+    failLoginChallenge(data && typeof data.message === 'string'
+      ? data.message
+      : 'The server security check failed. Please try again.');
   });
 
   authForm.addEventListener('submit', event => {
     event.preventDefault();
     if (authBusy || !socket.connected) {
-      if (!socket.connected) authMessage.textContent = 'Connecting to the server… please try again in a moment.';
+      if (!socket.connected) {
+        authMessage.textContent = 'Connecting to the server… please try again in a moment.';
+        authMessage.classList.add('is-error');
+      }
       return;
     }
     if (authMode === 'register') {
@@ -1688,7 +1718,21 @@ function start() {
         return;
       }
     }
-    if (authMode === 'login') {
+
+    let request;
+    if (authMode === 'register') {
+      request = {
+        kind: 'register',
+        data: {
+          acceptedTerms: $('acceptTerms').checked,
+          acceptedPrivacy: $('acceptPrivacy').checked,
+          termsVersion: securityConfig.termsVersion,
+          turnstileToken,
+          website: $('registrationWebsite').value
+        },
+        submitted: false
+      };
+    } else {
       const username = $('authUsername').value.trim();
       const password = authPasswordInput.value;
       if (!/^[A-Za-z0-9_-]{3,20}$/.test(username)) {
@@ -1701,37 +1745,25 @@ function start() {
         authMessage.classList.add('is-error');
         return;
       }
+      request = { kind: 'login', data: { username, password }, submitted: false };
     }
 
     pendingAuthMode = authMode;
+    pendingAuthRequest = request;
+    pendingLoginCredentials = request.kind === 'login' ? request.data : null;
     authBusy = true;
     authSubmit.disabled = true;
     $('authTabLogin').disabled = true;
     $('authTabRegister').disabled = true;
-    authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
-    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Preparing a quick server security check…';
+    authSubmit.textContent = 'Checking network…';
+    authMessage.textContent = 'Checking this network for automated traffic. A successful check approves this IP for 10 minutes.';
     authMessage.classList.remove('is-error');
-    if (authMode === 'register') {
-      socket.emit('auth:register', {
-        acceptedTerms: $('acceptTerms').checked,
-        acceptedPrivacy: $('acceptPrivacy').checked,
-        termsVersion: securityConfig.termsVersion,
-        turnstileToken,
-        website: $('registrationWebsite').value
-      });
-    } else {
-      pendingLoginCredentials = {
-        username: $('authUsername').value.trim(),
-        password: authPasswordInput.value
-      };
-      if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
-      loginChallengeTimer = setTimeout(() => {
-        if (pendingLoginCredentials) {
-          failLoginChallenge('The server security check timed out. Please try signing in again.');
-        }
-      }, 20000);
-      socket.emit('auth:challenge-request');
-    }
+
+    if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+    loginChallengeTimer = setTimeout(() => {
+      if (authBusy) failLoginChallenge('No response was received from the security check or account service. Please try again.');
+    }, 45000);
+    socket.emit('auth:challenge-request');
   });
 
   socket.on('auth:result', data => {
@@ -1740,6 +1772,7 @@ function start() {
     if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
     loginChallengeTimer = null;
     pendingLoginCredentials = null;
+    pendingAuthRequest = null;
     if (attemptedRegistration) resetTurnstileChallenge();
     authBusy = false;
     authSubmit.disabled = false;
@@ -3071,8 +3104,8 @@ function start() {
   });
   socket.on('connect_error', () => $('online').textContent = 'offline');
   socket.on('disconnect', () => {
-    if (pendingLoginCredentials) {
-      failLoginChallenge('Connection lost during the security check. Please try signing in again when connected.');
+    if (pendingAuthRequest) {
+      failLoginChallenge('Connection lost during the security check. Please try again when connected.');
     }
     $('online').textContent = 'reconnecting…';
     updateSidebarConnectionStatus('connecting', 'Reconnecting…', 'Waiting for server');

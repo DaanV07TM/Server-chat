@@ -209,22 +209,37 @@ jobs:
           cosmic_css = Path("public/ubuntu-cosmic.css").read_text(encoding="utf-8")
           sw = Path("public/sw.js").read_text(encoding="utf-8")
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
+          legal = Path("public/legal.html").read_text(encoding="utf-8")
           for marker in (
+              "const SECURITY_TERMS_VERSION = '2026-10-29-v1';",
+              "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
+              "const VERIFIED_BOT_IPS = new Map();",
               "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
-              "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;",
+              "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 12;",
               "const LOGIN_CHALLENGES = new Map();",
               "socket.on('auth:challenge-request'",
               "function verifyLoginChallenge(socket, data)",
-              "digest[0] === 0 && digest[1] === 0",
-              "if (!verifyLoginChallenge(socket, d))",
+              "(digest[1] & 0xf0) === 0",
+              "socket.on('auth:challenge-solve'",
+              "socket.emit('auth:challenge-approved'",
+              "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
+              "const VERIFIED_BOT_IPS = new Map();",
+              "if (!isBotIpApproved(socket))",
               "challenge.socketId !== socket.id",
-              "challenge.expiresAt <= Date.now()"
+              "challenge.expiresAt <= Date.now()",
+              "challenge.address !== authAddress(socket)"
           ):
               if marker not in server:
                   raise SystemExit(f"Missing server-side login security check: {marker}")
           for marker in (
               "async function solveLoginChallenge(challenge)",
               "socket.emit('auth:challenge-request')",
+              "socket.emit('auth:challenge-solve'",
+              "socket.on('auth:challenge-approved'",
+              "socket.emit('auth:register', request.data)",
+              "socket.emit('auth:login', request.data)",
+              "pendingAuthRequest = null;",
+              "A successful check approves this IP for 10 minutes",
               "challengeId: challenge.challengeId",
               'id="loginSecurityHint"',
               'href="/patch-notes.html"',
@@ -258,6 +273,12 @@ jobs:
                   raise SystemExit(f"Missing dated patch-note entry: {date}")
           if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
               raise SystemExit("Patch notes must accurately describe the login security limitation.")
+          if "termsVersion: '2026-10-29-v1'" not in html:
+              raise SystemExit("The registration client must use the latest terms version.")
+          if "Last updated: 29 October 2026 · Version 2026-10-29-v1" not in legal:
+              raise SystemExit("The privacy notice date/version must match the current terms version.")
+          if "marks the client IP as verified for up to 10 minutes" not in legal:
+              raise SystemExit("The privacy notice must disclose temporary IP verification.")
           static_html = html.split("<script", 1)[0]
           ids = re.findall(r'id="([^"]+)"', static_html, flags=re.I)
           duplicates = sorted({item for item in ids if ids.count(item) > 1})

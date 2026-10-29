@@ -58,7 +58,8 @@
           <div class="status">Released</div>
           <h2>Local login bot friction and interface cleanup</h2>
           <ul>
-            <li>Added a one-time, server-issued proof-of-work challenge to password-based user and admin logins. The browser completes a small SHA-256 task; the server checks that it is valid, belongs to the current connection, has not expired and has not been used before.</li>
+            <li>Added a lightweight server-issued proof-of-work check before temporary account creation and password-based user/admin logins. A successful proof approves the originating IP address for 10 minutes, so repeated actions from that same address can reuse the approval until it expires.</li>
+            <li>The server validates that each challenge is correct, belongs to the current connection, has not expired and has not been used before. The browser performs approximately 4,096 SHA-256 hashes on average, with visible progress and a timeout/error message if the registration or login flow stalls.</li>
             <li>The login flow now shows progress and a clear error when the security check fails, expires or loses its connection.</li>
             <li>Admin command buttons explicitly use <code>type="button"</code> to avoid accidental form submissions.</li>
             <li>Removed unused empty-state element IDs to keep the DOM cleaner.</li>
