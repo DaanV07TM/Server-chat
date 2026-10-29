@@ -6,6 +6,10 @@ A real-time chat with temporary username/password accounts, plaintext public/off
 
 **Public website URL:** The actual Render URL is not recorded in this repository. Copy the exact `https://…onrender.com` address from the web service page in your Render dashboard before sharing this README. I have intentionally not guessed the URL.
 
+## Patch notes
+
+The in-app release history is available at [`/patch-notes.html`](https://github.com/DaanV07TM/Server-chat/blob/main/public/patch-notes.html) and from the Patch notes link in the main navigation. It lists user-facing changes by date.
+
 ## What users can do
 
 - **`#general`** — casual public conversation.
