@@ -2090,7 +2090,7 @@ const AUTH_ATTEMPTS = new Map(); // per-address login attempts
 // Server-issued proof-of-work for every password-based login. This adds bot cost without an external CAPTCHA.
 // It is not a guarantee that automated clients are impossible; every proof is verified here and is single-use.
 const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;
-const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;
+const LOGIN_CHALLENGE_DIFFICULTY_BITS = 12;
 const LOGIN_CHALLENGE_MAX_ENTRIES = 5000;
 const LOGIN_CHALLENGES = new Map();
 const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;
@@ -2170,8 +2170,8 @@ function verifyLoginChallenge(socket, data) {
       challenge.socketId !== socket.id ||
       challenge.address !== authAddress(socket)) return false;
   const digest = crypto.createHash('sha256').update(challenge.nonce + ':' + String(proof)).digest();
-  // 16 leading zero bits require approximately 65,536 hashes on average.
-  return digest[0] === 0 && digest[1] === 0;
+  // 12 leading zero bits require approximately 4,096 hashes on average.
+  return digest[0] === 0 && (digest[1] & 0xf0) === 0;
 }
 
 const AUTH_REGISTRATION_ATTEMPTS = new Map(); // per-address account-creation attempts
