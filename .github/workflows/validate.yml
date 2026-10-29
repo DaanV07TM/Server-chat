@@ -209,7 +209,11 @@ jobs:
           cosmic_css = Path("public/ubuntu-cosmic.css").read_text(encoding="utf-8")
           sw = Path("public/sw.js").read_text(encoding="utf-8")
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
+          legal = Path("public/legal.html").read_text(encoding="utf-8")
           for marker in (
+              "const SECURITY_TERMS_VERSION = '2026-10-29-v1';",
+              "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
+              "const VERIFIED_BOT_IPS = new Map();",
               "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
               "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 12;",
               "const LOGIN_CHALLENGES = new Map();",
@@ -269,6 +273,12 @@ jobs:
                   raise SystemExit(f"Missing dated patch-note entry: {date}")
           if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
               raise SystemExit("Patch notes must accurately describe the login security limitation.")
+          if "termsVersion: '2026-10-29-v1'" not in html:
+              raise SystemExit("The registration client must use the latest terms version.")
+          if "Last updated: 29 October 2026 · Version 2026-10-29-v1" not in legal:
+              raise SystemExit("The privacy notice date/version must match the current terms version.")
+          if "marks the client IP as verified for up to 10 minutes" not in legal:
+              raise SystemExit("The privacy notice must disclose temporary IP verification.")
           static_html = html.split("<script", 1)[0]
           ids = re.findall(r'id="([^"]+)"', static_html, flags=re.I)
           duplicates = sorted({item for item in ids if ids.count(item) > 1})
