@@ -35,7 +35,7 @@ app.get('/healthz', (_req, res) => {
 // Private, per-account AI workspaces. Conversations are intentionally memory-only.
 app.set('trust proxy', 1);
 
-const SECURITY_TERMS_VERSION = '2026-10-28-v1';
+const SECURITY_TERMS_VERSION = '2026-10-29-v1';
 const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
 const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
 const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
