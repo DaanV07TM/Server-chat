@@ -157,3 +157,6 @@
 
 /* Keep destructive confirmations above the account settings overlay. */
 #siteDialog { z-index: 15200 !important; }
+
+.login-security-hint { margin:7px 0 0; color:var(--mute); font-size:10px; line-height:1.5; }
+.login-security-hint[hidden] { display:none !important; }
