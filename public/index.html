@@ -581,6 +581,45 @@ button:active:not(:disabled){transform:translateY(0)}
 .server-center-channel-list,.server-center-activity-list{display:grid;gap:6px}.server-center-channel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}.server-center-channel-name{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;font-weight:750}.server-center-channel-name i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#94a3b8}.server-center-channel[data-active="true"] .server-center-channel-name i{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.6)}.server-center-channel-count{flex-shrink:0;color:var(--mute);font-size:10px}
 .server-center-activity{display:grid;grid-template-columns:58px minmax(0,1fr);gap:6px;padding:8px 0;border-bottom:1px solid var(--line);font-size:10px;line-height:1.4}.server-center-activity:last-child{border-bottom:0}.server-center-activity time{color:var(--mute);font-variant-numeric:tabular-nums}.server-center-activity span{overflow-wrap:anywhere;color:var(--ink)}.server-center-empty{padding:12px;color:var(--mute);font-size:11px;text-align:center}
 @media(max-width:780px){.server-center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.server-center-columns{grid-template-columns:minmax(0,1fr)}.server-center-hero{align-items:flex-start;flex-direction:column}.sticker-picker{right:8px;bottom:80px}}
+
+/* Custom, server-verified anti-bot checkbox and approval screen. */
+.server-bot-verification{margin:13px 0 9px}
+.server-bot-check{position:relative;display:flex;align-items:center;gap:11px;width:100%;min-height:62px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.server-bot-check:hover{border-color:var(--accent)}
+.server-bot-check:focus-within{outline:2px solid rgba(99,102,241,.32);outline-offset:2px}
+.server-bot-check-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.server-bot-check-square{display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border:2px solid #8792a4;border-radius:6px;background:var(--bg);color:#fff;transition:background .15s ease,border-color .15s ease}
+.server-bot-check-square span{opacity:0;transform:scale(.7);transition:opacity .12s ease,transform .12s ease;font-size:17px;font-weight:900;line-height:1}
+.server-bot-check-input:checked+.server-bot-check-square{border-color:#16803d;background:#16803d}
+.server-bot-check-input:checked+.server-bot-check-square span{opacity:1;transform:scale(1)}
+.server-bot-check-input:focus-visible+.server-bot-check-square{outline:3px solid rgba(99,102,241,.34);outline-offset:3px}
+.server-bot-check-input:disabled+.server-bot-check-square{opacity:.65}
+.server-bot-check-copy{display:block;flex:1;min-width:0}
+.server-bot-check-copy strong{display:block;font-size:13px;font-weight:800;line-height:1.35}
+.server-bot-check-copy small{display:block;margin-top:3px;color:var(--mute);font-size:11px;line-height:1.4}
+.server-bot-check-badge{flex:0 0 auto;padding:4px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--mute);font-size:10px;font-weight:800;white-space:nowrap}
+#serverBotVerification[data-state=checking] .server-bot-check-badge{color:var(--accent);border-color:rgba(99,102,241,.35)}
+#serverBotVerification[data-state=success] .server-bot-check{border-color:rgba(22,128,61,.45);background:rgba(22,128,61,.045)}
+#serverBotVerification[data-state=success] .server-bot-check-badge{border-color:rgba(22,128,61,.3);background:rgba(22,128,61,.08);color:#16803d}
+#serverBotVerification[data-state=error] .server-bot-check-badge{border-color:rgba(179,38,30,.28);background:rgba(179,38,30,.06);color:var(--bad)}
+.server-bot-check-hint{margin:6px 2px 0;color:var(--mute);font-size:11px;line-height:1.45}
+.bot-approval-screen{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:18px;background:rgba(8,13,25,.42);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.bot-approval-screen[hidden]{display:none!important}
+.bot-approval-card{display:flex;align-items:center;gap:14px;width:min(420px,100%);padding:22px 23px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--ink);box-shadow:0 24px 75px rgba(0,0,0,.28);animation:botApprovalAppear .2s ease-out}
+.bot-approval-spinner,.bot-approval-symbol{display:grid;place-items:center;width:39px;height:39px;flex:0 0 39px;border-radius:50%}
+.bot-approval-spinner{border:3px solid var(--line);border-top-color:var(--accent);animation:botApprovalSpin .8s linear infinite}
+.bot-approval-symbol{font-size:23px;font-weight:900}
+.bot-approval-success{background:rgba(22,128,61,.12);color:#16803d}
+.bot-approval-failure{background:rgba(179,38,30,.1);color:var(--bad)}
+.bot-approval-copy{min-width:0}
+.bot-approval-copy strong{display:block;font-size:15px;font-weight:850;line-height:1.35}
+.bot-approval-copy p{margin:5px 0 0;color:var(--mute);font-size:12px;line-height:1.5}
+.bot-approval-screen[data-state=success] .bot-approval-card{border-color:rgba(22,128,61,.3)}
+.bot-approval-screen[data-state=error] .bot-approval-card{border-color:rgba(179,38,30,.25)}
+@keyframes botApprovalSpin{to{transform:rotate(360deg)}}
+@keyframes botApprovalAppear{from{opacity:0;transform:translateY(5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.bot-approval-spinner,.bot-approval-card{animation:none!important}}
+
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -827,9 +866,29 @@ button:active:not(:disabled){transform:translateY(0)}
         <p id="botCheckNotice" class="bot-check-notice" role="status" aria-live="polite">Checking registration security settings…</p>
         <label class="auth-honeypot" aria-hidden="true">Leave this field empty<input id="registrationWebsite" name="website" type="text" tabindex="-1" autocomplete="off"></label>
       </div>
+      <div id="serverBotVerification" class="server-bot-verification" data-state="idle">
+        <label id="serverBotCheckLabel" class="server-bot-check" for="serverBotCheckInput">
+          <input id="serverBotCheckInput" class="server-bot-check-input" type="checkbox" aria-describedby="serverBotCheckHint">
+          <span class="server-bot-check-square" aria-hidden="true"><span>✓</span></span>
+          <span class="server-bot-check-copy"><strong>Verify I’m not a bot</strong><small>Checked directly by the Server Chat server</small></span>
+          <span id="serverBotCheckBadge" class="server-bot-check-badge">Required</span>
+        </label>
+        <p id="serverBotCheckHint" class="server-bot-check-hint">Tick the box to let the server verify this connection. Approval lasts 10 minutes.</p>
+      </div>
       <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="authSubmit" class="auth-submit" type="submit">Log in</button>
     </form>
+    <div id="botApprovalScreen" class="bot-approval-screen" role="status" aria-live="assertive" hidden>
+      <div class="bot-approval-card">
+        <span id="botApprovalSpinner" class="bot-approval-spinner" aria-hidden="true"></span>
+        <span id="botApprovalCheck" class="bot-approval-symbol bot-approval-success" aria-hidden="true" hidden>✓</span>
+        <span id="botApprovalError" class="bot-approval-symbol bot-approval-failure" aria-hidden="true" hidden>!</span>
+        <div class="bot-approval-copy">
+          <strong id="botApprovalTitle">Checking your connection…</strong>
+          <p id="botApprovalText">The Server Chat server is verifying this network.</p>
+        </div>
+      </div>
+    </div>
     <div class="auth-legal-links"><a href="/legal.html">Terms of Service &amp; Privacy Notice</a></div>
     <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, not the plaintext password. Accounts and chat history are cleared when the server restarts.</span></div>
   </div>
@@ -1479,6 +1538,9 @@ function start() {
   let pendingLoginCredentials = null;
   let pendingAuthRequest = null;
   let loginChallengeTimer = null;
+  let botApprovalUntil = 0;
+  let botApprovalExpiryTimer = null;
+  let botApprovalPopupTimer = null;
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
 
@@ -1489,6 +1551,79 @@ function start() {
   const authPasswordInput = $('authPassword');
   const authConfirmInput = $('authPasswordConfirm');
   const authConfirmWrap = $('authConfirmWrap');
+  const botCheckInput = $('serverBotCheckInput');
+
+  function setBotCheckDisplay(state, badge, hint) {
+    $('serverBotVerification').dataset.state = state;
+    $('serverBotCheckBadge').textContent = badge;
+    $('serverBotCheckHint').textContent = hint;
+  }
+  function hideBotApprovalScreen() {
+    if (botApprovalPopupTimer) clearTimeout(botApprovalPopupTimer);
+    botApprovalPopupTimer = null;
+    $('botApprovalScreen').hidden = true;
+  }
+  function showBotApprovalScreen(state, title, message, hideAfterMs = 0) {
+    if (botApprovalPopupTimer) clearTimeout(botApprovalPopupTimer);
+    botApprovalPopupTimer = null;
+    const screen = $('botApprovalScreen');
+    screen.dataset.state = state;
+    $('botApprovalSpinner').hidden = state !== 'checking';
+    $('botApprovalCheck').hidden = state !== 'success';
+    $('botApprovalError').hidden = state !== 'error';
+    $('botApprovalTitle').textContent = title;
+    $('botApprovalText').textContent = message;
+    screen.hidden = false;
+    if (hideAfterMs > 0) botApprovalPopupTimer = setTimeout(hideBotApprovalScreen, hideAfterMs);
+  }
+  function requestBotVerification() {
+    if (authBusy) {
+      botCheckInput.checked = false;
+      return;
+    }
+    if (botApprovalUntil > Date.now()) {
+      botCheckInput.checked = true;
+      setBotCheckDisplay('success', 'Approved', 'The server has already approved this network.');
+      return;
+    }
+    if (!socket.connected) {
+      botCheckInput.checked = false;
+      setBotCheckDisplay('error', 'Try again', 'The server is not connected yet. Please try again.');
+      showBotApprovalScreen('error', 'Server not connected', 'Connect to Server Chat before running the security check.', 3000);
+      return;
+    }
+    botApprovalUntil = 0;
+    botCheckInput.checked = false;
+    botCheckInput.disabled = true;
+    authBusy = true;
+    authSubmit.disabled = true;
+    $('authTabLogin').disabled = true;
+    $('authTabRegister').disabled = true;
+    authSubmit.textContent = 'Verifying network…';
+    pendingAuthMode = '';
+    pendingLoginCredentials = null;
+    pendingAuthRequest = { kind: 'verify-only', data: null, submitted: false };
+    setBotCheckDisplay('checking', 'Checking…', 'The server is checking this network. Please wait.');
+    showBotApprovalScreen('checking', 'Checking your connection', 'The Server Chat server is validating a short security challenge.');
+    if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+    loginChallengeTimer = setTimeout(() => {
+      if (authBusy && pendingAuthRequest && pendingAuthRequest.kind === 'verify-only') {
+        failLoginChallenge('No response was received from the server security check. Please try again.');
+      }
+    }, 45000);
+    socket.emit('auth:challenge-request');
+  }
+  botCheckInput.addEventListener('change', () => {
+    if (!botCheckInput.checked) {
+      if (botApprovalUntil > Date.now()) {
+        botCheckInput.checked = true;
+        return;
+      }
+      setBotCheckDisplay('idle', 'Required', 'Tick the box to let the server verify this connection. Approval lasts 10 minutes.');
+      return;
+    }
+    requestBotVerification();
+  });
 
   function showAuthGate(message = '') {
     accountAuthenticated = false;
@@ -1627,25 +1762,38 @@ function start() {
   }
 
   function failLoginChallenge(message) {
+    const verificationOnly = pendingAuthRequest && pendingAuthRequest.kind === 'verify-only';
     if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
     loginChallengeTimer = null;
     pendingLoginCredentials = null;
     pendingAuthRequest = null;
     authBusy = false;
     authSubmit.disabled = false;
+    botCheckInput.disabled = false;
     $('authTabLogin').disabled = false;
     $('authTabRegister').disabled = false;
     authSubmit.textContent = authMode === 'register' ? 'Generate account and password' : 'Log in';
     authMessage.textContent = message;
     authMessage.classList.add('is-error');
+    if (verificationOnly) {
+      botApprovalUntil = 0;
+      botCheckInput.checked = false;
+      setBotCheckDisplay('error', 'Try again', 'The server could not approve this connection. Tick the box to retry.');
+      showBotApprovalScreen('error', 'Server approval failed', message, 3200);
+    }
   }
 
   socket.on('auth:challenge', async challenge => {
     const request = pendingAuthRequest;
     if (!request || request.submitted || !authBusy) return;
     try {
-      authMessage.textContent = 'Completing the local server security check…';
-      authMessage.classList.remove('is-error');
+      if (request.kind === 'verify-only') {
+        setBotCheckDisplay('checking', 'Checking…', 'The challenge is ready; the server is validating it now.');
+        showBotApprovalScreen('checking', 'Verifying with the server', 'The challenge is complete. Waiting for Server Chat to approve this network.');
+      } else {
+        authMessage.textContent = 'Completing the local server security check…';
+        authMessage.classList.remove('is-error');
+      }
       const proof = await solveLoginChallenge(challenge);
       if (pendingAuthRequest !== request || request.submitted || !authBusy) return;
       if (!socket.connected) throw new Error('The server connection was lost. Please try again.');
@@ -1653,7 +1801,12 @@ function start() {
         challengeId: challenge.challengeId,
         proof
       });
-      authMessage.textContent = 'Security check calculated. Asking the server to verify this network…';
+      if (request.kind === 'verify-only') {
+        setBotCheckDisplay('checking', 'Verifying…', 'Waiting for the server to approve this network.');
+        showBotApprovalScreen('checking', 'Waiting for server approval', 'Server Chat is checking the proof and the network binding.');
+      } else {
+        authMessage.textContent = 'Security check calculated. Asking the server to verify this network…';
+      }
     } catch (error) {
       if (pendingAuthRequest !== request) return;
       failLoginChallenge(error && error.message ? error.message : 'The server security check failed. Please try again.');
@@ -1668,6 +1821,34 @@ function start() {
     const minutesLeft = Math.max(1, Math.ceil((approvedUntil - Date.now()) / 60000));
     const approvalDuration = minutesLeft === 1 ? '1 minute' : minutesLeft + ' minutes';
     authMessage.classList.remove('is-error');
+    if (request.kind === 'verify-only') {
+      if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+      loginChallengeTimer = null;
+      pendingAuthMode = '';
+      pendingLoginCredentials = null;
+      pendingAuthRequest = null;
+      authBusy = false;
+      authSubmit.disabled = false;
+      botCheckInput.disabled = false;
+      $('authTabLogin').disabled = false;
+      $('authTabRegister').disabled = false;
+      authSubmit.textContent = authMode === 'register' ? 'Generate account and password' : 'Log in';
+      botCheckInput.checked = true;
+      botApprovalUntil = approvedUntil;
+      setBotCheckDisplay('success', 'Approved', 'Server Chat approved this network for ' + approvalDuration + '.');
+      authMessage.textContent = '';
+      authMessage.classList.remove('is-error');
+      if (botApprovalExpiryTimer) clearTimeout(botApprovalExpiryTimer);
+      botApprovalExpiryTimer = setTimeout(() => {
+        if (Date.now() >= botApprovalUntil) {
+          botApprovalUntil = 0;
+          botCheckInput.checked = false;
+          setBotCheckDisplay('idle', 'Required', 'The approval expired. Tick the box to verify this connection again.');
+        }
+      }, Math.max(0, approvedUntil - Date.now()) + 25);
+      showBotApprovalScreen('success', 'Server approved this connection', 'This network is verified for ' + approvalDuration + '. You can continue.', 2400);
+      return;
+    }
     if (request.kind === 'register') {
       authSubmit.textContent = 'Generating credentials…';
       authMessage.textContent = 'Security check passed. This IP is approved for ' + approvalDuration + '. Creating your account…';
@@ -1694,6 +1875,17 @@ function start() {
         authMessage.textContent = 'Connecting to the server… please try again in a moment.';
         authMessage.classList.add('is-error');
       }
+      return;
+    }
+    if (!botCheckInput.checked || botApprovalUntil <= Date.now()) {
+      if (botApprovalUntil <= Date.now()) {
+        botApprovalUntil = 0;
+        botCheckInput.checked = false;
+        setBotCheckDisplay('idle', 'Required', 'The approval expired. Tick the box to verify this connection again.');
+      }
+      authMessage.textContent = 'Please complete the Server Chat bot check first. Tick the box and wait for server approval.';
+      authMessage.classList.add('is-error');
+      botCheckInput.focus();
       return;
     }
     if (authMode === 'register') {
