@@ -233,3 +233,67 @@ body[data-room="ai"] .auth-gate { z-index:16000; }
   .ai-thinking-dots i { animation:none; }
   .ai-toast { transition:none; }
 }
+
+
+/* Search, pinning and renaming controls for private AI conversation history. */
+.ai-history-search {
+  display:flex; align-items:center; gap:8px; width:100%; min-height:37px; margin:10px 0 0;
+  padding:0 10px; border:1px solid var(--line); border-radius:10px; color:var(--mute); background:var(--bg);
+}
+.ai-history-search:focus-within { border-color:color-mix(in srgb,var(--accent) 50%,var(--line)); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent); }
+.ai-history-search>span { font-size:17px; line-height:1; }
+.ai-history-search input { width:100%; min-width:0; height:34px; padding:0; border:0; outline:0; color:var(--ink); background:transparent; font:11px/1.2 system-ui,sans-serif; }
+.ai-history-search input::placeholder { color:var(--mute); }
+.ai-history-entry { position:relative; }
+.ai-history-entry.is-pinned { border-left-color:color-mix(in srgb,var(--accent) 55%,var(--line)); }
+.ai-history-actions { display:flex; align-items:center; gap:1px; flex:0 0 auto; padding-right:3px; }
+.ai-history-actions button {
+  display:grid; place-items:center; flex:0 0 24px; width:24px; height:28px; padding:0; border:0;
+  border-radius:7px; color:var(--mute); background:transparent; font:12px/1 system-ui,sans-serif; cursor:pointer; opacity:.68;
+}
+.ai-history-actions button:hover,.ai-history-actions button:focus-visible { opacity:1; color:var(--ink); background:var(--surface-soft); }
+.ai-history-actions .ai-history-pin[aria-pressed="true"] { color:var(--accent); opacity:1; }
+.ai-history-actions .ai-history-delete:hover { color:var(--bad); background:color-mix(in srgb,var(--bad) 9%,transparent); }
+.ai-history-actions .ai-history-rename { font-size:14px; }
+.ai-history-entry .ai-history-title { min-width:0; }
+.ai-rename-backdrop {
+  position:fixed; inset:0; z-index:2147483000; display:grid; place-items:center; padding:18px;
+  background:rgba(11,8,18,.58); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+.ai-rename-backdrop[hidden] { display:none !important; }
+.ai-rename-dialog {
+  display:flex; flex-direction:column; gap:9px; width:min(420px,100%); padding:23px;
+  border:1px solid var(--line); border-radius:19px; color:var(--ink); background:var(--panel); box-shadow:0 26px 80px rgba(0,0,0,.28);
+}
+.ai-rename-kicker { color:var(--accent); font-size:9px; font-weight:950; letter-spacing:.14em; }
+.ai-rename-dialog h2 { margin:0 0 4px; font-size:21px; font-weight:900; letter-spacing:-.04em; }
+.ai-rename-dialog label { margin-top:4px; color:var(--mute); font-size:11px; font-weight:800; }
+.ai-rename-dialog input {
+  width:100%; min-height:43px; padding:10px 12px; border:1px solid var(--line); border-radius:11px; outline:none;
+  color:var(--ink); background:var(--bg); font:13px/1.3 system-ui,sans-serif;
+}
+.ai-rename-dialog input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.ai-rename-error { margin:0; color:var(--bad); font-size:11px; line-height:1.45; }
+.ai-rename-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:7px; }
+.ai-rename-actions button {
+  display:inline-flex; align-items:center; justify-content:center; min-height:35px; margin:0; padding:8px 11px;
+  border:1px solid var(--line); border-radius:10px; font:800 11px/1.2 system-ui,sans-serif; cursor:pointer;
+}
+.ai-rename-actions .ai-secondary-btn { color:var(--ink); background:var(--panel); }
+.ai-rename-actions .ai-primary-btn { border-color:transparent; color:#fff; background:var(--accent); }
+.ai-rename-actions button:disabled { opacity:.55; cursor:wait; }
+@media(max-width:999px) {
+  .ai-history-search { width:min(260px,100%); min-height:32px; margin:0 0 5px; }
+  .ai-history-search input { height:30px; font-size:10px; }
+  .ai-history-actions { gap:0; padding-right:1px; }
+  .ai-history-actions button { flex-basis:22px; width:22px; height:27px; }
+  .ai-history-entry { flex:0 0 245px; max-width:290px; }
+  .ai-history-open { flex:1 1 auto; }
+}
+@media(max-width:560px) {
+  .ai-history-search { width:100%; margin-bottom:4px; }
+  .ai-history-entry { flex-basis:220px; }
+  .ai-history-actions button { flex-basis:21px; width:21px; }
+  .ai-rename-dialog { padding:18px; }
+}
+@media(prefers-reduced-motion:reduce) { .ai-history-actions button { transition:none; } }
