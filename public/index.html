@@ -876,31 +876,39 @@ button:active:not(:disabled){transform:translateY(0)}
       <div id="authLegalConsent" class="auth-legal-consent" hidden>
         <label class="auth-consent-line"><input id="acceptTerms" type="checkbox" required><span>I agree to the <a href="/legal.html#terms" target="_blank" rel="noopener">Terms of Service</a>.</span></label>
         <label class="auth-consent-line"><input id="acceptPrivacy" type="checkbox" required><span>I have read the <a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy Notice</a>.</span></label>
-        <div id="botVerificationWrap" class="bot-verification-wrap" hidden><div id="turnstileWidget"></div></div>
-        <p id="botCheckNotice" class="bot-check-notice" role="status" aria-live="polite">Checking registration security settings…</p>
         <label class="auth-honeypot" aria-hidden="true">Leave this field empty<input id="registrationWebsite" name="website" type="text" tabindex="-1" autocomplete="off"></label>
-      </div>
-      <div id="serverBotVerification" class="server-bot-verification" data-state="idle">
-        <label id="serverBotCheckLabel" class="server-bot-check" for="serverBotCheckInput">
-          <input id="serverBotCheckInput" class="server-bot-check-input" type="checkbox" aria-describedby="serverBotCheckHint">
-          <span class="server-bot-check-square" aria-hidden="true"><span>✓</span></span>
-          <span class="server-bot-check-copy"><strong>Verify I’m not a bot</strong><small>Checked directly by the Server Chat server</small></span>
-          <span id="serverBotCheckBadge" class="server-bot-check-badge">Required</span>
-        </label>
-        <p id="serverBotCheckHint" class="server-bot-check-hint">Tick the box to let the server verify this connection. Approval lasts 10 minutes.</p>
       </div>
       <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="authSubmit" class="auth-submit" type="submit">Log in</button>
     </form>
-    <div id="botApprovalScreen" class="bot-approval-screen" role="status" aria-live="assertive" hidden>
+    <div id="botApprovalScreen" class="bot-approval-screen" role="dialog" aria-modal="true" aria-labelledby="botApprovalTitle" aria-describedby="botApprovalText" hidden>
       <div class="bot-approval-card">
-        <span id="botApprovalSpinner" class="bot-approval-spinner" aria-hidden="true"></span>
-        <span id="botApprovalCheck" class="bot-approval-symbol bot-approval-success" aria-hidden="true" hidden>✓</span>
-        <span id="botApprovalError" class="bot-approval-symbol bot-approval-failure" aria-hidden="true" hidden>!</span>
-        <div class="bot-approval-copy">
-          <strong id="botApprovalTitle">Checking your connection…</strong>
-          <p id="botApprovalText">The Server Chat server is verifying this network.</p>
+        <div class="bot-approval-head">
+          <div class="bot-approval-icon-wrap">
+            <span id="botApprovalIdle" class="bot-approval-symbol bot-approval-idle" aria-hidden="true">✦</span>
+            <span id="botApprovalSpinner" class="bot-approval-spinner" aria-hidden="true" hidden></span>
+            <span id="botApprovalCheck" class="bot-approval-symbol bot-approval-success" aria-hidden="true" hidden>✓</span>
+            <span id="botApprovalError" class="bot-approval-symbol bot-approval-failure" aria-hidden="true" hidden>!</span>
+          </div>
+          <div class="bot-approval-copy" aria-live="polite">
+            <span class="bot-approval-kicker">SERVER CHAT SECURITY</span>
+            <strong id="botApprovalTitle">Verify you’re not a bot</strong>
+            <p id="botApprovalText">Tick the box below. Server Chat will verify your connection before you continue.</p>
+          </div>
+          <button id="botApprovalClose" class="bot-approval-close" type="button" aria-label="Close security check">×</button>
         </div>
+        <div id="serverBotVerification" class="server-bot-verification" data-state="idle">
+          <label id="serverBotCheckLabel" class="server-bot-check" for="serverBotCheckInput">
+            <input id="serverBotCheckInput" class="server-bot-check-input" type="checkbox" aria-describedby="serverBotCheckHint">
+            <span class="server-bot-check-square" aria-hidden="true"><span>✓</span></span>
+            <span class="server-bot-check-copy"><strong>Verify I’m not a bot</strong><small>Checked directly by the Server Chat server</small></span>
+            <span id="serverBotCheckBadge" class="server-bot-check-badge">Required</span>
+          </label>
+          <p id="serverBotCheckHint" class="server-bot-check-hint">Tick the box to let the server verify this connection. Approval lasts up to 10 minutes.</p>
+        </div>
+        <div id="botVerificationWrap" class="bot-verification-wrap" hidden><div id="turnstileWidget"></div></div>
+        <p id="botCheckNotice" class="bot-check-notice" role="status" aria-live="polite">Checking registration security settings…</p>
+        <div class="bot-approval-footnote"><span aria-hidden="true">🔒</span> Your connection is checked by the Server Chat server. Approval expires automatically.</div>
       </div>
     </div>
     <div class="auth-legal-links"><a href="/legal.html">Terms of Service &amp; Privacy Notice</a></div>
@@ -1555,6 +1563,7 @@ function start() {
   let botApprovalUntil = 0;
   let botApprovalExpiryTimer = null;
   let botApprovalPopupTimer = null;
+  let botVerificationReturnFocus = null;
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
 
@@ -1573,22 +1582,61 @@ function start() {
     $('serverBotCheckHint').textContent = hint;
   }
   function hideBotApprovalScreen() {
+    if (authBusy && pendingAuthRequest && pendingAuthRequest.kind === 'verify-only') return;
     if (botApprovalPopupTimer) clearTimeout(botApprovalPopupTimer);
     botApprovalPopupTimer = null;
     $('botApprovalScreen').hidden = true;
+    const focusTarget = botVerificationReturnFocus;
+    botVerificationReturnFocus = null;
+    if (focusTarget && document.contains(focusTarget)) {
+      try { focusTarget.focus({ preventScroll: true }); } catch (_) { focusTarget.focus(); }
+    }
   }
   function showBotApprovalScreen(state, title, message, hideAfterMs = 0) {
     if (botApprovalPopupTimer) clearTimeout(botApprovalPopupTimer);
     botApprovalPopupTimer = null;
     const screen = $('botApprovalScreen');
     screen.dataset.state = state;
+    $('botApprovalIdle').hidden = state !== 'idle';
     $('botApprovalSpinner').hidden = state !== 'checking';
     $('botApprovalCheck').hidden = state !== 'success';
     $('botApprovalError').hidden = state !== 'error';
     $('botApprovalTitle').textContent = title;
     $('botApprovalText').textContent = message;
+    $('botApprovalClose').disabled = authBusy;
     screen.hidden = false;
     if (hideAfterMs > 0) botApprovalPopupTimer = setTimeout(hideBotApprovalScreen, hideAfterMs);
+  }
+  function botVerificationComplete() {
+    return botCheckInput.checked &&
+      botApprovalUntil > Date.now() &&
+      !(authMode === 'register' && securityConfig.turnstileEnabled && !turnstileToken);
+  }
+  function openBotVerificationDialog(returnFocus = null) {
+    botVerificationReturnFocus = returnFocus || $('authSubmit');
+    const serverApproved = botApprovalUntil > Date.now();
+    const needsTurnstile = authMode === 'register' && securityConfig.turnstileEnabled && !turnstileToken;
+    $('botVerificationWrap').hidden = !(authMode === 'register' && securityConfig.turnstileEnabled);
+    if (authMode === 'register' && securityConfig.turnstileEnabled) prepareTurnstileWidget();
+
+    if (serverApproved) {
+      botCheckInput.checked = true;
+      botCheckInput.disabled = true;
+      setBotCheckDisplay('success', 'Approved', 'Server Chat already approved this network.');
+      if (needsTurnstile) {
+        showBotApprovalScreen('idle', 'One more security step', 'The server approved your connection. Complete the additional check below to finish.');
+      } else {
+        showBotApprovalScreen('success', 'Server approved this connection', 'This network is already verified. You can continue.', 1400);
+      }
+    } else {
+      botCheckInput.checked = false;
+      botCheckInput.disabled = false;
+      setBotCheckDisplay('idle', 'Required', 'Tick the box to let the server verify this connection. Approval lasts up to 10 minutes.');
+      showBotApprovalScreen('idle', 'Verify you’re not a bot', 'Tick the box below. Server Chat will verify your connection before you continue.');
+    }
+    if (serverApproved && !needsTurnstile) return;
+    const firstControl = serverApproved && needsTurnstile ? $('botApprovalClose') : botCheckInput;
+    try { firstControl.focus({ preventScroll: true }); } catch (_) { firstControl.focus(); }
   }
   function requestBotVerification() {
     if (authBusy) {
@@ -1603,7 +1651,7 @@ function start() {
     if (!socket.connected) {
       botCheckInput.checked = false;
       setBotCheckDisplay('error', 'Try again', 'The server is not connected yet. Please try again.');
-      showBotApprovalScreen('error', 'Server not connected', 'Connect to Server Chat before running the security check.', 3000);
+      showBotApprovalScreen('error', 'Server not connected', 'Connect to Server Chat before running the security check.');
       return;
     }
     botApprovalUntil = 0;
@@ -1633,12 +1681,15 @@ function start() {
         botCheckInput.checked = true;
         return;
       }
-      setBotCheckDisplay('idle', 'Required', 'Tick the box to let the server verify this connection. Approval lasts 10 minutes.');
+      setBotCheckDisplay('idle', 'Required', 'Tick the box to let the server verify this connection. Approval lasts up to 10 minutes.');
       return;
     }
     requestBotVerification();
   });
-
+  $('botApprovalClose').addEventListener('click', hideBotApprovalScreen);
+  $('botApprovalScreen').addEventListener('click', event => {
+    if (event.target === $('botApprovalScreen')) hideBotApprovalScreen();
+  });
   function showAuthGate(message = '') {
     accountAuthenticated = false;
     authGate.hidden = false;
@@ -1670,7 +1721,13 @@ function start() {
     authConfirmInput.required = false;
     $('authLegalConsent').hidden = !registering;
     $('loginSecurityHint').hidden = registering;
-    if (!registering) resetTurnstileChallenge();
+    if (!registering) {
+      resetTurnstileChallenge();
+      $('botVerificationWrap').hidden = true;
+    } else {
+      $('botVerificationWrap').hidden = !securityConfig.turnstileEnabled;
+      if (securityConfig.turnstileEnabled) prepareTurnstileWidget();
+    }
     authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
     authMessage.textContent = '';
     authMessage.classList.remove('is-error');
@@ -1693,6 +1750,9 @@ function start() {
         callback: token => {
           turnstileToken = token;
           $('botCheckNotice').textContent = 'Security check completed.';
+          if (authMode === 'register' && botApprovalUntil > Date.now() && !$('botApprovalScreen').hidden) {
+            showBotApprovalScreen('success', 'All checks complete', 'The server approved this connection and the additional check is complete.', 1700);
+          }
         },
         'expired-callback': () => {
           turnstileToken = '';
@@ -1734,8 +1794,8 @@ function start() {
       securityConfig.turnstileEnabled = config.turnstileEnabled === true && typeof config.turnstileSiteKey === 'string' && config.turnstileSiteKey.length > 0;
       securityConfig.turnstileSiteKey = securityConfig.turnstileEnabled ? config.turnstileSiteKey : '';
       if (securityConfig.turnstileEnabled) {
-        $('botVerificationWrap').hidden = false;
-        notice.textContent = 'Complete the anti-bot check before creating an account.';
+        $('botVerificationWrap').hidden = authMode !== 'register';
+        notice.textContent = 'Complete the additional anti-bot check here before creating an account.';
         if (authMode === 'register') prepareTurnstileWidget();
       } else {
         $('botVerificationWrap').hidden = true;
@@ -1747,8 +1807,16 @@ function start() {
     }
   }
 
-  $('authTabLogin').addEventListener('click', () => { if (!authBusy) setAuthMode('login'); });
-  $('authTabRegister').addEventListener('click', () => { if (!authBusy) setAuthMode('register'); });
+  $('authTabLogin').addEventListener('click', () => {
+    if (authBusy) return;
+    setAuthMode('login');
+    if (!$('botApprovalScreen').hidden) hideBotApprovalScreen();
+  });
+  $('authTabRegister').addEventListener('click', () => {
+    if (authBusy) return;
+    setAuthMode('register');
+    if (!botVerificationComplete()) openBotVerificationDialog($('authSubmit'));
+  });
   initRegistrationSecurity();
 
   async function solveLoginChallenge(challenge) {
@@ -1793,7 +1861,7 @@ function start() {
       botApprovalUntil = 0;
       botCheckInput.checked = false;
       setBotCheckDisplay('error', 'Try again', 'The server could not approve this connection. Tick the box to retry.');
-      showBotApprovalScreen('error', 'Server approval failed', message, 3200);
+      showBotApprovalScreen('error', 'Server approval failed', message);
     }
   }
 
@@ -1860,7 +1928,12 @@ function start() {
           setBotCheckDisplay('idle', 'Required', 'The approval expired. Tick the box to verify this connection again.');
         }
       }, Math.max(0, approvedUntil - Date.now()) + 25);
-      showBotApprovalScreen('success', 'Server approved this connection', 'This network is verified for ' + approvalDuration + '. You can continue.', 2400);
+      const needsAdditionalCheck = authMode === 'register' && securityConfig.turnstileEnabled && !turnstileToken;
+      if (needsAdditionalCheck) {
+        showBotApprovalScreen('success', 'Server approved this connection', 'This network is verified. Complete the additional check above to finish.', 0);
+      } else {
+        showBotApprovalScreen('success', 'Server approved this connection', 'This network is verified for ' + approvalDuration + '. You can continue.', 1700);
+      }
       return;
     }
     if (request.kind === 'register') {
@@ -1895,11 +1968,10 @@ function start() {
       if (botApprovalUntil <= Date.now()) {
         botApprovalUntil = 0;
         botCheckInput.checked = false;
+        botCheckInput.disabled = false;
         setBotCheckDisplay('idle', 'Required', 'The approval expired. Tick the box to verify this connection again.');
       }
-      authMessage.textContent = 'Please complete the Server Chat bot check first. Tick the box and wait for server approval.';
-      authMessage.classList.add('is-error');
-      botCheckInput.focus();
+      openBotVerificationDialog($('authSubmit'));
       return;
     }
     if (authMode === 'register') {
@@ -1919,8 +1991,7 @@ function start() {
         return;
       }
       if (securityConfig.turnstileEnabled && !turnstileToken) {
-        authMessage.textContent = 'Complete the bot check before creating your account.';
-        authMessage.classList.add('is-error');
+        openBotVerificationDialog($('authSubmit'));
         return;
       }
     }

@@ -578,3 +578,157 @@ button:disabled {
     transition: none !important;
   }
 }
+
+
+/* Early bot-check modal: the security step is prominent, compact and separate from the form. */
+#botApprovalScreen[hidden] { display:none !important; }
+#botApprovalScreen [hidden] { display:none !important; }
+#botApprovalScreen {
+  z-index:2147483647;
+  padding:20px;
+  background:rgba(16,10,23,.62);
+  backdrop-filter:blur(9px) saturate(1.12);
+  -webkit-backdrop-filter:blur(9px) saturate(1.12);
+}
+#botApprovalScreen .bot-approval-card {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:0;
+  width:min(460px,100%);
+  padding:23px;
+  border:1px solid color-mix(in srgb,var(--line) 90%,transparent);
+  border-radius:20px;
+  background:var(--panel);
+  color:var(--ink);
+  box-shadow:0 28px 90px rgba(0,0,0,.34);
+}
+.bot-approval-head {
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) 30px;
+  align-items:start;
+  gap:12px;
+  padding-bottom:18px;
+  border-bottom:1px solid var(--line);
+}
+.bot-approval-icon-wrap {
+  display:grid;
+  place-items:center;
+  width:42px;
+  height:42px;
+  border-radius:13px;
+  background:var(--accent-soft);
+}
+#botApprovalScreen .bot-approval-spinner,
+#botApprovalScreen .bot-approval-symbol {
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  border-radius:11px;
+}
+#botApprovalScreen .bot-approval-spinner {
+  border-width:3px;
+  border-radius:50%;
+}
+#botApprovalScreen .bot-approval-idle {
+  display:grid;
+  place-items:center;
+  background:transparent;
+  color:var(--accent);
+  font-size:21px;
+}
+.bot-approval-copy { min-width:0; }
+.bot-approval-kicker {
+  display:block;
+  margin:1px 0 6px;
+  color:var(--accent);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.14em;
+}
+#botApprovalScreen .bot-approval-copy strong {
+  display:block;
+  color:var(--ink);
+  font-size:18px;
+  font-weight:900;
+  letter-spacing:-.035em;
+  line-height:1.25;
+}
+#botApprovalScreen .bot-approval-copy p {
+  margin:7px 0 0;
+  color:var(--mute);
+  font-size:11px;
+  line-height:1.55;
+}
+.bot-approval-close {
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  min-height:30px;
+  margin:0;
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--bg);
+  color:var(--mute);
+  font-size:21px;
+  line-height:1;
+}
+.bot-approval-close:hover:not(:disabled) {
+  background:var(--surface-soft);
+  color:var(--ink);
+}
+.bot-approval-close:disabled { opacity:.35; cursor:wait; }
+#botApprovalScreen .server-bot-verification { margin:17px 0 9px; }
+#botApprovalScreen .server-bot-check {
+  min-height:69px;
+  padding:13px;
+  border-radius:13px;
+  background:var(--bg);
+}
+#botApprovalScreen .server-bot-check-copy strong { font-size:12px; }
+#botApprovalScreen .server-bot-check-copy small { font-size:10px; }
+#botApprovalScreen .server-bot-check-hint { font-size:10px; }
+#botApprovalScreen .bot-verification-wrap {
+  display:flex;
+  justify-content:center;
+  margin:10px 0;
+  padding:11px 7px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--bg);
+  overflow-x:auto;
+}
+#botApprovalScreen .bot-check-notice {
+  min-height:0;
+  margin:8px 2px 0;
+  color:var(--mute);
+  font-size:10px;
+  line-height:1.5;
+}
+.bot-approval-footnote {
+  display:flex;
+  align-items:flex-start;
+  gap:7px;
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+  color:var(--mute);
+  font-size:9px;
+  line-height:1.5;
+}
+.bot-approval-footnote span { flex:0 0 auto; }
+#botApprovalScreen[data-state="checking"] .bot-approval-icon-wrap { background:var(--accent-soft); }
+#botApprovalScreen[data-state="success"] .bot-approval-icon-wrap { background:rgba(22,128,61,.10); }
+#botApprovalScreen[data-state="error"] .bot-approval-icon-wrap { background:color-mix(in srgb,var(--bad) 8%,var(--panel)); }
+@media(max-width:520px) {
+  #botApprovalScreen { padding:12px; }
+  #botApprovalScreen .bot-approval-card { padding:17px; border-radius:17px; }
+  .bot-approval-head { grid-template-columns:36px minmax(0,1fr) 28px; gap:9px; padding-bottom:14px; }
+  .bot-approval-icon-wrap { width:36px; height:36px; border-radius:11px; }
+  #botApprovalScreen .bot-approval-spinner,
+  #botApprovalScreen .bot-approval-symbol { width:30px; height:30px; flex-basis:30px; }
+  #botApprovalScreen .bot-approval-copy strong { font-size:16px; }
+  .bot-approval-close { width:28px; height:28px; min-height:28px; }
+}
