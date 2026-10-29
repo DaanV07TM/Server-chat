@@ -1631,6 +1631,8 @@ function start() {
     pendingLoginCredentials = null;
     authBusy = false;
     authSubmit.disabled = false;
+    $('authTabLogin').disabled = false;
+    $('authTabRegister').disabled = false;
     authSubmit.textContent = 'Log in';
     authMessage.textContent = message;
     authMessage.classList.add('is-error');
@@ -1704,6 +1706,8 @@ function start() {
     pendingAuthMode = authMode;
     authBusy = true;
     authSubmit.disabled = true;
+    $('authTabLogin').disabled = true;
+    $('authTabRegister').disabled = true;
     authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
     authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Preparing a quick server security check…';
     authMessage.classList.remove('is-error');
@@ -1739,6 +1743,8 @@ function start() {
     if (attemptedRegistration) resetTurnstileChallenge();
     authBusy = false;
     authSubmit.disabled = false;
+    $('authTabLogin').disabled = false;
+    $('authTabRegister').disabled = false;
     setAuthMode(authMode);
     if (!data || !data.ok) {
       if (data && data.invalidSession) {
