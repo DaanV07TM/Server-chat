@@ -27,6 +27,10 @@ To use catalogue search, open `#music`, enter a song title or artist, and click 
 
 To use voice, open `#voice`, click **Join voice**, and allow microphone access in your browser. Voice is off until you choose to join. You can mute or leave at any time. Screen sharing is opt-in and room members may see your screen; moderators may monitor or stop an active share.
 
+## Interface and appearance
+
+The app uses a grouped toolbar, with navigation and room actions kept separate from account controls. Open **Appearance** to switch light/dark mode and choose an accent palette. The preference is saved locally in the current browser.
+
 ## Chat experience
 
 - **Replies:** Use **Reply** on a message to attach a reference to the original message. The server stores only the referenced message ID and author label, not a quoted copy of private-room text.
