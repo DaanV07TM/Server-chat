@@ -191,7 +191,7 @@ body[data-room="ai"] > header.app-header .app-header-account-actions {
   margin-left: auto;
 }
 body[data-room="ai"] > header.app-header #accentPaletteToggle {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 /* One simple appearance menu for mode and accent; no separate theme buttons cluttering the bar. */
