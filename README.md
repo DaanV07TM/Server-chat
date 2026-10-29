@@ -6,6 +6,14 @@ A real-time chat with temporary username/password accounts, plaintext public/off
 
 **Public website URL:** The actual Render URL is not recorded in this repository. Copy the exact `https://…onrender.com` address from the web service page in your Render dashboard before sharing this README. I have intentionally not guessed the URL.
 
+## Login anti-bot check
+
+Every password-based login requests a short-lived, one-time proof-of-work challenge from the chat server. The browser performs a small SHA-256 search and the server validates the answer, connection binding, expiry and one-time use. It uses built-in cryptography rather than an external CAPTCHA provider. This raises the cost of scripted login attempts but cannot prove that a visitor is human or make automation impossible; keep the existing login rate limit in place. Session-token resume is a separate flow and does not ask for the password again.
+
+## Patch notes
+
+The in-app release history is available at [`/patch-notes.html`](https://github.com/DaanV07TM/Server-chat/blob/main/public/patch-notes.html) and from the Patch notes link in the main navigation. It lists user-facing changes by date.
+
 ## What users can do
 
 - **`#general`** — casual public conversation.

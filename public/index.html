@@ -609,7 +609,7 @@ button:active:not(:disabled){transform:translateY(0)}
   <button id="logoutBtn" class="account-logout" type="button" title="Log out of this temporary account">Log out</button>
   <button id="admbtn" type="button" hidden>⚙ Admin</button>
 </header>
-<nav id="channelNav" aria-label="Official channels">
+<nav id="channelNav" aria-label="Main navigation">
   <div class="sidebar-brand">
     <span class="sidebar-brand-mark" aria-hidden="true">SC</span>
     <span class="sidebar-brand-copy"><strong>Server Chat</strong><small>COMMUNITY SPACE</small></span>
@@ -625,13 +625,14 @@ button:active:not(:disabled){transform:translateY(0)}
   <div class="sidebar-section-label">APPS</div>
   <a class="channel-link ai-channel-link" data-channel="ai" href="/?room=ai"><span aria-hidden="true">✦</span><span>AI Studio</span><span class="channel-badge">PRIVATE</span></a>
   <a class="channel-link status-page-link" href="/status.html"><span class="channel-glyph" aria-hidden="true">◷</span><span>Server status</span><span class="channel-badge">LIVE</span></a>
+  <a class="channel-link patch-notes-page-link" href="/patch-notes.html"><span class="channel-glyph" aria-hidden="true">↻</span><span>Patch notes</span><span class="channel-badge">UPDATES</span></a>
   <div class="sidebar-spacer" aria-hidden="true"></div>
   <div class="sidebar-dock" aria-label="Quick launch">
     <a class="sidebar-dock-item" href="/?room=general" aria-label="Open general chat" title="General chat"><span class="dock-glyph dock-chat">#</span><small>Chat</small></a>
     <a class="sidebar-dock-item" href="/?room=ai" aria-label="Open private AI Studio" title="AI Studio"><span class="dock-glyph dock-ai">✦</span><small>AI</small></a>
     <a class="sidebar-dock-item" href="/status.html" aria-label="Open server status" title="Server status"><span class="dock-glyph dock-status">⌁</span><small>Status</small></a>
   </div>
-  <div class="sidebar-footer"><span class="sidebar-footer-dot" aria-hidden="true"></span><span><strong>Server connected</strong><small>Secure community space</small></span></div>
+  <div class="sidebar-footer"><span id="sidebarConnectionDot" class="sidebar-footer-dot" data-state="connecting" aria-hidden="true"></span><span><strong id="sidebarConnectionLabel">Connecting to server</strong><small id="sidebarConnectionDetail">Waiting for a live connection</small></span></div>
 </nav>
 <section id="messageSearchPanel" hidden aria-label="Search current room messages">
   <input id="messageSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
@@ -807,6 +808,7 @@ button:active:not(:disabled){transform:translateY(0)}
         <p class="auth-hint">Enter the username that was generated for your account.</p>
         <label class="auth-label" for="authPassword">Password</label>
         <input id="authPassword" name="password" type="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="Your password" required>
+        <p id="loginSecurityHint" class="login-security-hint" role="status">A quick security check runs on this server when you sign in.</p>
         <div id="authConfirmWrap" hidden>
           <label class="auth-label" for="authPasswordConfirm">Confirm password</label>
           <input id="authPasswordConfirm" name="passwordConfirm" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Type it again">
@@ -1225,7 +1227,7 @@ function showWelcomeGuide() {
 }
 
 function start() {
-  const EMPTY = '<p class="empty" id="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
+  const EMPTY = '<p class="empty">Nothing here yet. Write the first message. Messages disappear after 1 hour.</p>';
   const params = new URLSearchParams(location.search);
   const room = (params.get('room') || 'general').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 30) || 'general';
   const isPrivateRoom = room.startsWith('private-');
@@ -1474,6 +1476,8 @@ function start() {
   let turnstileToken = '';
   let turnstileScriptRequested = false;
   let pendingAuthMode = '';
+  let pendingLoginCredentials = null;
+  let loginChallengeTimer = null;
   let joinAuthenticated = () => {};
   try { accountSessionToken = localStorage.getItem('accountSessionToken') || ''; } catch (_) {}
 
@@ -1515,6 +1519,7 @@ function start() {
     authConfirmWrap.hidden = true;
     authConfirmInput.required = false;
     $('authLegalConsent').hidden = !registering;
+    $('loginSecurityHint').hidden = registering;
     if (!registering) resetTurnstileChallenge();
     authSubmit.textContent = registering ? 'Generate account and password' : 'Log in';
     authMessage.textContent = '';
@@ -1592,9 +1597,69 @@ function start() {
     }
   }
 
-  $('authTabLogin').addEventListener('click', () => setAuthMode('login'));
-  $('authTabRegister').addEventListener('click', () => setAuthMode('register'));
+  $('authTabLogin').addEventListener('click', () => { if (!authBusy) setAuthMode('login'); });
+  $('authTabRegister').addEventListener('click', () => { if (!authBusy) setAuthMode('register'); });
   initRegistrationSecurity();
+
+  async function solveLoginChallenge(challenge) {
+    if (!challenge || typeof challenge.challengeId !== 'string' ||
+        !/^[a-f0-9]{48}$/.test(challenge.challengeId) ||
+        typeof challenge.nonce !== 'string' || !/^[a-f0-9]{48}$/.test(challenge.nonce) ||
+        challenge.difficultyBits !== 16 ||
+        !Number.isFinite(challenge.expiresAt) || challenge.expiresAt <= Date.now()) {
+      throw new Error('The server returned an invalid or expired security challenge.');
+    }
+    if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') {
+      throw new Error('This browser does not support the required secure login check. Open Server Chat over HTTPS or in a current browser.');
+    }
+    const encoder = new TextEncoder();
+    for (let proof = 0; proof <= 10000000; proof++) {
+      if (challenge.expiresAt <= Date.now()) throw new Error('The security check expired. Please try again.');
+      const input = encoder.encode(challenge.nonce + ':' + String(proof));
+      const digest = new Uint8Array(await window.crypto.subtle.digest('SHA-256', input));
+      if (digest[0] === 0 && digest[1] === 0) return proof;
+      if (proof > 0 && proof % 128 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    throw new Error('The security check could not be completed. Please try again.');
+  }
+
+  function failLoginChallenge(message) {
+    if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+    loginChallengeTimer = null;
+    pendingLoginCredentials = null;
+    authBusy = false;
+    authSubmit.disabled = false;
+    $('authTabLogin').disabled = false;
+    $('authTabRegister').disabled = false;
+    authSubmit.textContent = 'Log in';
+    authMessage.textContent = message;
+    authMessage.classList.add('is-error');
+  }
+
+  socket.on('auth:challenge', async challenge => {
+    const credentials = pendingLoginCredentials;
+    if (!credentials || !authBusy) return;
+    try {
+      authMessage.textContent = 'Completing the server security check on this device…';
+      authMessage.classList.remove('is-error');
+      const proof = await solveLoginChallenge(challenge);
+      if (pendingLoginCredentials !== credentials || !authBusy) return;
+      if (!socket.connected) throw new Error('The server connection was lost. Please try again.');
+      socket.emit('auth:login', {
+        username: credentials.username,
+        password: credentials.password,
+        challengeId: challenge.challengeId,
+        proof
+      });
+      authMessage.textContent = 'Security check passed. Signing in…';
+    } catch (error) {
+      if (pendingLoginCredentials !== credentials) return;
+      failLoginChallenge(error && error.message ? error.message : 'The server security check failed. Please try again.');
+    }
+  });
+
   authForm.addEventListener('submit', event => {
     event.preventDefault();
     if (authBusy || !socket.connected) {
@@ -1641,8 +1706,10 @@ function start() {
     pendingAuthMode = authMode;
     authBusy = true;
     authSubmit.disabled = true;
+    $('authTabLogin').disabled = true;
+    $('authTabRegister').disabled = true;
     authSubmit.textContent = authMode === 'register' ? 'Generating credentials…' : 'Signing in…';
-    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Connecting securely…';
+    authMessage.textContent = authMode === 'register' ? 'Creating your temporary account…' : 'Preparing a quick server security check…';
     authMessage.classList.remove('is-error');
     if (authMode === 'register') {
       socket.emit('auth:register', {
@@ -1653,19 +1720,31 @@ function start() {
         website: $('registrationWebsite').value
       });
     } else {
-      socket.emit('auth:login', {
+      pendingLoginCredentials = {
         username: $('authUsername').value.trim(),
         password: authPasswordInput.value
-      });
+      };
+      if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+      loginChallengeTimer = setTimeout(() => {
+        if (pendingLoginCredentials) {
+          failLoginChallenge('The server security check timed out. Please try signing in again.');
+        }
+      }, 20000);
+      socket.emit('auth:challenge-request');
     }
   });
 
   socket.on('auth:result', data => {
     const attemptedRegistration = pendingAuthMode === 'register';
     pendingAuthMode = '';
+    if (loginChallengeTimer) clearTimeout(loginChallengeTimer);
+    loginChallengeTimer = null;
+    pendingLoginCredentials = null;
     if (attemptedRegistration) resetTurnstileChallenge();
     authBusy = false;
     authSubmit.disabled = false;
+    $('authTabLogin').disabled = false;
+    $('authTabRegister').disabled = false;
     setAuthMode(authMode);
     if (!data || !data.ok) {
       if (data && data.invalidSession) {
@@ -1767,7 +1846,17 @@ function start() {
     });
     if (confirmed) socket.emit('auth:logout');
   });
+  function updateSidebarConnectionStatus(state, label, detail) {
+    const dot = $('sidebarConnectionDot');
+    const title = $('sidebarConnectionLabel');
+    const subtitle = $('sidebarConnectionDetail');
+    if (dot) dot.dataset.state = state;
+    if (title) title.textContent = label;
+    if (subtitle) subtitle.textContent = detail;
+  }
+
   socket.on('connect', () => {
+    updateSidebarConnectionStatus('connected', 'Server connected', 'Live connection ready');
     if (accountSessionToken) {
       authMessage.textContent = 'Restoring your temporary account…';
       socket.emit('auth:resume', { sessionToken: accountSessionToken });
@@ -1779,6 +1868,7 @@ function start() {
     }
   });
   socket.on('connect_error', () => {
+    updateSidebarConnectionStatus('offline', 'Server unreachable', 'Check your connection');
     if (!isSharedAIView) showAuthGate('Cannot reach the chat server. Check your connection and try again.');
   });
   function closeGeneratedCredentials() {
@@ -2970,12 +3060,22 @@ function start() {
   socket.on('config', c => { $('photo').hidden = !c.images; });
   socket.on('sys', t => { if ($('adm').style.display === 'flex') $('admmsg').textContent = t; else add({ bot: true, text: t }); });
   socket.on('closed', c => {
-    if (c) { log.innerHTML = '<p class="empty" id="empty">The chat is temporarily offline.</p>'; $('online').textContent = 'offline'; }
-    else join();
+    if (c) {
+      updateSidebarConnectionStatus('maintenance', 'Chat unavailable', 'Temporarily in maintenance');
+      log.innerHTML = '<p class="empty">The chat is temporarily offline.</p>';
+      $('online').textContent = 'offline';
+    } else {
+      updateSidebarConnectionStatus('connected', 'Server connected', 'Live connection ready');
+      join();
+    }
   });
   socket.on('connect_error', () => $('online').textContent = 'offline');
   socket.on('disconnect', () => {
+    if (pendingLoginCredentials) {
+      failLoginChallenge('Connection lost during the security check. Please try signing in again when connected.');
+    }
     $('online').textContent = 'reconnecting…';
+    updateSidebarConnectionStatus('connecting', 'Reconnecting…', 'Waiting for server');
     if (localScreenStream) resetScreenShare();
     clearAdminMonitor(false);
     pendingPing = null;
@@ -3958,7 +4058,7 @@ function start() {
   };
   // admin panel (the ⚙ button appears after typing /admin <password>)
   const h = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const B = (label, cmd, cls, ask, inp) => '<button class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
+  const B = (label, cmd, cls, ask, inp) => '<button type="button" class="ab ' + (cls || '') + '" data-cmd="' + h(cmd) + '"' + (ask ? ' data-ask="' + h(ask) + '"' : '') + (inp ? ' data-input="' + inp + '"' : '') + '>' + h(label) + '</button>';
   const SEL = (cmd, opts, cur) => '<select data-cmd="' + cmd + '" aria-label="' + cmd.trim().slice(1) + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
   let admOpen = false, admTimer;
   let recentAdminImages = [];

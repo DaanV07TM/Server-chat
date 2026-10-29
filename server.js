@@ -2086,6 +2086,58 @@ function removeVoiceParticipant(socketId) {
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
 const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
 const AUTH_ATTEMPTS = new Map(); // per-address login attempts
+
+// Server-issued proof-of-work for every password-based login. This adds bot cost without an external CAPTCHA.
+// It is not a guarantee that automated clients are impossible; every proof is verified here and is single-use.
+const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;
+const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;
+const LOGIN_CHALLENGE_MAX_ENTRIES = 5000;
+const LOGIN_CHALLENGES = new Map();
+
+function pruneLoginChallenges() {
+  const now = Date.now();
+  for (const [id, challenge] of LOGIN_CHALLENGES) {
+    if (!challenge || challenge.expiresAt <= now) LOGIN_CHALLENGES.delete(id);
+  }
+  while (LOGIN_CHALLENGES.size >= LOGIN_CHALLENGE_MAX_ENTRIES) {
+    LOGIN_CHALLENGES.delete(LOGIN_CHALLENGES.keys().next().value);
+  }
+}
+
+function issueLoginChallenge(socket) {
+  pruneLoginChallenges();
+  const challengeId = crypto.randomBytes(24).toString('hex');
+  const nonce = crypto.randomBytes(24).toString('hex');
+  const expiresAt = Date.now() + LOGIN_CHALLENGE_TTL_MS;
+  LOGIN_CHALLENGES.set(challengeId, {
+    socketId: socket.id,
+    address: authAddress(socket),
+    nonce,
+    expiresAt
+  });
+  socket.emit('auth:challenge', {
+    challengeId,
+    nonce,
+    difficultyBits: LOGIN_CHALLENGE_DIFFICULTY_BITS,
+    expiresAt
+  });
+}
+
+function verifyLoginChallenge(socket, data) {
+  const challengeId = data && typeof data.challengeId === 'string' ? data.challengeId : '';
+  const proof = data && data.proof;
+  if (!/^[a-f0-9]{48}$/.test(challengeId) || !Number.isSafeInteger(proof) || proof < 0) return false;
+  const challenge = LOGIN_CHALLENGES.get(challengeId);
+  // Consume the challenge before checking the proof: a challenge can never be replayed.
+  if (challenge) LOGIN_CHALLENGES.delete(challengeId);
+  if (!challenge || challenge.expiresAt <= Date.now() ||
+      challenge.socketId !== socket.id ||
+      challenge.address !== authAddress(socket)) return false;
+  const digest = crypto.createHash('sha256').update(challenge.nonce + ':' + String(proof)).digest();
+  // 16 leading zero bits require approximately 65,536 hashes on average.
+  return digest[0] === 0 && digest[1] === 0;
+}
+
 const AUTH_REGISTRATION_ATTEMPTS = new Map(); // per-address account-creation attempts
 const AUTH_REGISTRATION_LOCKS = new Set();
 const MAX_TEMP_ACCOUNTS = 2000;
@@ -2095,7 +2147,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
 const REGISTRATION_MAX_ATTEMPTS = 12;
 const FAKE_ACCOUNT_SALT = crypto.randomBytes(16).toString('hex');
-const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // login and public announcement sync can run before account auth
+const AUTH_EVENTS = new Set(['auth:register', 'auth:login', 'auth:challenge-request', 'auth:resume', 'auth:logout', 'auth:admin-login', 'auth:admin-resume', 'global-announcement:sync']); // Authentication and public announcement sync can run before account auth
 
 function validAccountUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{3,20}$/.test(value);
@@ -2181,6 +2233,10 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('auth:challenge-request', () => {
+    issueLoginChallenge(socket);
+  });
+
   // Every non-auth socket packet must carry a currently valid temporary-account session.
   socket.use((packet, next) => {
     if (!allowSocketTraffic(socket)) return next(new Error('Excessive traffic from this network.'));
@@ -2210,6 +2266,9 @@ io.on('connection', (socket) => {
   socket.on('auth:admin-login', (d) => {
     if (!allowAuthAttempt(socket, 'login')) {
       return socket.emit('auth:admin-result', { ok: false, message: 'Too many login attempts. Please wait before trying again.' });
+    }
+    if (!verifyLoginChallenge(socket, d)) {
+      return socket.emit('auth:admin-result', { ok: false, message: 'The server security check expired or failed. Please try again.' });
     }
     const password = typeof (d && d.password) === 'string' ? d.password : '';
     const result = login(password);
@@ -2295,6 +2354,9 @@ io.on('connection', (socket) => {
   socket.on('auth:login', async (d) => {
     if (socket.data.account) return socket.emit('auth:result', { ok: false, message: 'You are already logged in.' });
     if (!allowAuthAttempt(socket, 'login')) return socket.emit('auth:result', { ok: false, message: 'Too many login attempts. Please wait 15 minutes.' });
+    if (!verifyLoginChallenge(socket, d)) {
+      return socket.emit('auth:result', { ok: false, message: 'The server security check expired or failed. Please try again.' });
+    }
     const username = typeof (d && d.username) === 'string' ? d.username.trim() : '';
     const password = typeof (d && d.password) === 'string' ? d.password : '';
 

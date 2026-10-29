@@ -33,6 +33,7 @@
 .auth-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; margin-bottom:22px; border:1px solid var(--line); border-radius:13px; background:var(--surface-soft); }
 .auth-tabs button { width:auto; margin:0; padding:10px 12px; border:0; border-radius:9px; background:transparent; color:var(--mute); font-size:12px; font-weight:800; box-shadow:none; }
 .auth-tabs button[aria-selected="true"] { background:var(--panel); color:var(--ink); box-shadow:0 2px 8px rgba(22,32,51,.08); }
+.auth-tabs button:disabled { opacity:.55; cursor:wait; }
 .auth-card form { display:flex; flex-direction:column; gap:0; }
 .auth-label { display:block; margin:13px 0 7px; color:var(--ink); font-size:12px; font-weight:800; }
 .auth-card input { display:block; width:100%; min-width:0; height:47px; padding:12px 13px; border:1px solid var(--line); border-radius:12px; outline:none; background:var(--bg); color:var(--ink); font:inherit; font-size:13px; transition:border-color .16s, box-shadow .16s; }
@@ -157,3 +158,6 @@
 
 /* Keep destructive confirmations above the account settings overlay. */
 #siteDialog { z-index: 15200 !important; }
+
+.login-security-hint { margin:7px 0 0; color:var(--mute); font-size:10px; line-height:1.5; }
+.login-security-hint[hidden] { display:none !important; }
