@@ -1590,7 +1590,7 @@ function start() {
         if (authMode === 'register') prepareTurnstileWidget();
       } else {
         $('botVerificationWrap').hidden = true;
-        notice.textContent = 'Automatic rate limits and abuse protection are active. The interactive bot check is not configured on this server.';
+        notice.textContent = 'A lightweight local check runs before registration. A successful check approves this IP for 10 minutes. The optional interactive CAPTCHA is not configured.';
       }
     } catch (_) {
       securityConfigLoaded = false;
@@ -1606,7 +1606,7 @@ function start() {
     if (!challenge || typeof challenge.challengeId !== 'string' ||
         !/^[a-f0-9]{48}$/.test(challenge.challengeId) ||
         typeof challenge.nonce !== 'string' || !/^[a-f0-9]{48}$/.test(challenge.nonce) ||
-        challenge.difficultyBits !== 16 ||
+        challenge.difficultyBits !== 12 ||
         !Number.isFinite(challenge.expiresAt) || challenge.expiresAt <= Date.now()) {
       throw new Error('The server returned an invalid or expired security challenge.');
     }
@@ -1618,7 +1618,7 @@ function start() {
       if (challenge.expiresAt <= Date.now()) throw new Error('The security check expired. Please try again.');
       const input = encoder.encode(challenge.nonce + ':' + String(proof));
       const digest = new Uint8Array(await window.crypto.subtle.digest('SHA-256', input));
-      if (digest[0] === 0 && digest[1] === 0) return proof;
+      if (digest[0] === 0 && (digest[1] & 0xf0) === 0) return proof;
       if (proof > 0 && proof % 128 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
       }
@@ -1666,14 +1666,15 @@ function start() {
     request.submitted = true;
     const approvedUntil = data && Number.isFinite(data.approvedUntil) ? data.approvedUntil : Date.now() + 10 * 60 * 1000;
     const minutesLeft = Math.max(1, Math.ceil((approvedUntil - Date.now()) / 60000));
+    const approvalDuration = minutesLeft === 1 ? '1 minute' : minutesLeft + ' minutes';
     authMessage.classList.remove('is-error');
     if (request.kind === 'register') {
       authSubmit.textContent = 'Generating credentials…';
-      authMessage.textContent = 'Security check passed. This IP is approved for ' + minutesLeft + ' more minute(s). Creating your account…';
+      authMessage.textContent = 'Security check passed. This IP is approved for ' + approvalDuration + '. Creating your account…';
       socket.emit('auth:register', request.data);
     } else if (request.kind === 'login') {
       authSubmit.textContent = 'Signing in…';
-      authMessage.textContent = 'Security check passed. This IP is approved for ' + minutesLeft + ' more minute(s). Signing in…';
+      authMessage.textContent = 'Security check passed. This IP is approved for ' + approvalDuration + '. Signing in…';
       socket.emit('auth:login', request.data);
     } else {
       failLoginChallenge('The pending authentication action was not recognized. Please try again.');
@@ -1754,7 +1755,7 @@ function start() {
     authSubmit.disabled = true;
     $('authTabLogin').disabled = true;
     $('authTabRegister').disabled = true;
-    authSubmit.textContent = 'Verifying network…';
+    authSubmit.textContent = 'Checking network…';
     authMessage.textContent = 'Checking this network for automated traffic. A successful check approves this IP for 10 minutes.';
     authMessage.classList.remove('is-error');
 
