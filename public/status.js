@@ -110,7 +110,7 @@
       root.appendChild(empty);
     }
   }
-  function render(data) {
+  function render(data, latencyMs) {
     const load = data.load || {};
     const warnings = Array.isArray(data.warnings) ? data.warnings : [];
     const hard = warnings.some(item => item.level === 'critical');
@@ -123,6 +123,18 @@
     setText('uptime', formatUptime(data.uptimeSeconds));
     setText('loadLabel', level === 'critical' ? 'Critical' : level === 'warning' ? 'High' : load.level === 'unknown' ? 'Checking' : 'Normal');
     setText('loadSubline', 'CPU ' + number(load.cpuPct) + '% · heap ' + number(load.heapPct) + '%');
+    const safeLatency = Number.isFinite(latencyMs) ? Math.max(0, Math.round(latencyMs)) : null;
+    const latencyQuality = safeLatency === null ? 'unknown' : safeLatency < 80 ? 'good' : safeLatency < 180 ? 'moderate' : safeLatency < 350 ? 'slow' : 'poor';
+    const latencyLabel = safeLatency === null ? 'Unavailable' : safeLatency + ' ms';
+    const latencyDescription = safeLatency === null ? 'Waiting for a successful status response.' :
+      safeLatency < 80 ? 'Excellent response time from this browser to Server Chat.' :
+      safeLatency < 180 ? 'Good response time from this browser to Server Chat.' :
+      safeLatency < 350 ? 'Slower response; check your network if chat also feels delayed.' :
+      'High response time; the network or server may be slow.';
+    setText('networkLatency', latencyLabel);
+    setText('networkLatencyQuality', latencyDescription);
+    const latencyCard = $('networkLatencyCard');
+    if (latencyCard) latencyCard.dataset.quality = latencyQuality;
     setText('resourceLevel', String(load.level || 'unknown').toUpperCase());
     const cpu = number(load.cpuPct);
     setMeter('cpuValue','cpuBar','cpuDetail',cpu,cpu + '%',load.cpuReady ? 'Node.js process use of one CPU core.' : 'Waiting for the first CPU sample.');
@@ -144,11 +156,12 @@
   async function refresh() {
     if (document.visibilityState === 'hidden') return;
     try {
+      const startedAt = performance.now();
       const response = await fetch(API, { cache:'no-store', headers:{ Accept:'application/json' }, signal:AbortSignal.timeout(8000) });
       if (!response.ok) throw new Error('Status endpoint returned ' + response.status);
       const data = await response.json();
       if (!data || data.ok !== true || !data.load) throw new Error('Invalid status response');
-      render(data);
+      render(data, performance.now() - startedAt);
     } catch (_) {
       if (!lastSuccessfulCheck) setOverall('offline','Status unavailable');
       $('connectionError').classList.add('show');
