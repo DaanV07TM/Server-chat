@@ -211,20 +211,31 @@ jobs:
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
           for marker in (
               "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
-              "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;",
+              "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 12;",
               "const LOGIN_CHALLENGES = new Map();",
               "socket.on('auth:challenge-request'",
               "function verifyLoginChallenge(socket, data)",
-              "digest[0] === 0 && digest[1] === 0",
-              "if (!verifyLoginChallenge(socket, d))",
+              "(digest[1] & 0xf0) === 0",
+              "socket.on('auth:challenge-solve'",
+              "socket.emit('auth:challenge-approved'",
+              "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
+              "const VERIFIED_BOT_IPS = new Map();",
+              "if (!isBotIpApproved(socket))",
               "challenge.socketId !== socket.id",
-              "challenge.expiresAt <= Date.now()"
+              "challenge.expiresAt <= Date.now()",
+              "challenge.address !== authAddress(socket)"
           ):
               if marker not in server:
                   raise SystemExit(f"Missing server-side login security check: {marker}")
           for marker in (
               "async function solveLoginChallenge(challenge)",
               "socket.emit('auth:challenge-request')",
+              "socket.emit('auth:challenge-solve'",
+              "socket.on('auth:challenge-approved'",
+              "socket.emit('auth:register', request.data)",
+              "socket.emit('auth:login', request.data)",
+              "pendingAuthRequest = null;",
+              "A successful check approves this IP for 10 minutes"
               "challengeId: challenge.challengeId",
               'id="loginSecurityHint"',
               'href="/patch-notes.html"',
