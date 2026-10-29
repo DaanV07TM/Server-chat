@@ -229,9 +229,16 @@ jobs:
               'href="/patch-notes.html"',
               'aria-label="Main navigation"',
               'type="button" class="ab ',
+              'id="sidebarConnectionDot"',
+              "function updateSidebarConnectionStatus(state, label, detail)",
+              "updateSidebarConnectionStatus('offline'",
+              "updateSidebarConnectionStatus('connecting'",
+              "updateSidebarConnectionStatus('maintenance'"
           ):
               if marker not in html:
                   raise SystemExit(f"Missing login or UI cleanup: {marker}")
+          if '.sidebar-footer-dot[data-state="offline"]' not in css:
+              raise SystemExit("The sidebar needs a visible offline connection state.")
           if 'id="empty"' in html:
               raise SystemExit("Unused empty-state IDs should not be present.")
           if ".login-security-hint[hidden]" not in css:
