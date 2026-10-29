@@ -232,8 +232,8 @@ jobs:
           ):
               if marker not in html:
                   raise SystemExit(f"Missing login or UI cleanup: {marker}")
-          if html.count('id="empty"') != 1:
-              raise SystemExit("The main chat HTML should have one static empty-state ID.")
+          if 'id="empty"' in html:
+              raise SystemExit("Unused empty-state IDs should not be present.")
           if ".login-security-hint[hidden]" not in css:
               raise SystemExit("The login security hint must hide correctly in registration mode.")
           if "server-chat-shell-v4" not in sw or "'/patch-notes.html'" not in sw:
