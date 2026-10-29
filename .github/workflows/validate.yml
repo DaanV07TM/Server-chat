@@ -146,7 +146,7 @@ jobs:
           for marker in ("--bg:#17111c", "--purple:#ff865c", "rgba(119,33,111"):
               if marker not in status_html:
                   raise SystemExit(f"Status page is missing COSMIC colors: {marker}")
-          if "server-chat-shell-v3" not in sw or "'/ubuntu-cosmic.css'" not in sw or "'/legal.html'" not in sw:
+          if "server-chat-shell-v4" not in sw or "'/ubuntu-cosmic.css'" not in sw or "'/legal.html'" not in sw or "'/patch-notes.html'" not in sw:
               raise SystemExit("The service worker must cache the updated theme under a new cache version.")
           if '"theme_color": "#77216f"' not in manifest:
               raise SystemExit("PWA theme color does not match the app branding.")
@@ -197,4 +197,63 @@ jobs:
           for marker in ("TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "10-minute temporary IP block", "application-layer controls"):
               if marker not in readme:
                   raise SystemExit(f"Missing security documentation: {marker}")
+          PY
+- name: Validate login proof-of-work, patch notes and UI cleanup
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          server = Path("server.js").read_text(encoding="utf-8")
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          css = Path("public/accounts.css").read_text(encoding="utf-8")
+          sw = Path("public/sw.js").read_text(encoding="utf-8")
+          notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
+          for marker in (
+              "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
+              "const LOGIN_CHALLENGE_DIFFICULTY_BITS = 16;",
+              "const LOGIN_CHALLENGES = new Map();",
+              "socket.on('auth:challenge-request'",
+              "function verifyLoginChallenge(socket, data)",
+              "digest[0] === 0 && digest[1] === 0",
+              "if (!verifyLoginChallenge(socket, d))",
+              "challenge.socketId !== socket.id",
+              "challenge.expiresAt <= Date.now()"
+          ):
+              if marker not in server:
+                  raise SystemExit(f"Missing server-side login security check: {marker}")
+          for marker in (
+              "async function solveLoginChallenge(challenge)",
+              "socket.emit('auth:challenge-request')",
+              "challengeId: challenge.challengeId",
+              "id=\\"loginSecurityHint\\"",
+              'href=\\"/patch-notes.html\\"',
+              'aria-label=\\"Main navigation\\"',
+              'type=\\"button\\" class=\\"ab ',
+              "server-chat-shell-v4"
+          ):
+              if marker not in html and marker != "server-chat-shell-v4":
+                  raise SystemExit(f"Missing login or UI cleanup: {marker}")
+          if html.count('id="empty"') != 1:
+              raise SystemExit("The main chat HTML should have one static empty-state ID.")
+          if ".login-security-hint[hidden]" not in css:
+              raise SystemExit("The login security hint must hide correctly in registration mode.")
+          if "server-chat-shell-v4" not in sw or "'/patch-notes.html'" not in sw:
+              raise SystemExit("The service worker must cache the current patch-note page.")
+          for marker in (
+              "const cacheKey = url.pathname === '/' || url.pathname === '/index.html'",
+              "cache.put(cacheKey, response.clone())",
+              "const exactPage = await caches.match(request)",
+              "server-chat-shell-v4"
+          ):
+              if marker not in sw:
+                  raise SystemExit(f"Missing offline navigation cache fix: {marker}")
+          for date in ("29 October 2026", "28 October 2026", "27 October 2026"):
+              if date not in notes:
+                  raise SystemExit(f"Missing dated patch-note entry: {date}")
+          if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
+              raise SystemExit("Patch notes must accurately describe the login security limitation.")
+          ids = re.findall(r'\\bid\\s*=\\s*["\']([^"\']+)["\']', html, flags=re.I)
+          duplicates = sorted({item for item in ids if ids.count(item) > 1})
+          if duplicates:
+              raise SystemExit(f"Duplicate static HTML IDs found: {duplicates}")
           PY
