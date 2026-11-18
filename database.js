@@ -11,7 +11,7 @@ function isEnabled() {
 async function initializeDatabase() {
   const connectionString = String(process.env.DATABASE_URL || '').trim();
   if (!connectionString) {
-    return { enabled: false, accounts: [], conversations: [], shares: [] };
+    return { enabled: false, accounts: [], sessions: [], chatMessages: [], conversations: [], shares: [] };
   }
 
   const { Pool } = require('pg');
@@ -100,7 +100,7 @@ async function initializeDatabase() {
 
     const [accountRows, sessionRows, conversationRows, shareRows, chatRows] = await Promise.all([
       pool.query('SELECT account_key, username, account_token, password_salt, password_hash, created_at, legal_accepted_at, legal_terms_version FROM accounts ORDER BY created_at ASC'),
-      pool.query('SELECT session_hash, account_key FROM account_sessions ORDER BY created_at DESC LIMIT 10000'),
+      pool.query('SELECT session_hash, account_key FROM (SELECT session_hash, account_key, created_at FROM account_sessions ORDER BY created_at DESC LIMIT 10000) recent_sessions ORDER BY created_at ASC'),
       pool.query('SELECT owner_key, conversation_id, title, created_at, updated_at, pinned, share_id, messages FROM ai_conversations ORDER BY updated_at DESC'),
       pool.query('SELECT share_id, owner_key, conversation_id, title, messages, created_at, updated_at, expires_at FROM ai_shares WHERE expires_at > $1', [Date.now()]),
       pool.query('SELECT room_key, message_id, payload FROM chat_messages WHERE expires_at > $1 ORDER BY message_id ASC', [Date.now()])
