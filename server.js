@@ -2369,12 +2369,15 @@ function clearAuthAttempts(socket, kind = 'login') {
 async function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
   let token = sessionToken;
   if (!token) {
-    if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
-      const oldestToken = ACCOUNT_SESSIONS.keys().next().value;
-      ACCOUNT_SESSIONS.delete(oldestToken);
-    }
     token = crypto.randomBytes(32).toString('hex');
-    ACCOUNT_SESSIONS.set(token, account.key);
+    const sessionHash = accountSessionHash(token);
+    if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
+      const oldestHash = ACCOUNT_SESSIONS.keys().next().value;
+      await database.deleteAccountSession(oldestHash);
+      ACCOUNT_SESSIONS.delete(oldestHash);
+    }
+    await database.saveAccountSession(account.key, sessionHash);
+    ACCOUNT_SESSIONS.set(sessionHash, account.key);
   }
   socket.data.account = { key: account.key, username: account.username, token: account.token };
   socket.data.authSessionToken = token;
