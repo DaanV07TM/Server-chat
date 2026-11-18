@@ -11,6 +11,7 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
+const database = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,10 +33,11 @@ app.get('/healthz', (_req, res) => {
 });
 
 
-// Private, per-account AI workspaces. Conversations are intentionally memory-only.
+
+// Private, per-account AI workspaces. PostgreSQL persistence is enabled when DATABASE_URL is configured.
 app.set('trust proxy', 1);
 
-const SECURITY_TERMS_VERSION = '2026-10-29-v1';
+const SECURITY_TERMS_VERSION = '2026-11-18-v1';
 const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
 const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
 const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
@@ -188,6 +190,12 @@ app.use((req, res, next) => {
   return next();
 });
 
+// Public, non-sensitive indication of whether durable storage is configured.
+app.get('/api/storage/status', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ storage: database.isEnabled() ? 'postgresql' : 'memory', persistent: database.isEnabled() });
+});
+
 app.get('/api/security-config', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Robots-Tag', 'noindex, nofollow');
@@ -237,7 +245,7 @@ function aiAccountFromRequest(req) {
   const match = /^Bearer ([a-f0-9]{64})$/.exec(authHeader);
   if (!match) return null;
   const token = match[1];
-  const accountKey = ACCOUNT_SESSIONS.get(token);
+  const accountKey = accountSessionKeyForToken(token);
   if (accountKey) {
     const account = TEMP_ACCOUNTS.get(accountKey);
     if (account) return { accountKey, account, sessionToken: token, admin: false };
@@ -345,7 +353,7 @@ app.get('/api/ai/conversations', (req, res) => {
   return res.json({ conversations: items });
 });
 
-app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to create a private AI conversation.' });
@@ -364,6 +372,11 @@ app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), 
     shareId: null,
     pinned: false
   };
+  try {
+    await database.saveAiConversation(auth.accountKey, conversation);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Please try again.' });
+  }
   conversations.set(id, conversation);
   return res.status(201).json({ conversation: aiPublicConversation(conversation) });
 });
@@ -379,7 +392,7 @@ app.get('/api/ai/conversations/:id', (req, res) => {
   return res.json({ conversation: aiPublicConversation(conversation) });
 });
 
-app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to update this private AI conversation.' });
@@ -390,14 +403,19 @@ app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true
   const hasTitle = Object.prototype.hasOwnProperty.call(body, 'title');
   const hasPinned = Object.prototype.hasOwnProperty.call(body, 'pinned');
   if (!hasTitle && !hasPinned) return res.status(400).json({ error: 'No conversation changes were provided.' });
+  if (hasTitle && (typeof body.title !== 'string' || !body.title.trim())) return res.status(400).json({ error: 'Enter a title for this conversation.' });
+  if (hasPinned && typeof body.pinned !== 'boolean') return res.status(400).json({ error: 'Pinned must be true or false.' });
+  const previous = { title: conversation.title, updatedAt: conversation.updatedAt, pinned: conversation.pinned };
   if (hasTitle) {
-    if (typeof body.title !== 'string' || !body.title.trim()) return res.status(400).json({ error: 'Enter a title for this conversation.' });
     conversation.title = aiCleanTitle(body.title);
     conversation.updatedAt = Date.now();
   }
-  if (hasPinned) {
-    if (typeof body.pinned !== 'boolean') return res.status(400).json({ error: 'Pinned must be true or false.' });
-    conversation.pinned = body.pinned;
+  if (hasPinned) conversation.pinned = body.pinned;
+  try {
+    await database.saveAiConversation(auth.accountKey, conversation);
+  } catch (_) {
+    Object.assign(conversation, previous);
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Your changes were not saved.' });
   }
   return res.json({ conversation: {
     id: conversation.id,
@@ -410,7 +428,7 @@ app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true
   } });
 });
 
-app.delete('/api/ai/conversations/:id', (req, res) => {
+app.delete('/api/ai/conversations/:id', async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to delete this conversation.' });
@@ -418,6 +436,11 @@ app.delete('/api/ai/conversations/:id', (req, res) => {
   const id = String(req.params.id || '');
   const conversation = conversations && conversations.get(id);
   if (!/^[a-f0-9]{32}$/.test(id) || !conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
+  try {
+    await database.deleteAiConversation(auth.accountKey, id);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The conversation was not deleted.' });
+  }
   if (conversation.shareId) {
     const share = AI_PUBLIC_SHARES.get(conversation.shareId);
     if (share && share.ownerKey === auth.accountKey) AI_PUBLIC_SHARES.delete(conversation.shareId);
@@ -427,7 +450,7 @@ app.delete('/api/ai/conversations/:id', (req, res) => {
   return res.json({ ok: true });
 });
 
-app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again before sharing this conversation.' });
@@ -439,10 +462,19 @@ app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict:
   if (conversation.shareId) {
     const existing = AI_PUBLIC_SHARES.get(conversation.shareId);
     if (existing && existing.ownerKey === auth.accountKey && existing.conversationId === id) {
-      existing.title = conversation.title;
-      existing.messages = aiPublicConversation(conversation).messages;
-      existing.updatedAt = Date.now();
-      existing.expiresAt = Date.now() + AI_SHARE_TTL_MS;
+      const refreshed = {
+        ...existing,
+        title: conversation.title,
+        messages: aiPublicConversation(conversation).messages,
+        updatedAt: Date.now(),
+        expiresAt: Date.now() + AI_SHARE_TTL_MS
+      };
+      try {
+        await database.saveAiShareAndConversation(refreshed, conversation);
+      } catch (_) {
+        return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link was not updated.' });
+      }
+      Object.assign(existing, refreshed);
       return res.json({ id: conversation.shareId, expiresAt: existing.expiresAt });
     }
   }
@@ -460,12 +492,18 @@ app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict:
     updatedAt: Date.now(),
     expiresAt: Date.now() + AI_SHARE_TTL_MS
   };
+  const sharedConversation = { ...conversation, shareId };
+  try {
+    await database.saveAiShareAndConversation(snapshot, sharedConversation);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link was not created.' });
+  }
   AI_PUBLIC_SHARES.set(shareId, snapshot);
   conversation.shareId = shareId;
   return res.status(201).json({ id: shareId, expiresAt: snapshot.expiresAt });
 });
 
-app.delete('/api/ai/shares/:id', (req, res) => {
+app.delete('/api/ai/shares/:id', async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to stop sharing.' });
@@ -473,6 +511,11 @@ app.delete('/api/ai/shares/:id', (req, res) => {
   const share = AI_PUBLIC_SHARES.get(id);
   if (!/^[a-f0-9]{32}$/.test(id) || !share || share.ownerKey !== auth.accountKey) {
     return res.status(404).json({ error: 'This share link was not found.' });
+  }
+  try {
+    await database.revokeAiShare(auth.accountKey, id);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link is still active.' });
   }
   AI_PUBLIC_SHARES.delete(id);
   const conversation = aiConversationsFor(auth.accountKey)?.get(share.conversationId);
@@ -542,6 +585,11 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   globalRecent.push(now);
   AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
 
+  const previousConversation = {
+    title: conversation.title,
+    updatedAt: conversation.updatedAt,
+    messages: conversation.messages.slice()
+  };
   const userMessage = { role: 'user', content: prompt, createdAt: now };
   conversation.messages.push(userMessage);
   if (!conversation.messages.some(message => message.role === 'assistant')) {
@@ -594,6 +642,14 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
     conversation.messages.push({ role: 'assistant', content: reply.slice(0, replyCharBudget), createdAt: Date.now() });
     conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = Date.now();
+    try {
+      await database.saveAiConversation(auth.accountKey, conversation);
+    } catch (_) {
+      conversation.title = previousConversation.title;
+      conversation.updatedAt = previousConversation.updatedAt;
+      conversation.messages = previousConversation.messages;
+      return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Your answer was not saved; please try again.' });
+    }
     return res.status(200).json({ reply: reply.slice(0, 16000), conversation: aiPublicConversation(conversation) });
   } catch (error) {
     conversation.messages = conversation.messages.filter(message => message !== userMessage);
@@ -668,11 +724,11 @@ const userBans = new Map();
 const OFFICIAL_ANNOUNCEMENT_INFO = [
   { name: 'Server guide', bot: true, pinned: true, text: 'Welcome to #announcements. This is the official read-only channel: only moderators can publish updates. These pinned guide posts are built into the app and return after a server restart.' },
   { name: 'Channel guide', bot: true, pinned: true, text: 'Choose #general for casual chat, #help for questions, #announcements for official updates, #voice for optional voice chat and screen sharing, and #music for shared music search and playback relayed by the server. Text in public and official channels is not end-to-end encrypted; only private-* room text is encrypted. Images are not end-to-end encrypted and appear in chat immediately while moderators can review them. In #voice, click Join voice before your microphone is enabled; mute or leave whenever you like. In #music, search the catalogue or upload audio you have permission to share, then use the shared playback controls.' },
-  { name: 'Privacy & retention', bot: true, pinned: true, text: 'Text in private-* rooms is end-to-end encrypted in the browser using the private invite-link key; public and official channel text is not end-to-end encrypted and can be read by the server. Share a private-room invite with its intended participants only. Images are not end-to-end encrypted: they appear immediately in chat and are also sent to the moderator review panel across public and private rooms. Moderators can mark images reviewed, delete posts, or ban uploaders. Review is manual, not automated detection, and cannot prevent an image from being seen before a moderator acts. This implementation has not been independently audited, and a compromised server could serve modified browser code. Ordinary room history is held in server memory for up to one hour. Hosting providers may process connection metadata.' },
+  { name: 'Privacy & retention', bot: true, pinned: true, text: 'Text in private-* rooms is end-to-end encrypted in the browser using the private invite-link key; public and official channel text is not end-to-end encrypted and can be read by the server. Share a private-room invite with its intended participants only. Images are not end-to-end encrypted: they appear immediately in chat and are also sent to the moderator review panel across public and private rooms. Moderators can mark images reviewed, delete posts, or ban uploaders. Review is manual, not automated detection, and cannot prevent an image from being seen before a moderator acts. This implementation has not been independently audited, and a compromised server could serve modified browser code. With PostgreSQL configured, ordinary room messages are retained for up to one hour (maximum 50 per room); private-room text remains encrypted ciphertext and image binary data is not saved. Without PostgreSQL, ordinary room history stays in server memory. Hosting and database providers may process stored or connection data.' },
   { name: 'Safety reminder', bot: true, pinned: true, text: 'Do not share passwords, private addresses, personal documents, or other sensitive information. Screen shares can be seen by people in the room and may be monitored or stopped by moderators. Images appear in chat immediately and moderators can review them, but manual review cannot prevent harmful or illegal images from being seen before a moderator acts. Use the report flag ⚑ for abusive messages, scams, threats, or other rule violations.' }
 ];
 const MAX_VOICE_USERS = 8; // Mesh WebRTC voice is intended for small groups.
-const rooms = {}, timeouts = {}, strikes = {};   // chat history, moderation state and temporary accounts live in memory only
+const rooms = {}, timeouts = {}, strikes = {};   // restored room history is bounded; live moderation state remains in memory
 let latestAnnouncement = null, latestAnnouncementTimer = null;
 const screenSharers = Object.create(null); // one active WebRTC screen sharer per room
 const screenViewerRooms = new Map(); // viewer socket ID -> room they are authorized to view
@@ -855,15 +911,27 @@ function emitPersonalizedRoomMessage(roomName, eventName, message) {
   }
 }
 
+function persistChatMessage(room, message) {
+  if (room === 'announcements' || !message || !Number.isSafeInteger(message.mid)) return;
+  const ownerKey = accountKeyForIdentityToken(message.tok);
+  database.saveChatMessage(room, message, ownerKey)
+    .catch(() => console.warn('[database] A chat message could not be persisted.'));
+}
 function store(room, m) {
   if (!m.mid) { m.mid = ++midCount; m.v = {}; m.r = {}; m.rep = []; }
   if (!rooms[room]) console.log('[room] new room active');
   const list = (rooms[room] ||= []);
   list.push(m);
   const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : MAX_MSGS;
-  if (list.length > roomLimit) list.shift();
+  if (list.length > roomLimit) {
+    const removed = list.shift();
+    if (removed && Number.isSafeInteger(removed.mid)) {
+      database.deleteChatMessage(removed.mid).catch(() => console.warn('[database] An old chat message could not be pruned.'));
+    }
+  }
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
+  persistChatMessage(room, m);
 }
 function bot(room, text, ownerToken = '', extra = {}) {
   const m = { name: 'Bot', bot: true, text, t: Date.now(), ...extra };
@@ -936,7 +1004,12 @@ const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.adm
 function removeMsg(mid) {
   for (const r in rooms) {
     const i = rooms[r].findIndex(m => m.mid === mid);
-    if (i >= 0) { const [m] = rooms[r].splice(i, 1); io.to(r).emit('removed', mid); return m; }
+    if (i >= 0) {
+      const [m] = rooms[r].splice(i, 1);
+      database.deleteChatMessage(mid).catch(() => console.warn('[database] A removed chat message could not be deleted.'));
+      io.to(r).emit('removed', mid);
+      return m;
+    }
   }
 }
 function findStoredMessage(mid) {
@@ -1188,8 +1261,20 @@ function adminCommand(socket, c, arg, room) {
   if (c === 'status') say(statsLine());
   else if (c === 'offline') { cancelMaint(); goOffline(); say('Chat is offline. Type /online to bring it back.'); }
   else if (c === 'online') { cancelMaint(); offline = false; console.log('[admin] chat is now ONLINE'); io.emit('closed', false); say('Chat is back online.'); }
-  else if (c === 'wipe') { for (const r in rooms) delete rooms[r]; console.log('[admin] all messages wiped'); io.emit('history', []); say('All messages wiped.'); }
-  else if (c === 'clear') { delete rooms[room]; console.log('[admin] a room was cleared'); io.to(room).emit('history', []); say('This room was cleared.'); }
+  else if (c === 'wipe') {
+    for (const r in rooms) delete rooms[r];
+    database.clearChatMessages().catch(() => say('Chat history was cleared in memory, but PostgreSQL could not be updated. Please retry /wipe.'));
+    console.log('[admin] all messages wiped');
+    io.emit('history', []);
+    say('All messages wiped.');
+  }
+  else if (c === 'clear') {
+    delete rooms[room];
+    database.deleteChatRoom(room).catch(() => say('The room was cleared in memory, but PostgreSQL could not be updated. Please retry /clear.'));
+    console.log('[admin] a room was cleared');
+    io.to(room).emit('history', []);
+    say('This room was cleared.');
+  }
   else if (c === 'announce') { if (!arg) return say('Usage: /announce your message'); announce(clean(arg, 300)); console.log('[admin] announcement sent'); }
   else if (c === 'announcealarm') { if (!arg) return say('Usage: /announcealarm urgent message'); announce(clean(arg, 300), { alarm: true }); console.log('[admin] forced audible alarm announcement sent'); }
   else if (c === 'party') { announce(clean(arg, 250) || '🎉 PARTY MODE ACTIVATED! The next two minutes are for good vibes, celebrations and great chat. Drop your best energy below! 🎊', { eventType: 'party' }); say('Party mode activated in every open chat for two minutes.'); }
@@ -1206,8 +1291,10 @@ function adminCommand(socket, c, arg, room) {
     for (const [, conversations] of AI_CONVERSATIONS) conversations.clear();
     AI_CONVERSATIONS.clear();
     AI_PUBLIC_SHARES.clear();
-    say('All temporary AI conversations and share links have been cleared. This cannot be undone.');
-    console.log('[admin] temporary AI conversations and share links cleared');
+    database.clearAiData()
+      .then(() => say('All AI conversations and share links have been cleared. This cannot be undone.'))
+      .catch(() => say('The in-memory AI history was cleared, but PostgreSQL could not be updated. Please retry /aiclear.'));
+    console.log('[admin] AI conversations and share links cleared');
   }
   else if (c === 'maintenance') {
     if (!num || num < 1 || num > 120) return say('Usage: /maintenance 10 (minutes, 1-120). Cancel with /online.');
@@ -1346,6 +1433,7 @@ setInterval(() => {
     if (r !== 'announcements') rooms[r] = rooms[r].filter(m => now - m.t < TTL);
     if (!rooms[r].length) delete rooms[r];
   }
+  database.pruneChatMessages(now).catch(() => console.warn('[database] Expired chat history could not be pruned.'));
   for (const k in timeouts) if (timeouts[k] < now) delete timeouts[k];
   for (const [k, e] of reportLog) if (now - e.t > 86400000) reportLog.delete(k);
   for (const k in reportTimes) if (!reportTimes[k].some(t => now - t < 600000)) delete reportTimes[k];
@@ -2116,9 +2204,23 @@ function removeVoiceParticipant(socketId) {
   console.log('[voice] participant left; active: ' + getVoiceRoster().length);
 }
 
-// Temporary accounts are deliberately memory-only. Passwords are scrypt-hashed; raw passwords are never stored.
+// Account records are restored from PostgreSQL when configured. Passwords are scrypt-hashed; raw passwords are never stored.
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
-const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
+const ACCOUNT_SESSIONS = new Map(); // SHA-256 session token hash -> normalized username
+function accountSessionHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+function accountSessionKeyForToken(token) {
+  if (typeof token !== 'string' || !token) return '';
+  return ACCOUNT_SESSIONS.get(accountSessionHash(token)) || '';
+}
+function accountKeyForIdentityToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  for (const account of TEMP_ACCOUNTS.values()) {
+    if (account.token === token) return account.key;
+  }
+  return null;
+}
 const AUTH_ATTEMPTS = new Map(); // per-address login attempts
 
 // Server-issued proof-of-work for every password-based login. This adds bot cost without an external CAPTCHA.
@@ -2264,15 +2366,18 @@ function clearAuthAttempts(socket, kind = 'login') {
   map.delete(authAddress(socket));
 }
 
-function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
+async function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
   let token = sessionToken;
   if (!token) {
-    if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
-      const oldestToken = ACCOUNT_SESSIONS.keys().next().value;
-      ACCOUNT_SESSIONS.delete(oldestToken);
-    }
     token = crypto.randomBytes(32).toString('hex');
-    ACCOUNT_SESSIONS.set(token, account.key);
+    const sessionHash = accountSessionHash(token);
+    if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
+      const oldestHash = ACCOUNT_SESSIONS.keys().next().value;
+      await database.deleteAccountSession(oldestHash);
+      ACCOUNT_SESSIONS.delete(oldestHash);
+    }
+    await database.saveAccountSession(account.key, sessionHash);
+    ACCOUNT_SESSIONS.set(sessionHash, account.key);
   }
   socket.data.account = { key: account.key, username: account.username, token: account.token };
   socket.data.authSessionToken = token;
@@ -2331,7 +2436,7 @@ io.on('connection', (socket) => {
     if (socket.data.admin === true && socket.data.adminToken && adminSessions.has(socket.data.adminToken)) return next();
     const sessionToken = socket.data.authSessionToken;
     const account = socket.data.account;
-    if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionToken) !== account.key) {
+    if (!account || !sessionToken || accountSessionKeyForToken(sessionToken) !== account.key) {
       socket.emit('auth:required');
       return next(new Error('Authentication required'));
     }
@@ -2427,8 +2532,15 @@ io.on('connection', (socket) => {
         legalAcceptedAt: Date.now(),
         legalTermsVersion: SECURITY_TERMS_VERSION
       };
+      await database.saveAccount(account);
       TEMP_ACCOUNTS.set(accountKey, account);
-      issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      try {
+        await issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      } catch (error) {
+        TEMP_ACCOUNTS.delete(accountKey);
+        await database.deleteAccount(accountKey).catch(() => {});
+        throw error;
+      }
     } catch (error) {
       console.warn('[accounts] Temporary account creation failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
@@ -2473,10 +2585,10 @@ io.on('connection', (socket) => {
       const expected = account ? account.passwordHash : Buffer.alloc(64);
       const matches = crypto.timingSafeEqual(candidate, expected);
       if (!account || !matches) {
-        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
+        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
       }
       clearAuthAttempts(socket, 'login');
-      issueTemporaryAccountSession(socket, account);
+      await issueTemporaryAccountSession(socket, account);
     } catch (error) {
       console.warn('[accounts] Login failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'Login is temporarily unavailable. Please try again.' });
@@ -2504,15 +2616,24 @@ io.on('connection', (socket) => {
       }
       const salt = crypto.randomBytes(16).toString('hex');
       const passwordHash = await scryptPassword(newPassword, salt);
+      const previousCredentials = { salt: account.salt, passwordHash: account.passwordHash };
       account.salt = salt;
       account.passwordHash = passwordHash;
-
       const currentSessionToken = socket.data.authSessionToken;
+      const currentSessionHash = accountSessionHash(currentSessionToken);
+      try {
+        await database.updateAccountPasswordAndRevokeSessions(account, currentSessionHash);
+      } catch (error) {
+        account.salt = previousCredentials.salt;
+        account.passwordHash = previousCredentials.passwordHash;
+        throw error;
+      }
+
       for (const [otherToken, otherAccountKey] of [...ACCOUNT_SESSIONS.entries()]) {
-        if (otherAccountKey !== account.key || otherToken === currentSessionToken) continue;
+        if (otherAccountKey !== account.key || otherToken === currentSessionHash) continue;
         ACCOUNT_SESSIONS.delete(otherToken);
         for (const client of io.sockets.sockets.values()) {
-          if (client.data.authSessionToken !== otherToken) continue;
+          if (!client.data.authSessionToken || accountSessionHash(client.data.authSessionToken) !== otherToken) continue;
           if (client.data.adminToken) adminSessions.delete(client.data.adminToken);
           for (const joinedRoom of [...client.rooms]) {
             if (joinedRoom === client.id) continue;
@@ -2540,10 +2661,11 @@ io.on('connection', (socket) => {
   socket.on('auth:delete-account', async () => {
     const session = socket.data.account;
     const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
-    if (!account || !socket.data.authSessionToken || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== account.key) {
+    if (!account || !socket.data.authSessionToken || accountSessionKeyForToken(socket.data.authSessionToken) !== account.key) {
       return socket.emit('auth:delete-result', { ok: false, message: 'Your session is no longer valid. Sign in again before deleting the account.' });
     }
     try {
+      await database.deleteAccount(account.key);
       const accountToken = account.token;
       const ownedMids = [];
       for (const roomName of Object.keys(rooms)) {
@@ -2665,11 +2787,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('auth:resume', (d) => {
+  socket.on('auth:resume', async (d) => {
     const sessionToken = d && typeof d.sessionToken === 'string' && /^[a-f0-9]{64}$/.test(d.sessionToken)
       ? d.sessionToken
       : '';
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? accountSessionKeyForToken(sessionToken) : '';
     const account = accountKey ? TEMP_ACCOUNTS.get(accountKey) : null;
     if (!account) {
       socket.data.account = null;
@@ -2678,15 +2800,15 @@ io.on('connection', (socket) => {
       return socket.emit('auth:result', {
         ok: false,
         invalidSession: true,
-        message: 'Your temporary account session expired or the server restarted. Log in again or create a new temporary account.'
+        message: 'Your saved sign-in session has expired or is no longer valid. Log in again or create a new temporary account.'
       });
     }
-    issueTemporaryAccountSession(socket, account, sessionToken);
+    await issueTemporaryAccountSession(socket, account, sessionToken);
   });
 
-  socket.on('auth:logout', () => {
+  socket.on('auth:logout', async () => {
     const sessionToken = socket.data.authSessionToken;
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? accountSessionKeyForToken(sessionToken) : '';
     // A missing or invalid session may only clear its own socket; it must never log out other users.
     if (!sessionToken || !accountKey) {
       socket.data.account = null;
@@ -2698,7 +2820,14 @@ io.on('connection', (socket) => {
       socket.emit('auth:logged-out');
       return;
     }
-    ACCOUNT_SESSIONS.delete(sessionToken);
+    const sessionHash = accountSessionHash(sessionToken);
+    try {
+      await database.deleteAccountSession(sessionHash);
+    } catch (_) {
+      socket.emit('sys', 'The saved session could not be revoked. Please retry logging out.');
+      return;
+    }
+    ACCOUNT_SESSIONS.delete(sessionHash);
     console.log('[accounts] temporary account logged out.');
 
     const tokensToRevoke = new Set();
@@ -2734,7 +2863,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join', (d) => {
-    const hasAccount = Boolean(socket.data.account && ACCOUNT_SESSIONS.get(socket.data.authSessionToken) === socket.data.account.key);
+    const hasAccount = Boolean(socket.data.account && accountSessionKeyForToken(socket.data.authSessionToken) === socket.data.account.key);
     const hasAdminSession = Boolean(socket.data.admin && socket.data.adminToken && adminSessions.has(socket.data.adminToken));
     const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (!hasAccount && !hasAdminSession && !( /^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken))) {
@@ -3414,6 +3543,7 @@ io.on('connection', (socket) => {
     }
     message.edited = true;
     message.editedAt = now;
+    persistChatMessage(room, message);
     emitPersonalizedRoomMessage(room, 'message:edited', message);
     socket.emit('sys', 'Message updated.');
   });
@@ -3445,6 +3575,7 @@ io.on('connection', (socket) => {
     if (!m || m.bot || m.admin || m.rep.includes(k)) return;
     reportTimes[k].push(now);
     m.rep.push(k);
+    persistChatMessage(room, m);
     let e = reportLog.get(m.mid);
     if (!e) { e = { mid: m.mid, name: m.name, text: m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]'), tok: m.tok, reasons: [], reporters: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
     if (!Array.isArray(e.reporters)) e.reporters = [];
@@ -3488,6 +3619,7 @@ io.on('connection', (socket) => {
     message.pollVotes[voterKey] = optionIndex;
     message.poll.options[optionIndex].votes = (message.poll.options[optionIndex].votes || 0) + 1;
     message.poll.totalVotes = Object.keys(message.pollVotes).length;
+    persistChatMessage(room, message);
     io.to(room).emit('poll:state', { mid, poll: message.poll });
     const quiz = message.poll.kind === 'quiz';
     const correct = quiz && Number(message.pollAnswerIndex) === optionIndex;
@@ -3509,6 +3641,7 @@ io.on('connection', (socket) => {
     const i = who.indexOf(voterToken);
     if (i >= 0) who.splice(i, 1); else who.push(voterToken);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
+    persistChatMessage(room, m);
     io.to(room).emit('react', { mid: m.mid, r: m.r });
   });
 
@@ -3623,4 +3756,43 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+
+async function startServer() {
+  try {
+    const restored = await database.initializeDatabase();
+    for (const account of restored.accounts || []) TEMP_ACCOUNTS.set(account.key, account);
+    for (const session of restored.sessions || []) {
+      if (TEMP_ACCOUNTS.has(session.accountKey)) ACCOUNT_SESSIONS.set(session.sessionHash, session.accountKey);
+    }
+    for (const entry of restored.chatMessages || []) {
+      const message = entry.message;
+      if (!message || !Number.isSafeInteger(message.mid)) continue;
+      (rooms[entry.room] ||= []).push(message);
+      midCount = Math.max(midCount, message.mid);
+    }
+    for (const entry of restored.conversations || []) {
+      let conversations = AI_CONVERSATIONS.get(entry.ownerKey);
+      if (!conversations) {
+        conversations = new Map();
+        AI_CONVERSATIONS.set(entry.ownerKey, conversations);
+      }
+      conversations.set(entry.conversation.id, entry.conversation);
+    }
+    for (const share of restored.shares || []) AI_PUBLIC_SHARES.set(share.id, share);
+    if (restored.enabled) {
+      console.log('[database] PostgreSQL connected; restored ' +
+        TEMP_ACCOUNTS.size + ' accounts, ' + ACCOUNT_SESSIONS.size + ' sessions, ' +
+        (restored.chatMessages || []).length + ' chat messages, ' +
+        (restored.conversations || []).length + ' AI conversations and ' +
+        (restored.shares || []).length + ' active share links.');
+    } else {
+      console.log('[database] DATABASE_URL is not configured; persistent storage is disabled and account/session/AI/chat data will remain in memory.');
+    }
+    server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+  } catch (error) {
+    console.error('[database] PostgreSQL initialization failed; the server was not started. Check DATABASE_URL, database availability and schema permissions.');
+    process.exitCode = 1;
+  }
+}
+
+startServer();
