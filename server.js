@@ -2619,20 +2619,21 @@ io.on('connection', (socket) => {
       const previousCredentials = { salt: account.salt, passwordHash: account.passwordHash };
       account.salt = salt;
       account.passwordHash = passwordHash;
+      const currentSessionToken = socket.data.authSessionToken;
+      const currentSessionHash = accountSessionHash(currentSessionToken);
       try {
-        await database.updateAccountPassword(account);
+        await database.updateAccountPasswordAndRevokeSessions(account, currentSessionHash);
       } catch (error) {
         account.salt = previousCredentials.salt;
         account.passwordHash = previousCredentials.passwordHash;
         throw error;
       }
 
-      const currentSessionToken = socket.data.authSessionToken;
       for (const [otherToken, otherAccountKey] of [...ACCOUNT_SESSIONS.entries()]) {
-        if (otherAccountKey !== account.key || otherToken === currentSessionToken) continue;
+        if (otherAccountKey !== account.key || otherToken === currentSessionHash) continue;
         ACCOUNT_SESSIONS.delete(otherToken);
         for (const client of io.sockets.sockets.values()) {
-          if (client.data.authSessionToken !== otherToken) continue;
+          if (!client.data.authSessionToken || accountSessionHash(client.data.authSessionToken) !== otherToken) continue;
           if (client.data.adminToken) adminSessions.delete(client.data.adminToken);
           for (const joinedRoom of [...client.rooms]) {
             if (joinedRoom === client.id) continue;
