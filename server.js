@@ -2174,7 +2174,7 @@ function removeVoiceParticipant(socketId) {
   console.log('[voice] participant left; active: ' + getVoiceRoster().length);
 }
 
-// Temporary accounts are deliberately memory-only. Passwords are scrypt-hashed; raw passwords are never stored.
+// Account records are restored from PostgreSQL when configured. Passwords are scrypt-hashed; raw passwords are never stored.
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
 const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
 const AUTH_ATTEMPTS = new Map(); // per-address login attempts
