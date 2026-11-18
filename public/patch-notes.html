@@ -46,12 +46,13 @@
   <main>
       <article class="patch-entry">
         <div class="patch-date">18 NOV 2026</div>
-        <h3>PostgreSQL persistence · account and AI data</h3>
+        <h3>PostgreSQL persistence · accounts, sessions, chat and AI</h3>
         <ul>
-          <li>Added a PostgreSQL storage layer for account records, salted password hashes, private AI conversations, and explicitly shared AI snapshots.</li>
-          <li>Account credentials and AI history can now be restored after a Render restart when <code>DATABASE_URL</code> points to a configured PostgreSQL database.</li>
-          <li>Login sessions, ordinary chat history, IP-based security counters, live voice, screen sharing and music playback remain temporary by design. Users must sign in again after a server restart.</li>
-          <li>Without <code>DATABASE_URL</code>, the server keeps its previous in-memory fallback. The new storage-status endpoint makes that mode visible.</li>
+          <li>Added durable storage for account records, salted password hashes, hashed user sessions, ordinary room messages, private AI conversations and explicitly shared AI snapshots.</li>
+          <li>When <code>DATABASE_URL</code> is configured, user account sessions and ordinary chat history can be restored after a Render restart. The raw session token is never stored in PostgreSQL.</li>
+          <li>Ordinary chat history expires after one hour and is capped at 50 messages per room. Private-room text remains encrypted ciphertext; image binary data is not retained, so image-only posts return as placeholders after a restart.</li>
+          <li>Administrator sessions, custom announcement posts, IP-based security counters, live voice, screen sharing and music playback remain temporary by design.</li>
+          <li>Without <code>DATABASE_URL</code>, the server keeps its memory-only fallback. The storage-status endpoint makes the active mode visible.</li>
         </ul>
       </article>
 
