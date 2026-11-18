@@ -61,6 +61,7 @@ before(async () => {
     cwd: root,
     env: {
       ...process.env,
+      DATABASE_URL: '',
       PORT: String(port),
       ADMIN_PASSWORD: 'server-chat-smoke-test-password-not-used-for-login',
       AI_ENABLED: '0',
@@ -130,6 +131,14 @@ test('public server status returns only public channel metadata', async () => {
     !channel.key.startsWith('private-') &&
     typeof channel.online === 'number'
   ));
+});
+
+test('storage status clearly reports memory mode when PostgreSQL is not configured', async () => {
+  const response = await fetch(baseUrl + '/api/storage/status');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control') || '', /no-store/i);
+  const body = await response.json();
+  assert.deepEqual(body, { storage: 'memory', persistent: false });
 });
 
 test('AI status accurately reflects the disabled smoke-test configuration', async () => {
