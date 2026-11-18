@@ -2436,7 +2436,7 @@ io.on('connection', (socket) => {
     if (socket.data.admin === true && socket.data.adminToken && adminSessions.has(socket.data.adminToken)) return next();
     const sessionToken = socket.data.authSessionToken;
     const account = socket.data.account;
-    if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionToken) !== account.key) {
+    if (!account || !sessionToken || accountSessionKeyForToken(sessionToken) !== account.key) {
       socket.emit('auth:required');
       return next(new Error('Authentication required'));
     }
@@ -2534,7 +2534,13 @@ io.on('connection', (socket) => {
       };
       await database.saveAccount(account);
       TEMP_ACCOUNTS.set(accountKey, account);
-      issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      try {
+        await issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      } catch (error) {
+        TEMP_ACCOUNTS.delete(accountKey);
+        await database.deleteAccount(accountKey).catch(() => {});
+        throw error;
+      }
     } catch (error) {
       console.warn('[accounts] Temporary account creation failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
@@ -2582,7 +2588,7 @@ io.on('connection', (socket) => {
         return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
       }
       clearAuthAttempts(socket, 'login');
-      issueTemporaryAccountSession(socket, account);
+      await issueTemporaryAccountSession(socket, account);
     } catch (error) {
       console.warn('[accounts] Login failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'Login is temporarily unavailable. Please try again.' });
@@ -2654,7 +2660,7 @@ io.on('connection', (socket) => {
   socket.on('auth:delete-account', async () => {
     const session = socket.data.account;
     const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
-    if (!account || !socket.data.authSessionToken || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== account.key) {
+    if (!account || !socket.data.authSessionToken || accountSessionKeyForToken(socket.data.authSessionToken) !== account.key) {
       return socket.emit('auth:delete-result', { ok: false, message: 'Your session is no longer valid. Sign in again before deleting the account.' });
     }
     try {
@@ -2849,7 +2855,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join', (d) => {
-    const hasAccount = Boolean(socket.data.account && ACCOUNT_SESSIONS.get(socket.data.authSessionToken) === socket.data.account.key);
+    const hasAccount = Boolean(socket.data.account && accountSessionKeyForToken(socket.data.authSessionToken) === socket.data.account.key);
     const hasAdminSession = Boolean(socket.data.admin && socket.data.adminToken && adminSessions.has(socket.data.adminToken));
     const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (!hasAccount && !hasAdminSession && !( /^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken))) {
