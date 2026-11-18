@@ -2489,7 +2489,7 @@ io.on('connection', (socket) => {
       const expected = account ? account.passwordHash : Buffer.alloc(64);
       const matches = crypto.timingSafeEqual(candidate, expected);
       if (!account || !matches) {
-        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
+        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Check your generated username and password, then try again.' });
       }
       clearAuthAttempts(socket, 'login');
       await issueTemporaryAccountSession(socket, account);
@@ -2697,7 +2697,7 @@ io.on('connection', (socket) => {
       return socket.emit('auth:result', {
         ok: false,
         invalidSession: true,
-        message: 'Your temporary account session expired or the server restarted. Log in again or create a new temporary account.'
+        message: 'Your temporary account session expired or was revoked. Log in again or create a new temporary account.'
       });
     }
     try {
