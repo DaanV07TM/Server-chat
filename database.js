@@ -149,7 +149,7 @@ async function saveSession(sessionHash, accountKey, createdAt = Date.now()) {
 async function loadSessions(limit = 10000) {
   if (!pool) return [];
   const result = await requirePool().query(
-    'SELECT session_hash, account_key FROM server_chat_sessions ORDER BY created_at_ms DESC LIMIT $1',
+    'SELECT session_hash, account_key FROM server_chat_sessions ORDER BY created_at_ms ASC LIMIT $1',
     [Math.max(1, Math.min(10000, Number(limit) || 10000))]
   );
   return result.rows.map(row => ({ sessionHash: row.session_hash, accountKey: row.account_key }));
