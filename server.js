@@ -11,6 +11,7 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
+const database = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,7 +36,7 @@ app.get('/healthz', (_req, res) => {
 // Private, per-account AI workspaces. Conversations are intentionally memory-only.
 app.set('trust proxy', 1);
 
-const SECURITY_TERMS_VERSION = '2026-10-29-v1';
+const SECURITY_TERMS_VERSION = '2026-11-18-v2';
 const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
 const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
 const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
@@ -232,12 +233,16 @@ const AI_MAX_CHARS_PER_ACCOUNT = 300000;
 const AI_MAX_PUBLIC_SHARES = 200;
 const AI_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+function sessionTokenKey(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
 function aiAccountFromRequest(req) {
   const authHeader = String(req.headers.authorization || '');
   const match = /^Bearer ([a-f0-9]{64})$/.exec(authHeader);
   if (!match) return null;
   const token = match[1];
-  const accountKey = ACCOUNT_SESSIONS.get(token);
+  const accountKey = ACCOUNT_SESSIONS.get(sessionTokenKey(token));
   if (accountKey) {
     const account = TEMP_ACCOUNTS.get(accountKey);
     if (account) return { accountKey, account, sessionToken: token, admin: false };
@@ -2116,9 +2121,10 @@ function removeVoiceParticipant(socketId) {
   console.log('[voice] participant left; active: ' + getVoiceRoster().length);
 }
 
-// Temporary accounts are deliberately memory-only. Passwords are scrypt-hashed; raw passwords are never stored.
+// Account records are cached in memory and persisted to PostgreSQL when DATABASE_URL is configured.
+// Passwords are scrypt-hashed; raw passwords and raw session tokens are never stored server-side.
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
-const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
+const ACCOUNT_SESSIONS = new Map(); // SHA-256 session-token hash -> normalized username
 const AUTH_ATTEMPTS = new Map(); // per-address login attempts
 
 // Server-issued proof-of-work for every password-based login. This adds bot cost without an external CAPTCHA.
@@ -2264,16 +2270,19 @@ function clearAuthAttempts(socket, kind = 'login') {
   map.delete(authAddress(socket));
 }
 
-function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
+async function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
   let token = sessionToken;
   if (!token) {
     if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
-      const oldestToken = ACCOUNT_SESSIONS.keys().next().value;
-      ACCOUNT_SESSIONS.delete(oldestToken);
+      const oldestSessionHash = ACCOUNT_SESSIONS.keys().next().value;
+      await database.deleteSession(oldestSessionHash);
+      ACCOUNT_SESSIONS.delete(oldestSessionHash);
     }
     token = crypto.randomBytes(32).toString('hex');
-    ACCOUNT_SESSIONS.set(token, account.key);
   }
+  const sessionHash = sessionTokenKey(token);
+  await database.saveSession(sessionHash, account.key, Date.now());
+  ACCOUNT_SESSIONS.set(sessionHash, account.key);
   socket.data.account = { key: account.key, username: account.username, token: account.token };
   socket.data.authSessionToken = token;
   socket.data.tok = account.token;
@@ -2331,7 +2340,7 @@ io.on('connection', (socket) => {
     if (socket.data.admin === true && socket.data.adminToken && adminSessions.has(socket.data.adminToken)) return next();
     const sessionToken = socket.data.authSessionToken;
     const account = socket.data.account;
-    if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionToken) !== account.key) {
+    if (!account || !sessionToken || ACCOUNT_SESSIONS.get(sessionTokenKey(sessionToken)) !== account.key) {
       socket.emit('auth:required');
       return next(new Error('Authentication required'));
     }
@@ -2427,8 +2436,15 @@ io.on('connection', (socket) => {
         legalAcceptedAt: Date.now(),
         legalTermsVersion: SECURITY_TERMS_VERSION
       };
+      await database.saveAccount(account);
       TEMP_ACCOUNTS.set(accountKey, account);
-      issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      try {
+        await issueTemporaryAccountSession(socket, account, '', generatedPassword);
+      } catch (error) {
+        TEMP_ACCOUNTS.delete(accountKey);
+        await database.deleteAccount(accountKey).catch(() => {});
+        throw error;
+      }
     } catch (error) {
       console.warn('[accounts] Temporary account creation failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'The temporary account could not be created. Please try again.' });
@@ -2476,7 +2492,7 @@ io.on('connection', (socket) => {
         return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
       }
       clearAuthAttempts(socket, 'login');
-      issueTemporaryAccountSession(socket, account);
+      await issueTemporaryAccountSession(socket, account);
     } catch (error) {
       console.warn('[accounts] Login failed due to a server-side error.');
       socket.emit('auth:result', { ok: false, message: 'Login is temporarily unavailable. Please try again.' });
@@ -2504,15 +2520,17 @@ io.on('connection', (socket) => {
       }
       const salt = crypto.randomBytes(16).toString('hex');
       const passwordHash = await scryptPassword(newPassword, salt);
+      const currentSessionToken = socket.data.authSessionToken;
+      const currentSessionHash = sessionTokenKey(currentSessionToken);
+      await database.updateAccountPassword({ ...account, salt, passwordHash }, currentSessionHash);
       account.salt = salt;
       account.passwordHash = passwordHash;
 
-      const currentSessionToken = socket.data.authSessionToken;
       for (const [otherToken, otherAccountKey] of [...ACCOUNT_SESSIONS.entries()]) {
-        if (otherAccountKey !== account.key || otherToken === currentSessionToken) continue;
+        if (otherAccountKey !== account.key || otherToken === currentSessionHash) continue;
         ACCOUNT_SESSIONS.delete(otherToken);
         for (const client of io.sockets.sockets.values()) {
-          if (client.data.authSessionToken !== otherToken) continue;
+          if (!client.data.authSessionToken || sessionTokenKey(client.data.authSessionToken) !== otherToken) continue;
           if (client.data.adminToken) adminSessions.delete(client.data.adminToken);
           for (const joinedRoom of [...client.rooms]) {
             if (joinedRoom === client.id) continue;
@@ -2540,10 +2558,11 @@ io.on('connection', (socket) => {
   socket.on('auth:delete-account', async () => {
     const session = socket.data.account;
     const account = session ? TEMP_ACCOUNTS.get(session.key) : null;
-    if (!account || !socket.data.authSessionToken || ACCOUNT_SESSIONS.get(socket.data.authSessionToken) !== account.key) {
+    if (!account || !socket.data.authSessionToken || ACCOUNT_SESSIONS.get(sessionTokenKey(socket.data.authSessionToken)) !== account.key) {
       return socket.emit('auth:delete-result', { ok: false, message: 'Your session is no longer valid. Sign in again before deleting the account.' });
     }
     try {
+      await database.deleteAccount(account.key);
       const accountToken = account.token;
       const ownedMids = [];
       for (const roomName of Object.keys(rooms)) {
@@ -2665,11 +2684,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('auth:resume', (d) => {
+  socket.on('auth:resume', async (d) => {
     const sessionToken = d && typeof d.sessionToken === 'string' && /^[a-f0-9]{64}$/.test(d.sessionToken)
       ? d.sessionToken
       : '';
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionTokenKey(sessionToken)) : '';
     const account = accountKey ? TEMP_ACCOUNTS.get(accountKey) : null;
     if (!account) {
       socket.data.account = null;
@@ -2681,12 +2700,17 @@ io.on('connection', (socket) => {
         message: 'Your temporary account session expired or the server restarted. Log in again or create a new temporary account.'
       });
     }
-    issueTemporaryAccountSession(socket, account, sessionToken);
+    try {
+      await issueTemporaryAccountSession(socket, account, sessionToken);
+    } catch (error) {
+      console.warn('[accounts] Session resume could not be persisted.');
+      socket.emit('auth:result', { ok: false, invalidSession: true, message: 'Your session could not be restored. Please sign in again.' });
+    }
   });
 
-  socket.on('auth:logout', () => {
+  socket.on('auth:logout', async () => {
     const sessionToken = socket.data.authSessionToken;
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionTokenKey(sessionToken)) : '';
     // A missing or invalid session may only clear its own socket; it must never log out other users.
     if (!sessionToken || !accountKey) {
       socket.data.account = null;
@@ -2698,7 +2722,13 @@ io.on('connection', (socket) => {
       socket.emit('auth:logged-out');
       return;
     }
-    ACCOUNT_SESSIONS.delete(sessionToken);
+    try {
+      await database.deleteSession(sessionTokenKey(sessionToken));
+    } catch (error) {
+      console.warn('[accounts] Logout could not revoke its persistent session.');
+      return socket.emit('sys', 'Sign-out could not be completed because session storage is temporarily unavailable. Please try again.');
+    }
+    ACCOUNT_SESSIONS.delete(sessionTokenKey(sessionToken));
     console.log('[accounts] temporary account logged out.');
 
     const tokensToRevoke = new Set();
@@ -2734,7 +2764,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join', (d) => {
-    const hasAccount = Boolean(socket.data.account && ACCOUNT_SESSIONS.get(socket.data.authSessionToken) === socket.data.account.key);
+    const hasAccount = Boolean(socket.data.account && ACCOUNT_SESSIONS.get(sessionTokenKey(socket.data.authSessionToken)) === socket.data.account.key);
     const hasAdminSession = Boolean(socket.data.admin && socket.data.adminToken && adminSessions.has(socket.data.adminToken));
     const requestedAdminToken = d && typeof d.adminToken === 'string' ? d.adminToken : '';
     if (!hasAccount && !hasAdminSession && !( /^[a-f0-9]{64}$/.test(requestedAdminToken) && adminSessions.has(requestedAdminToken))) {
@@ -3623,4 +3653,23 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+
+async function startServer() {
+  const persistenceEnabled = await database.initialize();
+  if (persistenceEnabled) {
+    const accounts = await database.loadAccounts(MAX_TEMP_ACCOUNTS);
+    for (const account of accounts) TEMP_ACCOUNTS.set(account.key, account);
+    const sessions = await database.loadSessions(MAX_ACCOUNT_SESSIONS);
+    for (const session of sessions) {
+      if (TEMP_ACCOUNTS.has(session.accountKey)) ACCOUNT_SESSIONS.set(session.sessionHash, session.accountKey);
+    }
+    console.info('[database] Restored ' + TEMP_ACCOUNTS.size + ' account(s) and ' + ACCOUNT_SESSIONS.size + ' active session(s).');
+  }
+  server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+}
+
+startServer().catch(error => {
+  const code = error && error.cause && error.cause.code ? error.cause.code : 'unknown';
+  console.error('[startup] Database initialization failed (' + code + '). The server did not start.');
+  process.exitCode = 1;
+});
