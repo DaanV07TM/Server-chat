@@ -236,7 +236,7 @@ jobs:
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
           legal = Path("public/legal.html").read_text(encoding="utf-8")
           for marker in (
-              "const SECURITY_TERMS_VERSION = '2026-10-29-v1';",
+              "const SECURITY_TERMS_VERSION = '2026-11-18-v1';",
               "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
               "const VERIFIED_BOT_IPS = new Map();",
               "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
