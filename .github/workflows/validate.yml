@@ -12,6 +12,22 @@ permissions:
 jobs:
   syntax:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: server_chat_test
+          POSTGRES_USER: server_chat
+          POSTGRES_PASSWORD: server_chat_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U server_chat -d server_chat_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://server_chat:server_chat_test_password@localhost:5432/server_chat_test
     strategy:
       fail-fast: false
       matrix:
