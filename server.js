@@ -3760,8 +3760,17 @@ const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
     const restored = await database.initializeDatabase();
-    for (const account of restored.accounts) TEMP_ACCOUNTS.set(account.key, account);
-    for (const entry of restored.conversations) {
+    for (const account of restored.accounts || []) TEMP_ACCOUNTS.set(account.key, account);
+    for (const session of restored.sessions || []) {
+      if (TEMP_ACCOUNTS.has(session.accountKey)) ACCOUNT_SESSIONS.set(session.sessionHash, session.accountKey);
+    }
+    for (const entry of restored.chatMessages || []) {
+      const message = entry.message;
+      if (!message || !Number.isSafeInteger(message.mid)) continue;
+      (rooms[entry.room] ||= []).push(message);
+      midCount = Math.max(midCount, message.mid);
+    }
+    for (const entry of restored.conversations || []) {
       let conversations = AI_CONVERSATIONS.get(entry.ownerKey);
       if (!conversations) {
         conversations = new Map();
@@ -3769,11 +3778,15 @@ async function startServer() {
       }
       conversations.set(entry.conversation.id, entry.conversation);
     }
-    for (const share of restored.shares) AI_PUBLIC_SHARES.set(share.id, share);
+    for (const share of restored.shares || []) AI_PUBLIC_SHARES.set(share.id, share);
     if (restored.enabled) {
-      console.log('[database] PostgreSQL connected; restored ' + restored.accounts.length + ' accounts, ' + restored.conversations.length + ' AI conversations and ' + restored.shares.length + ' active share links.');
+      console.log('[database] PostgreSQL connected; restored ' +
+        TEMP_ACCOUNTS.size + ' accounts, ' + ACCOUNT_SESSIONS.size + ' sessions, ' +
+        (restored.chatMessages || []).length + ' chat messages, ' +
+        (restored.conversations || []).length + ' AI conversations and ' +
+        (restored.shares || []).length + ' active share links.');
     } else {
-      console.log('[database] DATABASE_URL is not configured; persistent storage is disabled and account/AI data will remain in memory.');
+      console.log('[database] DATABASE_URL is not configured; persistent storage is disabled and account/session/AI/chat data will remain in memory.');
     }
     server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
   } catch (error) {
