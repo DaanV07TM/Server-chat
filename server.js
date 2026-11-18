@@ -245,7 +245,7 @@ function aiAccountFromRequest(req) {
   const match = /^Bearer ([a-f0-9]{64})$/.exec(authHeader);
   if (!match) return null;
   const token = match[1];
-  const accountKey = ACCOUNT_SESSIONS.get(token);
+  const accountKey = accountSessionKeyForToken(token);
   if (accountKey) {
     const account = TEMP_ACCOUNTS.get(accountKey);
     if (account) return { accountKey, account, sessionToken: token, admin: false };
@@ -911,15 +911,27 @@ function emitPersonalizedRoomMessage(roomName, eventName, message) {
   }
 }
 
+function persistChatMessage(room, message) {
+  if (room === 'announcements' || !message || !Number.isSafeInteger(message.mid)) return;
+  const ownerKey = accountKeyForIdentityToken(message.tok);
+  database.saveChatMessage(room, message, ownerKey)
+    .catch(() => console.warn('[database] A chat message could not be persisted.'));
+}
 function store(room, m) {
   if (!m.mid) { m.mid = ++midCount; m.v = {}; m.r = {}; m.rep = []; }
   if (!rooms[room]) console.log('[room] new room active');
   const list = (rooms[room] ||= []);
   list.push(m);
   const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : MAX_MSGS;
-  if (list.length > roomLimit) list.shift();
+  if (list.length > roomLimit) {
+    const removed = list.shift();
+    if (removed && Number.isSafeInteger(removed.mid)) {
+      database.deleteChatMessage(removed.mid).catch(() => console.warn('[database] An old chat message could not be pruned.'));
+    }
+  }
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
+  persistChatMessage(room, m);
 }
 function bot(room, text, ownerToken = '', extra = {}) {
   const m = { name: 'Bot', bot: true, text, t: Date.now(), ...extra };
@@ -992,7 +1004,12 @@ const adminSay = (t) => { for (const [, s] of io.sockets.sockets) if (s.data.adm
 function removeMsg(mid) {
   for (const r in rooms) {
     const i = rooms[r].findIndex(m => m.mid === mid);
-    if (i >= 0) { const [m] = rooms[r].splice(i, 1); io.to(r).emit('removed', mid); return m; }
+    if (i >= 0) {
+      const [m] = rooms[r].splice(i, 1);
+      database.deleteChatMessage(mid).catch(() => console.warn('[database] A removed chat message could not be deleted.'));
+      io.to(r).emit('removed', mid);
+      return m;
+    }
   }
 }
 function findStoredMessage(mid) {
@@ -1244,8 +1261,20 @@ function adminCommand(socket, c, arg, room) {
   if (c === 'status') say(statsLine());
   else if (c === 'offline') { cancelMaint(); goOffline(); say('Chat is offline. Type /online to bring it back.'); }
   else if (c === 'online') { cancelMaint(); offline = false; console.log('[admin] chat is now ONLINE'); io.emit('closed', false); say('Chat is back online.'); }
-  else if (c === 'wipe') { for (const r in rooms) delete rooms[r]; console.log('[admin] all messages wiped'); io.emit('history', []); say('All messages wiped.'); }
-  else if (c === 'clear') { delete rooms[room]; console.log('[admin] a room was cleared'); io.to(room).emit('history', []); say('This room was cleared.'); }
+  else if (c === 'wipe') {
+    for (const r in rooms) delete rooms[r];
+    database.clearChatMessages().catch(() => say('Chat history was cleared in memory, but PostgreSQL could not be updated. Please retry /wipe.'));
+    console.log('[admin] all messages wiped');
+    io.emit('history', []);
+    say('All messages wiped.');
+  }
+  else if (c === 'clear') {
+    delete rooms[room];
+    database.deleteChatRoom(room).catch(() => say('The room was cleared in memory, but PostgreSQL could not be updated. Please retry /clear.'));
+    console.log('[admin] a room was cleared');
+    io.to(room).emit('history', []);
+    say('This room was cleared.');
+  }
   else if (c === 'announce') { if (!arg) return say('Usage: /announce your message'); announce(clean(arg, 300)); console.log('[admin] announcement sent'); }
   else if (c === 'announcealarm') { if (!arg) return say('Usage: /announcealarm urgent message'); announce(clean(arg, 300), { alarm: true }); console.log('[admin] forced audible alarm announcement sent'); }
   else if (c === 'party') { announce(clean(arg, 250) || '🎉 PARTY MODE ACTIVATED! The next two minutes are for good vibes, celebrations and great chat. Drop your best energy below! 🎊', { eventType: 'party' }); say('Party mode activated in every open chat for two minutes.'); }
@@ -1404,6 +1433,7 @@ setInterval(() => {
     if (r !== 'announcements') rooms[r] = rooms[r].filter(m => now - m.t < TTL);
     if (!rooms[r].length) delete rooms[r];
   }
+  database.pruneChatMessages(now).catch(() => console.warn('[database] Expired chat history could not be pruned.'));
   for (const k in timeouts) if (timeouts[k] < now) delete timeouts[k];
   for (const [k, e] of reportLog) if (now - e.t > 86400000) reportLog.delete(k);
   for (const k in reportTimes) if (!reportTimes[k].some(t => now - t < 600000)) delete reportTimes[k];
@@ -2176,7 +2206,21 @@ function removeVoiceParticipant(socketId) {
 
 // Account records are restored from PostgreSQL when configured. Passwords are scrypt-hashed; raw passwords are never stored.
 const TEMP_ACCOUNTS = new Map(); // normalized username -> account record
-const ACCOUNT_SESSIONS = new Map(); // random session token -> normalized username
+const ACCOUNT_SESSIONS = new Map(); // SHA-256 session token hash -> normalized username
+function accountSessionHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+function accountSessionKeyForToken(token) {
+  if (typeof token !== 'string' || !token) return '';
+  return ACCOUNT_SESSIONS.get(accountSessionHash(token)) || '';
+}
+function accountKeyForIdentityToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  for (const account of TEMP_ACCOUNTS.values()) {
+    if (account.token === token) return account.key;
+  }
+  return null;
+}
 const AUTH_ATTEMPTS = new Map(); // per-address login attempts
 
 // Server-issued proof-of-work for every password-based login. This adds bot cost without an external CAPTCHA.
@@ -3482,6 +3526,7 @@ io.on('connection', (socket) => {
     }
     message.edited = true;
     message.editedAt = now;
+    persistChatMessage(room, message);
     emitPersonalizedRoomMessage(room, 'message:edited', message);
     socket.emit('sys', 'Message updated.');
   });
@@ -3513,6 +3558,7 @@ io.on('connection', (socket) => {
     if (!m || m.bot || m.admin || m.rep.includes(k)) return;
     reportTimes[k].push(now);
     m.rep.push(k);
+    persistChatMessage(room, m);
     let e = reportLog.get(m.mid);
     if (!e) { e = { mid: m.mid, name: m.name, text: m.encryptedText ? '[end-to-end encrypted text; moderators cannot read it]' : (m.text || '[image]'), tok: m.tok, reasons: [], reporters: [], t: now, status: 'open' }; reportLog.set(m.mid, e); }
     if (!Array.isArray(e.reporters)) e.reporters = [];
@@ -3556,6 +3602,7 @@ io.on('connection', (socket) => {
     message.pollVotes[voterKey] = optionIndex;
     message.poll.options[optionIndex].votes = (message.poll.options[optionIndex].votes || 0) + 1;
     message.poll.totalVotes = Object.keys(message.pollVotes).length;
+    persistChatMessage(room, message);
     io.to(room).emit('poll:state', { mid, poll: message.poll });
     const quiz = message.poll.kind === 'quiz';
     const correct = quiz && Number(message.pollAnswerIndex) === optionIndex;
@@ -3577,6 +3624,7 @@ io.on('connection', (socket) => {
     const i = who.indexOf(voterToken);
     if (i >= 0) who.splice(i, 1); else who.push(voterToken);
     if (who.length) m.r[d.e] = who.length; else { delete m.r[d.e]; delete m.v[d.e]; }
+    persistChatMessage(room, m);
     io.to(room).emit('react', { mid: m.mid, r: m.r });
   });
 
