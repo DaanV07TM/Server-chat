@@ -1,7 +1,7 @@
 'use strict';
 
 // PostgreSQL persistence for data that should survive a service restart.
-// Live sockets, abuse counters, short-lived chat history and playback state remain in memory.
+// Live sockets, admin sessions, abuse counters, image blobs and playback state remain in memory.
 let pool = null;
 
 function isEnabled() {
