@@ -44,6 +44,16 @@
     <a class="back" href="/">← Back to chat</a>
   </header>
   <main>
+      <article class="patch-entry">
+        <div class="patch-date">18 NOV 2026</div>
+        <h3>Maintenance patch · reliability and automated checks</h3>
+        <ul>
+          <li>Fixed the sidebar network-ping check for administrator sessions. Admins do not create temporary user accounts, so their valid moderator session is now accepted separately.</li>
+          <li>Added automated server smoke tests for health, static app delivery, security configuration, public status, AI availability and private AI authentication.</li>
+          <li>GitHub Actions now runs the application checks on Node.js 22, 24 and 26.</li>
+        </ul>
+      </article>
+
     <div class="eyebrow">Release history</div>
     <h1>What's new</h1>
     <p class="lead">A dated record of security improvements, interface fixes and features shipped to Server Chat. Newest changes appear first.</p>
