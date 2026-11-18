@@ -37,7 +37,7 @@ app.get('/healthz', (_req, res) => {
 // Private, per-account AI workspaces. PostgreSQL persistence is enabled when DATABASE_URL is configured.
 app.set('trust proxy', 1);
 
-const SECURITY_TERMS_VERSION = '2026-10-29-v1';
+const SECURITY_TERMS_VERSION = '2026-11-18-v1';
 const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
 const TURNSTILE_SECRET_KEY = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
 const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
