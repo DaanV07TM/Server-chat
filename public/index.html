@@ -912,7 +912,7 @@ button:active:not(:disabled){transform:translateY(0)}
       </div>
     </div>
     <div class="auth-legal-links"><a href="/legal.html">Terms of Service &amp; Privacy Notice</a></div>
-    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, not the plaintext password. Accounts and chat history are cleared when the server restarts.</span></div>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, never the plaintext password. When PostgreSQL is configured, account records and hashed login sessions survive restarts; without it, accounts remain memory-only. Chat history is still temporary and clears on restart.</span></div>
   </div>
 </div>
 <div id="generatedCredentials" class="ov auth-gate credentials-gate" role="dialog" aria-modal="true" aria-labelledby="credentialsTitle" hidden>
@@ -960,7 +960,7 @@ button:active:not(:disabled){transform:translateY(0)}
       <p id="deleteAccountMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="deleteAccountButton" class="auth-danger-button" type="button">Delete account and all my data</button>
     </section>
-    <div class="auth-note"><span aria-hidden="true">⏳</span><span>Temporary accounts and chat data exist only in server memory. A server restart also clears accounts; this is not a permanent mail.tm email inbox.</span></div>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span>These are disposable-style accounts, not email inboxes. When PostgreSQL is configured, account records and hashed login sessions survive restarts. Without it, account records remain memory-only. Chat history remains temporary and clears on restart.</span></div>
   </div>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
@@ -984,7 +984,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has shared music playback.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
     <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Only private-room text is end-to-end encrypted; text in public and official channels can be read by the server. Images are not end-to-end encrypted and appear immediately in chat; moderators can review them across public and private rooms, mark them reviewed, or delete them. Review is manual and cannot guarantee that illegal images will not be seen before a moderator acts. Do not post passwords or sensitive information.</span></div></div>
-    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. Accounts use a username and password, but they are temporary and are cleared whenever the server restarts or redeploys. Passwords are stored as secure scrypt hashes, not plain text. The hosting provider may process connection metadata.</span></div></div>
+    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. Accounts use a username and password. When PostgreSQL is configured, account records and hashed login sessions survive restarts; otherwise they are held in memory. Chat messages remain temporary. Passwords are stored as secure scrypt hashes, not plain text. The hosting provider may process connection metadata.</span></div></div>
     <div class="guide-item"><span class="guide-number">5</span><div><b>Make chat yours</b><span>Reply to messages, edit text you sent within 15 minutes, delete your own posts, choose a name and status, and switch themes. Use Ctrl+K to change channels or Ctrl+F to search the current room. Install the app from your browser when supported.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
@@ -1551,7 +1551,7 @@ function start() {
   let authMode = 'login';
   let authBusy = false;
   let newlyGeneratedPassword = '';
-  let securityConfig = { termsVersion: '2026-10-29-v1', turnstileEnabled: false, turnstileSiteKey: '' };
+  let securityConfig = { termsVersion: '2026-11-18-v2', turnstileEnabled: false, turnstileSiteKey: '' };
   let securityConfigLoaded = false;
   let turnstileWidgetId = null;
   let turnstileToken = '';

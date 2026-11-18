@@ -46,6 +46,18 @@
   <main>
       <article class="patch-entry">
         <div class="patch-date">18 NOV 2026</div>
+        <h3>PostgreSQL foundation · persistent accounts</h3>
+        <ul>
+          <li>Added optional PostgreSQL storage through the <code>DATABASE_URL</code> environment variable. The database schema is applied automatically at startup.</li>
+          <li>Temporary account records now survive service restarts when a database is configured. Active session tokens are stored as SHA-256 hashes rather than raw tokens.</li>
+          <li>Logging out, changing a password and deleting an account also revoke the corresponding database sessions.</li>
+          <li>Chat messages, AI conversations, share links, moderation state, announcements and music state remain memory-only in this first phase.</li>
+          <li>Updated the Terms and Privacy Notice to explain which account data is retained and how it can be deleted.</li>
+        </ul>
+      </article>
+
+      <article class="patch-entry">
+        <div class="patch-date">18 NOV 2026</div>
         <h3>Maintenance patch · reliability and automated checks</h3>
         <ul>
           <li>Fixed the sidebar network-ping check for administrator sessions. Admins do not create temporary user accounts, so their valid moderator session is now accepted separately.</li>
