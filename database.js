@@ -21,9 +21,6 @@ async function initializeDatabase() {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000
   };
-  if (String(process.env.DATABASE_SSL || '').trim().toLowerCase() === 'true') {
-    poolOptions.ssl = { rejectUnauthorized: false };
-  }
   pool = new Pool(poolOptions);
   pool.on('error', () => {
     // Do not log connection strings or database credentials.
