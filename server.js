@@ -32,11 +32,6 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
-// Public, non-sensitive indication of whether durable storage is configured.
-app.get('/api/storage/status', (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.json({ storage: database.isEnabled() ? 'postgresql' : 'memory', persistent: database.isEnabled() });
-});
 
 
 // Private, per-account AI workspaces. Conversations are intentionally memory-only.
@@ -193,6 +188,12 @@ app.use((req, res, next) => {
     return securityBlockResponse(res, blockClientAddress(address));
   }
   return next();
+});
+
+// Public, non-sensitive indication of whether durable storage is configured.
+app.get('/api/storage/status', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ storage: database.isEnabled() ? 'postgresql' : 'memory', persistent: database.isEnabled() });
 });
 
 app.get('/api/security-config', (_req, res) => {
