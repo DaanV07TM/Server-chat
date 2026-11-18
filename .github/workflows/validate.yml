@@ -30,6 +30,7 @@ jobs:
       - name: Validate server and service worker syntax
         run: |
           node --check server.js
+          node --check database.js
           node --check public/sw.js
           node --check public/ai.js
           node --check public/status.js
