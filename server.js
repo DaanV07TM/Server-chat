@@ -34,7 +34,7 @@ app.get('/healthz', (_req, res) => {
 
 
 
-// Private, per-account AI workspaces. Conversations are intentionally memory-only.
+// Private, per-account AI workspaces. PostgreSQL persistence is enabled when DATABASE_URL is configured.
 app.set('trust proxy', 1);
 
 const SECURITY_TERMS_VERSION = '2026-10-29-v1';
