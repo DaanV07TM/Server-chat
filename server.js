@@ -2787,11 +2787,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('auth:resume', (d) => {
+  socket.on('auth:resume', async (d) => {
     const sessionToken = d && typeof d.sessionToken === 'string' && /^[a-f0-9]{64}$/.test(d.sessionToken)
       ? d.sessionToken
       : '';
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? accountSessionKeyForToken(sessionToken) : '';
     const account = accountKey ? TEMP_ACCOUNTS.get(accountKey) : null;
     if (!account) {
       socket.data.account = null;
@@ -2803,12 +2803,12 @@ io.on('connection', (socket) => {
         message: 'Your temporary account session expired or the server restarted. Log in again or create a new temporary account.'
       });
     }
-    issueTemporaryAccountSession(socket, account, sessionToken);
+    await issueTemporaryAccountSession(socket, account, sessionToken);
   });
 
-  socket.on('auth:logout', () => {
+  socket.on('auth:logout', async () => {
     const sessionToken = socket.data.authSessionToken;
-    const accountKey = sessionToken ? ACCOUNT_SESSIONS.get(sessionToken) : '';
+    const accountKey = sessionToken ? accountSessionKeyForToken(sessionToken) : '';
     // A missing or invalid session may only clear its own socket; it must never log out other users.
     if (!sessionToken || !accountKey) {
       socket.data.account = null;
@@ -2820,7 +2820,14 @@ io.on('connection', (socket) => {
       socket.emit('auth:logged-out');
       return;
     }
-    ACCOUNT_SESSIONS.delete(sessionToken);
+    const sessionHash = accountSessionHash(sessionToken);
+    try {
+      await database.deleteAccountSession(sessionHash);
+    } catch (_) {
+      socket.emit('sys', 'The saved session could not be revoked. Please retry logging out.');
+      return;
+    }
+    ACCOUNT_SESSIONS.delete(sessionHash);
     console.log('[accounts] temporary account logged out.');
 
     const tokensToRevoke = new Set();
