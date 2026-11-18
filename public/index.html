@@ -912,7 +912,7 @@ button:active:not(:disabled){transform:translateY(0)}
       </div>
     </div>
     <div class="auth-legal-links"><a href="/legal.html">Terms of Service &amp; Privacy Notice</a></div>
-    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>Generated credentials work like a disposable account. The server stores a password hash, not the plaintext password. Accounts and chat history are cleared when the server restarts.</span></div>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span><strong>Temporary accounts</strong><br>The server stores a password hash, not your plaintext password. When PostgreSQL is configured, your account survives server restarts; otherwise, accounts are kept in memory. Active login sessions and ordinary chat history are cleared when the server restarts.</span></div>
   </div>
 </div>
 <div id="generatedCredentials" class="ov auth-gate credentials-gate" role="dialog" aria-modal="true" aria-labelledby="credentialsTitle" hidden>
@@ -960,7 +960,7 @@ button:active:not(:disabled){transform:translateY(0)}
       <p id="deleteAccountMessage" class="auth-message" role="status" aria-live="polite"></p>
       <button id="deleteAccountButton" class="auth-danger-button" type="button">Delete account and all my data</button>
     </section>
-    <div class="auth-note"><span aria-hidden="true">⏳</span><span>Temporary accounts and chat data exist only in server memory. A server restart also clears accounts; this is not a permanent mail.tm email inbox.</span></div>
+    <div class="auth-note"><span aria-hidden="true">⏳</span><span>Your account is kept in PostgreSQL when the server has a database configured; otherwise it is kept in memory. Active sessions and ordinary chat history are cleared when the server restarts. This is not a permanent mail.tm email inbox.</span></div>
   </div>
 </div>
 <div id="rules" class="ov" role="dialog" aria-modal="true" aria-labelledby="rt">
@@ -970,7 +970,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <ul>
       <li><b>Channels:</b> #general for chat, #help for questions, #announcements for official updates, #voice for optional live voice, and #music for shared music playback.</li>
       <li><b>Voice & screen sharing:</b> Click Join voice before allowing microphone access. You can mute or leave at any time. Screen sharing is visible to room members and moderators may monitor or stop it.</li>
-      <li><b>Privacy:</b> Text in private rooms is end-to-end encrypted in your browser with the invite-link key; public and official channel text is not end-to-end encrypted and can be read by the server. Images are not end-to-end encrypted and appear immediately in chat. Moderators can review images across public and private rooms, mark them reviewed, delete posts, and ban uploaders. Review is manual and cannot prevent harmful or illegal images from being seen before a moderator acts. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
+      <li><b>Privacy:</b> Text in private rooms is end-to-end encrypted in your browser with the invite-link key; public and official channel text is not end-to-end encrypted and can be read by the server. Images are not end-to-end encrypted and appear immediately in chat. AI Studio conversations are not end-to-end encrypted and are stored in PostgreSQL when configured. Moderators can review images across public and private rooms, mark them reviewed, delete posts, and ban uploaders. Review is manual and cannot prevent harmful or illegal images from being seen before a moderator acts. This implementation is not independently audited, and a compromised server could serve modified browser code. Hosting providers may process connection metadata.</li>
       <li><b>Safety:</b> Be respectful. No harassment, hate, threats, scams, or illegal content. Use ⚑ to report a message. Photos and GIFs are only available where enabled.</li>
     </ul>
     <button id="agree" type="button">I'm 16 or older and I agree</button>
@@ -984,7 +984,7 @@ button:active:not(:disabled){transform:translateY(0)}
     <div class="guide-item"><span class="guide-number">1</span><div><b>Choose a channel</b><span>#general is the main chat, #help is for questions, #announcements contains official updates, #voice is for live voice chat, and #music has shared music playback.</span></div></div>
     <div class="guide-item"><span class="guide-number">2</span><div><b>Voice and screen sharing</b><span>In #voice, click Join voice to request microphone access. Mute or leave whenever you like. Only share your screen when you are comfortable with others in the room seeing it.</span></div></div>
     <div class="guide-item"><span class="guide-number">3</span><div><b>Privacy and message history</b><span>Only private-room text is end-to-end encrypted; text in public and official channels can be read by the server. Images are not end-to-end encrypted and appear immediately in chat; moderators can review them across public and private rooms, mark them reviewed, or delete them. Review is manual and cannot guarantee that illegal images will not be seen before a moderator acts. Do not post passwords or sensitive information.</span></div></div>
-    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. Accounts use a username and password, but they are temporary and are cleared whenever the server restarts or redeploys. Passwords are stored as secure scrypt hashes, not plain text. The hosting provider may process connection metadata.</span></div></div>
+    <div class="guide-item"><span class="guide-number">4</span><div><b>Keep the community safe</b><span>Be respectful. Use ⚑ to report abusive messages or scams. Admin messages cannot be reported. Account records survive restarts only when PostgreSQL is configured; active sessions and ordinary chat history still clear when the server restarts. Passwords are stored as secure scrypt hashes, not plain text. AI Studio conversations are not end-to-end encrypted. The hosting provider may process connection metadata.</span></div></div>
     <div class="guide-item"><span class="guide-number">5</span><div><b>Make chat yours</b><span>Reply to messages, edit text you sent within 15 minutes, delete your own posts, choose a name and status, and switch themes. Use Ctrl+K to change channels or Ctrl+F to search the current room. Install the app from your browser when supported.</span></div></div>
     <div class="guide-actions"><button id="welcomeClose" type="button">Got it — let's chat</button></div>
   </div>
@@ -2149,7 +2149,7 @@ function start() {
     if (!accountAuthenticated) return showAuthGate('Please sign in first.');
     const confirmed = await showSiteDialog({
       title: 'Log out?',
-      message: 'You will need your username and password to sign in again. Your temporary account stays available until the server restarts.',
+      message: 'You will need your username and password to sign in again. Your account survives restarts when PostgreSQL is configured; active sessions still expire when the server restarts.',
       confirmText: 'Log out',
       cancelText: 'Stay signed in',
       danger: true
