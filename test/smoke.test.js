@@ -165,7 +165,7 @@ test('account persistence hashes session tokens before storing them', () => {
   assert.match(server, /await database\.saveSession\(sessionHash, account\.key/);
   assert.match(dbSource, /session_hash/);
   assert.doesNotMatch(migration, /session_token\s+text/i);
-  assert.match(dbSource, /ON DELETE CASCADE/);
+  assert.match(migration, /ON DELETE CASCADE/);
 });
 
 test('PostgreSQL stores accounts and hashed sessions and cascades account deletion', {
