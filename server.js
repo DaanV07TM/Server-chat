@@ -11,6 +11,7 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
+const database = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +30,12 @@ app.use((_req, res, next) => {
 app.get('/healthz', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.status(200).json({ ok: true });
+});
+
+// Public, non-sensitive indication of whether durable storage is configured.
+app.get('/api/storage/status', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ storage: database.isEnabled() ? 'postgresql' : 'memory', persistent: database.isEnabled() });
 });
 
 
@@ -345,7 +352,7 @@ app.get('/api/ai/conversations', (req, res) => {
   return res.json({ conversations: items });
 });
 
-app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to create a private AI conversation.' });
@@ -364,6 +371,11 @@ app.post('/api/ai/conversations', express.json({ limit: '2kb', strict: true }), 
     shareId: null,
     pinned: false
   };
+  try {
+    await database.saveAiConversation(auth.accountKey, conversation);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Please try again.' });
+  }
   conversations.set(id, conversation);
   return res.status(201).json({ conversation: aiPublicConversation(conversation) });
 });
@@ -379,7 +391,7 @@ app.get('/api/ai/conversations/:id', (req, res) => {
   return res.json({ conversation: aiPublicConversation(conversation) });
 });
 
-app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to update this private AI conversation.' });
@@ -390,14 +402,19 @@ app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true
   const hasTitle = Object.prototype.hasOwnProperty.call(body, 'title');
   const hasPinned = Object.prototype.hasOwnProperty.call(body, 'pinned');
   if (!hasTitle && !hasPinned) return res.status(400).json({ error: 'No conversation changes were provided.' });
+  if (hasTitle && (typeof body.title !== 'string' || !body.title.trim())) return res.status(400).json({ error: 'Enter a title for this conversation.' });
+  if (hasPinned && typeof body.pinned !== 'boolean') return res.status(400).json({ error: 'Pinned must be true or false.' });
+  const previous = { title: conversation.title, updatedAt: conversation.updatedAt, pinned: conversation.pinned };
   if (hasTitle) {
-    if (typeof body.title !== 'string' || !body.title.trim()) return res.status(400).json({ error: 'Enter a title for this conversation.' });
     conversation.title = aiCleanTitle(body.title);
     conversation.updatedAt = Date.now();
   }
-  if (hasPinned) {
-    if (typeof body.pinned !== 'boolean') return res.status(400).json({ error: 'Pinned must be true or false.' });
-    conversation.pinned = body.pinned;
+  if (hasPinned) conversation.pinned = body.pinned;
+  try {
+    await database.saveAiConversation(auth.accountKey, conversation);
+  } catch (_) {
+    Object.assign(conversation, previous);
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Your changes were not saved.' });
   }
   return res.json({ conversation: {
     id: conversation.id,
@@ -410,7 +427,7 @@ app.patch('/api/ai/conversations/:id', express.json({ limit: '2kb', strict: true
   } });
 });
 
-app.delete('/api/ai/conversations/:id', (req, res) => {
+app.delete('/api/ai/conversations/:id', async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to delete this conversation.' });
@@ -418,6 +435,11 @@ app.delete('/api/ai/conversations/:id', (req, res) => {
   const id = String(req.params.id || '');
   const conversation = conversations && conversations.get(id);
   if (!/^[a-f0-9]{32}$/.test(id) || !conversation) return res.status(404).json({ error: 'This private conversation was not found.' });
+  try {
+    await database.deleteAiConversation(auth.accountKey, id);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The conversation was not deleted.' });
+  }
   if (conversation.shareId) {
     const share = AI_PUBLIC_SHARES.get(conversation.shareId);
     if (share && share.ownerKey === auth.accountKey) AI_PUBLIC_SHARES.delete(conversation.shareId);
@@ -427,7 +449,7 @@ app.delete('/api/ai/conversations/:id', (req, res) => {
   return res.json({ ok: true });
 });
 
-app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict: true }), (req, res) => {
+app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict: true }), async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again before sharing this conversation.' });
@@ -439,10 +461,19 @@ app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict:
   if (conversation.shareId) {
     const existing = AI_PUBLIC_SHARES.get(conversation.shareId);
     if (existing && existing.ownerKey === auth.accountKey && existing.conversationId === id) {
-      existing.title = conversation.title;
-      existing.messages = aiPublicConversation(conversation).messages;
-      existing.updatedAt = Date.now();
-      existing.expiresAt = Date.now() + AI_SHARE_TTL_MS;
+      const refreshed = {
+        ...existing,
+        title: conversation.title,
+        messages: aiPublicConversation(conversation).messages,
+        updatedAt: Date.now(),
+        expiresAt: Date.now() + AI_SHARE_TTL_MS
+      };
+      try {
+        await database.saveAiShareAndConversation(refreshed, conversation);
+      } catch (_) {
+        return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link was not updated.' });
+      }
+      Object.assign(existing, refreshed);
       return res.json({ id: conversation.shareId, expiresAt: existing.expiresAt });
     }
   }
@@ -460,12 +491,18 @@ app.post('/api/ai/conversations/:id/share', express.json({ limit: '2kb', strict:
     updatedAt: Date.now(),
     expiresAt: Date.now() + AI_SHARE_TTL_MS
   };
+  const sharedConversation = { ...conversation, shareId };
+  try {
+    await database.saveAiShareAndConversation(snapshot, sharedConversation);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link was not created.' });
+  }
   AI_PUBLIC_SHARES.set(shareId, snapshot);
   conversation.shareId = shareId;
   return res.status(201).json({ id: shareId, expiresAt: snapshot.expiresAt });
 });
 
-app.delete('/api/ai/shares/:id', (req, res) => {
+app.delete('/api/ai/shares/:id', async (req, res) => {
   aiSetNoStore(res);
   const auth = aiAccountFromRequest(req);
   if (!auth) return res.status(401).json({ error: 'Sign in again to stop sharing.' });
@@ -473,6 +510,11 @@ app.delete('/api/ai/shares/:id', (req, res) => {
   const share = AI_PUBLIC_SHARES.get(id);
   if (!/^[a-f0-9]{32}$/.test(id) || !share || share.ownerKey !== auth.accountKey) {
     return res.status(404).json({ error: 'This share link was not found.' });
+  }
+  try {
+    await database.revokeAiShare(auth.accountKey, id);
+  } catch (_) {
+    return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. The share link is still active.' });
   }
   AI_PUBLIC_SHARES.delete(id);
   const conversation = aiConversationsFor(auth.accountKey)?.get(share.conversationId);
@@ -542,6 +584,11 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
   globalRecent.push(now);
   AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent);
 
+  const previousConversation = {
+    title: conversation.title,
+    updatedAt: conversation.updatedAt,
+    messages: conversation.messages.slice()
+  };
   const userMessage = { role: 'user', content: prompt, createdAt: now };
   conversation.messages.push(userMessage);
   if (!conversation.messages.some(message => message.role === 'assistant')) {
@@ -594,6 +641,14 @@ app.post('/api/ai/chat', express.json({ limit: '8kb', strict: true }), async (re
     conversation.messages.push({ role: 'assistant', content: reply.slice(0, replyCharBudget), createdAt: Date.now() });
     conversation.messages = conversation.messages.slice(-AI_MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = Date.now();
+    try {
+      await database.saveAiConversation(auth.accountKey, conversation);
+    } catch (_) {
+      conversation.title = previousConversation.title;
+      conversation.updatedAt = previousConversation.updatedAt;
+      conversation.messages = previousConversation.messages;
+      return res.status(503).json({ error: 'Private AI storage is temporarily unavailable. Your answer was not saved; please try again.' });
+    }
     return res.status(200).json({ reply: reply.slice(0, 16000), conversation: aiPublicConversation(conversation) });
   } catch (error) {
     conversation.messages = conversation.messages.filter(message => message !== userMessage);
@@ -1206,8 +1261,10 @@ function adminCommand(socket, c, arg, room) {
     for (const [, conversations] of AI_CONVERSATIONS) conversations.clear();
     AI_CONVERSATIONS.clear();
     AI_PUBLIC_SHARES.clear();
-    say('All temporary AI conversations and share links have been cleared. This cannot be undone.');
-    console.log('[admin] temporary AI conversations and share links cleared');
+    database.clearAiData()
+      .then(() => say('All AI conversations and share links have been cleared. This cannot be undone.'))
+      .catch(() => say('The in-memory AI history was cleared, but PostgreSQL could not be updated. Please retry /aiclear.'));
+    console.log('[admin] AI conversations and share links cleared');
   }
   else if (c === 'maintenance') {
     if (!num || num < 1 || num > 120) return say('Usage: /maintenance 10 (minutes, 1-120). Cancel with /online.');
@@ -2427,6 +2484,7 @@ io.on('connection', (socket) => {
         legalAcceptedAt: Date.now(),
         legalTermsVersion: SECURITY_TERMS_VERSION
       };
+      await database.saveAccount(account);
       TEMP_ACCOUNTS.set(accountKey, account);
       issueTemporaryAccountSession(socket, account, '', generatedPassword);
     } catch (error) {
@@ -2473,7 +2531,7 @@ io.on('connection', (socket) => {
       const expected = account ? account.passwordHash : Buffer.alloc(64);
       const matches = crypto.timingSafeEqual(candidate, expected);
       if (!account || !matches) {
-        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password. Temporary accounts are cleared when the server restarts.' });
+        return socket.emit('auth:result', { ok: false, message: 'Invalid username or password.' });
       }
       clearAuthAttempts(socket, 'login');
       issueTemporaryAccountSession(socket, account);
@@ -2504,8 +2562,16 @@ io.on('connection', (socket) => {
       }
       const salt = crypto.randomBytes(16).toString('hex');
       const passwordHash = await scryptPassword(newPassword, salt);
+      const previousCredentials = { salt: account.salt, passwordHash: account.passwordHash };
       account.salt = salt;
       account.passwordHash = passwordHash;
+      try {
+        await database.updateAccountPassword(account);
+      } catch (error) {
+        account.salt = previousCredentials.salt;
+        account.passwordHash = previousCredentials.passwordHash;
+        throw error;
+      }
 
       const currentSessionToken = socket.data.authSessionToken;
       for (const [otherToken, otherAccountKey] of [...ACCOUNT_SESSIONS.entries()]) {
@@ -2544,6 +2610,7 @@ io.on('connection', (socket) => {
       return socket.emit('auth:delete-result', { ok: false, message: 'Your session is no longer valid. Sign in again before deleting the account.' });
     }
     try {
+      await database.deleteAccount(account.key);
       const accountToken = account.token;
       const ownedMids = [];
       for (const roomName of Object.keys(rooms)) {
@@ -3623,4 +3690,30 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+
+async function startServer() {
+  try {
+    const restored = await database.initializeDatabase();
+    for (const account of restored.accounts) TEMP_ACCOUNTS.set(account.key, account);
+    for (const entry of restored.conversations) {
+      let conversations = AI_CONVERSATIONS.get(entry.ownerKey);
+      if (!conversations) {
+        conversations = new Map();
+        AI_CONVERSATIONS.set(entry.ownerKey, conversations);
+      }
+      conversations.set(entry.conversation.id, entry.conversation);
+    }
+    for (const share of restored.shares) AI_PUBLIC_SHARES.set(share.id, share);
+    if (restored.enabled) {
+      console.log('[database] PostgreSQL connected; restored ' + restored.accounts.length + ' accounts, ' + restored.conversations.length + ' AI conversations and ' + restored.shares.length + ' active share links.');
+    } else {
+      console.log('[database] DATABASE_URL is not configured; persistent storage is disabled and account/AI data will remain in memory.');
+    }
+    server.listen(PORT, () => console.log('Chat running on port ' + PORT + (offline ? ' (offline mode)' : '') + (ADMIN ? '' : ' | warning: ADMIN_PASSWORD is not set')));
+  } catch (error) {
+    console.error('[database] PostgreSQL initialization failed; the server was not started. Check DATABASE_URL, database availability and schema permissions.');
+    process.exitCode = 1;
+  }
+}
+
+startServer();
