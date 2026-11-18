@@ -156,3 +156,8 @@ Theme personalization also includes an accent palette picker alongside the light
 - Authenticated chat sessions measure browser-to-server Socket.IO round-trip time. The sidebar shows a latency quality indicator and the number of successful reconnects during the current tab session.
 - The public live-status page measures the response time of its own status request. This is a browser-to-server measurement, not a server-only processing-time measurement.
 - AI Studio conversation titles can be searched, renamed and pinned. Rename and pin changes use an account-authorized PATCH endpoint, and pinned conversations appear first in private history.
+
+
+## Automated smoke tests
+
+Run `npm install` followed by `npm test` to start an isolated local server and check the health endpoint, static chat shell, administrator ping-guard, security configuration, public status API, AI status, and the requirement for an authenticated account before creating private AI conversations. GitHub Actions runs these checks on Node.js 22, 24, and 26. These smoke tests complement the existing syntax and repository-structure checks; they are not a full browser or security audit.

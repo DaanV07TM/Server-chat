@@ -2186,7 +2186,9 @@ function start() {
     if (subtitle) subtitle.textContent = detail;
   }
   function requestConnectionPing() {
-    if (!socket.connected || !accountAuthenticated) return;
+    // Administrator sessions are valid Socket.IO sessions too, even though they intentionally
+    // do not set accountAuthenticated or create a temporary account.
+    if (!socket.connected || (!accountAuthenticated && !moderator)) return;
     if (pendingConnectionProbe && performance.now() - pendingConnectionProbe.startedAt < 5000) return;
     const id = ++connectionProbeSequence;
     pendingConnectionProbe = { id, startedAt: performance.now() };
