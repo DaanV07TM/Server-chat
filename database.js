@@ -155,6 +155,29 @@ async function loadSessions(limit = 10000) {
   return result.rows.map(row => ({ sessionHash: row.session_hash, accountKey: row.account_key }));
 }
 
+async function updateAccountPassword(account, exceptSessionHash) {
+  if (!pool) return;
+  const client = await requirePool().connect();
+  try {
+    await client.query('BEGIN');
+    const updated = await client.query(
+      'UPDATE server_chat_accounts SET password_salt = $2, password_hash = $3 WHERE account_key = $1',
+      [account.key, account.salt, account.passwordHash]
+    );
+    if (!updated.rowCount) throw new Error('Account record was not found during password update.');
+    await client.query(
+      'DELETE FROM server_chat_sessions WHERE account_key = $1 AND session_hash <> $2',
+      [account.key, exceptSessionHash]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function deleteSession(sessionHash) {
   if (!pool) return;
   if (!/^[a-f0-9]{64}$/.test(String(sessionHash || ''))) return;
@@ -195,5 +218,6 @@ module.exports = {
   loadAccounts,
   loadSessions,
   saveAccount,
-  saveSession
+  saveSession,
+  updateAccountPassword
 };
