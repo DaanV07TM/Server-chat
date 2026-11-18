@@ -2366,7 +2366,7 @@ function clearAuthAttempts(socket, kind = 'login') {
   map.delete(authAddress(socket));
 }
 
-function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
+async function issueTemporaryAccountSession(socket, account, sessionToken = '', generatedPassword = '') {
   let token = sessionToken;
   if (!token) {
     if (ACCOUNT_SESSIONS.size >= MAX_ACCOUNT_SESSIONS) {
