@@ -3,6 +3,21 @@
 // PostgreSQL persistence for data that should survive a service restart.
 // Live sockets, admin sessions, abuse counters, image blobs and playback state remain in memory.
 let pool = null;
+const pendingChatWrites = new Map();
+
+function queueChatWrite(messageId, operation) {
+  const key = String(messageId);
+  const previous = pendingChatWrites.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  pendingChatWrites.set(key, current);
+  return current.finally(() => {
+    if (pendingChatWrites.get(key) === current) pendingChatWrites.delete(key);
+  });
+}
+
+async function waitForPendingChatWrites() {
+  await Promise.allSettled([...pendingChatWrites.values()]);
+}
 
 function isEnabled() {
   return Boolean(pool);
@@ -208,6 +223,7 @@ async function updateAccountPassword(account) {
 
 async function deleteAccount(accountKey) {
   if (!pool) return;
+  await waitForPendingChatWrites();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -249,50 +265,58 @@ async function updateAccountPasswordAndRevokeSessions(account, keepSessionHash) 
 }
 
 async function saveChatMessage(room, message, ownerKey = null) {
-  if (!pool || room === 'announcements') return;
-  const payload = { ...message };
-  if (payload.img) {
-    delete payload.img;
-    delete payload.imageApproved;
-    delete payload.imageReviewed;
-    payload.imageUnavailable = true;
-    if (!payload.text) payload.text = '(Image not retained after restart)';
-  }
-  const createdAt = Number(payload.t) || Date.now();
-  const expiresAt = createdAt + 60 * 60 * 1000;
-  await pool.query(`
-    INSERT INTO chat_messages (message_id, room_key, owner_key, payload, created_at, expires_at)
-    VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-    ON CONFLICT (message_id) DO UPDATE SET
-      room_key = EXCLUDED.room_key,
-      owner_key = EXCLUDED.owner_key,
-      payload = EXCLUDED.payload,
-      expires_at = EXCLUDED.expires_at
-  `, [message.mid, room, ownerKey, JSON.stringify(payload), createdAt, expiresAt]);
-  await pool.query(`
-    DELETE FROM chat_messages
-    WHERE room_key = $1
-      AND message_id NOT IN (
-        SELECT message_id FROM chat_messages
-        WHERE room_key = $1
-        ORDER BY message_id DESC
-        LIMIT 50
-      )
-  `, [room]);
+  if (!pool || room === 'announcements' || !message || !Number.isSafeInteger(message.mid)) return;
+  return queueChatWrite(message.mid, async () => {
+    if (!pool) return;
+    const payload = { ...message };
+    if (payload.img) {
+      delete payload.img;
+      delete payload.imageApproved;
+      delete payload.imageReviewed;
+      payload.imageUnavailable = true;
+      if (!payload.text) payload.text = '(Image not retained after restart)';
+    }
+    const createdAt = Number(payload.t) || Date.now();
+    const expiresAt = createdAt + 60 * 60 * 1000;
+    await pool.query(`
+      INSERT INTO chat_messages (message_id, room_key, owner_key, payload, created_at, expires_at)
+      VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+      ON CONFLICT (message_id) DO UPDATE SET
+        room_key = EXCLUDED.room_key,
+        owner_key = EXCLUDED.owner_key,
+        payload = EXCLUDED.payload,
+        expires_at = EXCLUDED.expires_at
+    `, [message.mid, room, ownerKey, JSON.stringify(payload), createdAt, expiresAt]);
+    await pool.query(`
+      DELETE FROM chat_messages
+      WHERE room_key = $1
+        AND message_id NOT IN (
+          SELECT message_id FROM chat_messages
+          WHERE room_key = $1
+          ORDER BY message_id DESC
+          LIMIT 50
+        )
+    `, [room]);
+  });
 }
 
 async function deleteChatMessage(messageId) {
   if (!pool) return;
-  await pool.query('DELETE FROM chat_messages WHERE message_id = $1', [messageId]);
+  return queueChatWrite(messageId, async () => {
+    if (!pool) return;
+    await pool.query('DELETE FROM chat_messages WHERE message_id = $1', [messageId]);
+  });
 }
 
 async function deleteChatRoom(room) {
   if (!pool || room === 'announcements') return;
+  await waitForPendingChatWrites();
   await pool.query('DELETE FROM chat_messages WHERE room_key = $1', [room]);
 }
 
 async function clearChatMessages() {
   if (!pool) return;
+  await waitForPendingChatWrites();
   await pool.query("DELETE FROM chat_messages WHERE room_key <> 'announcements'");
 }
 
