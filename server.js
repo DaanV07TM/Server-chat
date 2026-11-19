@@ -673,7 +673,7 @@ const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const MAX_ANNOUNCEMENT_HISTORY = 1000;
 const WORLD_NEWS_MAX_ITEMS = 60;
 const WORLD_NEWS_TTL_MS = 72 * 60 * 60 * 1000;
-const WORLD_NEWS_POLL_MS = Math.min(Math.max(Number(process.env.WORLD_NEWS_POLL_MS) || 30 * 60 * 1000, 5 * 60 * 1000), 6 * 60 * 60 * 1000);
+const WORLD_NEWS_POLL_MS = 10 * 60 * 1000; // Fixed automatic refresh cadence: every 10 minutes.
 const WORLD_NEWS_MAX_PER_POLL = 2;
 const WORLD_NEWS_ENABLED_DEFAULT = String(process.env.WORLD_NEWS_ENABLED || '1').trim() !== '0';
 const ANNOUNCEMENT_TTL = 2 * 60 * 1000;
