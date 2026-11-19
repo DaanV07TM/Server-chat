@@ -70,7 +70,7 @@ jobs:
           scripts = re.findall(r'<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script\s*>', html, flags=re.I | re.S)
           if not scripts:
               raise SystemExit("No inline JavaScript block was found.")
-          Path("/tmp/server-chat-inline.js").write_text("\\n".join(scripts), encoding="utf-8")
+          Path("/tmp/server-chat-inline.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/server-chat-inline.js
       - name: Validate temporary account wiring
