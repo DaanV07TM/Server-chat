@@ -152,7 +152,7 @@ test('World News status is private-cache safe and reports disabled test configur
   const body = await response.json();
   assert.equal(body.enabled, false);
   assert.equal(body.active, false);
-  assert.equal(body.provider, 'GDELT Project');
+  assert.equal(body.provider, 'Curated English-language publisher RSS feeds');
   assert.equal(typeof body.publishedSinceRestart, 'number');
 });
 
@@ -165,4 +165,22 @@ test('private AI conversation creation requires an account session', async () =>
   assert.equal(response.status, 401);
   const body = await response.json();
   assert.match(body.error, /Sign in again/i);
+});
+
+
+test('World News includes an ask-only composer and live browser search', () => {
+  const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  assert.match(html, /Vraag iets over het nieuws/);
+  assert.match(server, /const newsQuestion = text\\.match\\(\\/\\^\\\\\\/ask/);
+  assert.match(server, /tools: \\[\\{ type: 'browser_search' \\}\\]/);
+  assert.match(server, /model: AI_WEB_MODEL/);
+});
+
+test('local controlled-drug sale detection is wired before provider availability checks', () => {
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const moderation = fs.readFileSync(path.join(root, 'lib', 'ai-moderation.js'), 'utf8');
+  assert.match(server, /detectIllegalDrugSale\\(message\\.text\\)/);
+  assert.match(moderation, /ketamine/);
+  assert.match(moderation, /directOffer/);
 });
