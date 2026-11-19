@@ -18,6 +18,7 @@ test('accepts only safe external HTTPS URLs', () => {
     'javascript:alert(1)',
     'https://localhost/private',
     'https://127.0.0.1/admin',
+    'https://[::1]/admin',
     'https://user:pass@news.example.org/story',
     'not a URL'
   ]) assert.equal(safeHttpsUrl(value), null);
