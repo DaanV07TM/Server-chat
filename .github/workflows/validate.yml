@@ -265,7 +265,7 @@ jobs:
           notes = Path("public/patch-notes.html").read_text(encoding="utf-8")
           legal = Path("public/legal.html").read_text(encoding="utf-8")
           for marker in (
-              "const SECURITY_TERMS_VERSION = '2026-11-19-v2';",
+              "const SECURITY_TERMS_VERSION = '2026-11-19-v3';",
               "const BOT_IP_APPROVAL_TTL_MS = 10 * 60 * 1000;",
               "const VERIFIED_BOT_IPS = new Map();",
               "const LOGIN_CHALLENGE_TTL_MS = 60 * 1000;",
@@ -328,9 +328,9 @@ jobs:
                   raise SystemExit(f"Missing dated patch-note entry: {date}")
           if "proof-of-work" not in notes or "not a perfect human detector" not in notes:
               raise SystemExit("Patch notes must accurately describe the login security limitation.")
-          if "termsVersion: '2026-11-19-v2'" not in html:
+          if "termsVersion: '2026-11-19-v3'" not in html:
               raise SystemExit("The registration client must use the latest terms version.")
-          if "Last updated: 19 November 2026 · Version 2026-11-19-v2" not in legal:
+          if "Last updated: 19 November 2026 · Version 2026-11-19-v3" not in legal:
               raise SystemExit("The privacy notice date/version must match the current terms version.")
           if "marks the client IP as verified for up to 10 minutes" not in legal:
               raise SystemExit("The privacy notice must disclose temporary IP verification.")
