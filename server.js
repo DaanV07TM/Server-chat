@@ -899,7 +899,7 @@ function bot(room, text, ownerToken = '', extra = {}) {
 const WORLD_NEWS_API_MIN_INTERVAL_MS = 5200;
 const WORLD_NEWS_AI_WINDOW_MS = 24 * 60 * 60 * 1000;
 const WORLD_NEWS_AI_MAX_PER_DAY = 100;
-const WORLD_NEWS_QUERY = 'sourcelang:English (world OR international OR politics OR conflict OR election OR diplomacy OR climate OR economy OR science OR technology)';
+const WORLD_NEWS_QUERY = '(world OR international OR politics OR conflict OR election OR diplomacy OR climate OR economy OR science OR technology OR Belgium OR Europe OR Brussels)';
 const WORLD_NEWS_STOPWORDS = new Set([
   'about','after','again','also','amid','among','been','being','before','between','could','from','have','into','just','more','most',
   'over','says','said','than','that','their','there','these','they','this','through','under','were','what','when','where','which',
