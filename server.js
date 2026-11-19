@@ -1649,7 +1649,7 @@ function adminCommand(socket, c, arg, room) {
     } else if (arg !== 'status' && arg !== '') return say('Usage: /worldnews on|off|status');
     else say('World News: ' + (WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY ? 'ACTIVE' : WORLD_NEWS_ENABLED ? 'enabled but not active (check /aistatus and GROQ_API_KEY)' : 'PAUSED') + ' | source: GDELT | published since restart: ' + WORLD_NEWS_STATE.published + ' | last update: ' + (WORLD_NEWS_STATE.lastPublishedAt ? new Date(WORLD_NEWS_STATE.lastPublishedAt).toLocaleString() : 'none yet'));
   }
-  else if (c === 'aion') { AI_ENABLED = true; announce('✨ Server Chat AI is available again.'); say('Built-in AI enabled.'); }
+  else if (c === 'aion') { AI_ENABLED = true; announce('✨ Server Chat AI is available again.'); say('Built-in AI enabled.'); if (WORLD_NEWS_ENABLED) void runWorldNewsPoll(); }
   else if (c === 'aioff') { AI_ENABLED = false; announce('🛠️ Server Chat AI has been temporarily paused by an administrator.'); say('Built-in AI paused. Existing private conversations are preserved.'); }
   else if (c === 'aiclear') {
     for (const [, conversations] of AI_CONVERSATIONS) conversations.clear();
