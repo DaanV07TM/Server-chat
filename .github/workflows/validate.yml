@@ -10,21 +10,67 @@ permissions:
   contents: read
 
 jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up lockfile Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.13.1
+      - name: Generate reproducible npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 2
+      - name: Commit generated lockfile to this patch branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'security/patch-1-dependency-baseline'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "package-lock.json is already up to date."
+            exit 0
+          fi
+          git commit -m "chore: add generated npm lockfile"
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          git fetch origin "$BRANCH"
+          git rebase "origin/$BRANCH"
+          git push origin "HEAD:$BRANCH"
+
   syntax:
+    needs: lockfile
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22, 24, 26]
+        node-version: [22.23.5, 24.22.3, 26.13.1]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Download generated npm lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-package-lock
+          path: .
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install exact locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
       - name: Run server smoke tests
         run: npm test
       - name: Validate server and service worker syntax
@@ -112,7 +158,7 @@ jobs:
           for marker in ("app.get('/api/server-status'", "function getLiveServerCenterState()", "function getLoadWarnings(load)", "checkServerResourceAlerts", "socket.on('poll:vote'", "function createPoll(room, question, options", "else if (c === 'coin' || c === 'coinflip')", "else if (c === 'help')", "else if (c === 'poll')", "else if (c === 'quiz')", "pollVotes, pollAnswerIndex"):
               if marker not in server:
                   raise SystemExit(f"Missing server status / poll assistant control: {marker}")
-          for marker in ("href=\"/status.html\"", 'id="stickerPicker"', "const STICKER_LIBRARY = [", "function renderPollCard(mid, poll)", "socket.on('poll:state'", "socket.on('poll:vote-result'", "function serverCenterWarningsHtml(warnings)", "{ key:'live-center'", "LIVE SERVER CENTER", "function refreshAdminLiveMetrics(st)", "data-picker-sticker"):
+          for marker in ('href="/status.html"', 'id="stickerPicker"', "const STICKER_LIBRARY = [", "function renderPollCard(mid, poll)", "socket.on('poll:state'", "socket.on('poll:vote-result'", "function serverCenterWarningsHtml(warnings)", "{ key:'live-center'", "LIVE SERVER CENTER", "function refreshAdminLiveMetrics(st)", "data-picker-sticker"):
               if marker not in html:
                   raise SystemExit(f"Missing sticker library or live status UI: {marker}")
           for marker in ('id="overallStatus"', 'id="warnings"', 'id="channels"', 'id="activity"', 'src="/status.js"', 'Private room activity excluded'):
@@ -149,7 +195,7 @@ jobs:
               if marker not in css:
                   raise SystemExit(f"Missing responsive COSMIC design rule: {marker}")
           for marker in ('body[data-room="ai"] header', ".ai-brand-icon", ".ai-composer-field:focus-within"):
-              if marker not in css:
+              if marker not in ai_css:
                   raise SystemExit(f"AI Studio is missing the unified visual system: {marker}")
           for marker in ("--bg:#17111c", "--purple:#ff865c", "rgba(119,33,111"):
               if marker not in status_html:
@@ -320,7 +366,7 @@ jobs:
                   raise SystemExit(f"Missing public status latency UI: {marker}")
           if "performance.now() - startedAt" not in status_js or "render(data, performance.now() - startedAt)" not in status_js:
               raise SystemExit("The status page must measure browser-to-server response time.")
-          for marker in ('id="aiHistorySearch"', 'id="aiRenameDialog"', 'setConversationPinned(', "method: 'PATCH'"):
+          for marker in ('id="aiHistorySearch"', 'id="aiRenameDialog"', "setConversationPinned(", "method: 'PATCH'"):
               if marker not in ai_js:
                   raise SystemExit(f"Missing AI history action: {marker}")
           for marker in (".ai-history-search", ".ai-history-actions", ".ai-rename-backdrop"):
