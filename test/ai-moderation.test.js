@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseModerationVerdict, moderationAction, classifyPublicMessage } = require('../lib/ai-moderation');
+const { parseModerationVerdict, moderationAction, detectIllegalDrugSale, classifyPublicMessage } = require('../lib/ai-moderation');
 
 test('parses a valid non-violation verdict', () => {
   assert.deepEqual(parseModerationVerdict('{"violation":false}'), {
@@ -85,4 +85,42 @@ test('reports provider failures instead of fabricating a safe verdict', async ()
     }),
     /status 429/
   );
+});
+
+
+test('detects direct offers to sell controlled drugs in Dutch and English', () => {
+  for (const message of [
+    'Ik verkoop ketamine.',
+    'Ik kan nu vrij zeggen dat ik ketamine verkoop.',
+    'I sell ketamine, DM me for prices.',
+    'Cocaine for sale, contact me.',
+    'MDMA te koop, stuur me een bericht.'
+  ]) {
+    const verdict = detectIllegalDrugSale(message);
+    assert.equal(verdict.violation, true, message);
+    assert.equal(verdict.category, 'illegal');
+    assert.equal(verdict.severity, 'critical');
+    assert.equal(verdict.confidence, 1);
+    assert.equal(moderationAction(verdict), 'remove');
+  }
+});
+
+test('does not flag ordinary medical, educational or news discussion as a sale offer', () => {
+  for (const message of [
+    'Ketamine is used as an anaesthetic in hospitals.',
+    'Our class discussed the risks of ketamine misuse.',
+    'Police arrested a suspect accused of selling ketamine.',
+    'I read an article about ketamine treatment for depression.'
+  ]) assert.equal(detectIllegalDrugSale(message), null, message);
+});
+
+test('deterministic drug-sale detection works without a Groq key', async () => {
+  const verdict = await classifyPublicMessage({
+    apiKey: '',
+    model: '',
+    text: 'Ik verkoop ketamine',
+    fetchImpl: async () => { throw new Error('The provider should not be called'); }
+  });
+  assert.equal(verdict.category, 'illegal');
+  assert.equal(moderationAction(verdict), 'remove');
 });
