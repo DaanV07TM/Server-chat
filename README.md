@@ -169,3 +169,5 @@ Run `npm install` followed by `npm test` to start an isolated local server and c
 - Run the test suite with `npm test`.
 - Check production dependencies with `npm audit --omit=dev --audit-level=high`.
 - Dependency update pull requests are managed by Dependabot. Review each update and its CI/security results before merging.
+
+CI generates the canonical `package-lock.json` from the declared manifest and commits the generated lockfile to this feature branch during the lockfile preparation job. The platform runs the test matrix against that same artifact before merging.
