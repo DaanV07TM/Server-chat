@@ -161,3 +161,11 @@ Theme personalization also includes an accent palette picker alongside the light
 ## Automated smoke tests
 
 Run `npm install` followed by `npm test` to start an isolated local server and check the health endpoint, static chat shell, administrator ping-guard, security configuration, public status API, AI status, and the requirement for an authenticated account before creating private AI conversations. GitHub Actions runs these checks on Node.js 22, 24, and 26. These smoke tests complement the existing syntax and repository-structure checks; they are not a full browser or security audit.
+
+## Development and dependency security
+
+- Use Node.js 26.13.1 for local development and the Render deployment runtime (see `.node-version`). The application supports Node.js `>=22.23.5 <27`; CI tests the patched 22.x, 24.x and 26.x releases.
+- Install the exact dependency tree with `npm ci`.
+- Run the test suite with `npm test`.
+- Check production dependencies with `npm audit --omit=dev --audit-level=high`.
+- Dependency update pull requests are managed by Dependabot. Review each update and its CI/security results before merging.
