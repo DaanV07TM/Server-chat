@@ -221,6 +221,8 @@ let AI_ENABLED = String(process.env.AI_ENABLED || '1').trim() !== '0';
 let AI_MODERATION_ENABLED = String(process.env.AI_MODERATION_ENABLED || '1').trim() !== '0';
 const AI_MODERATION_LABELS = { spam: 'spam', harassment: 'intimidatie', hate: 'haatdragende inhoud', threat: 'bedreiging', scam: 'oplichting', sexual: 'seksuele inhoud', illegal: 'illegale inhoud' };
 let aiModerationLastFailureAt = 0;
+let aiModerationActiveRequests = 0;
+const AI_MODERATION_MAX_CONCURRENT = 4;
 const AI_COMPANION_USER_REQUESTS = new Map();
 const AI_CONVERSATIONS = new Map(); // account key -> Map(conversation id -> conversation)
 const AI_PUBLIC_SHARES = new Map(); // random unlisted link id -> read-only conversation snapshot
@@ -998,7 +1000,17 @@ async function reviewPublicMessage(room, message) {
   if (!reviewableRoom || !AI_ENABLED || !AI_MODERATION_ENABLED || !AI_API_KEY ||
       !message || message.admin || message.bot || typeof message.text !== 'string' || !message.text.trim()) return;
 
+  if (aiModerationActiveRequests >= AI_MODERATION_MAX_CONCURRENT) {
+    const now = Date.now();
+    if (now - aiModerationLastFailureAt >= 5 * 60 * 1000) {
+      aiModerationLastFailureAt = now;
+      console.warn('[ai-moderation] Review capacity reached; some messages may pass without automatic review.');
+    }
+    return;
+  }
+
   let verdict;
+  aiModerationActiveRequests++;
   try {
     verdict = await classifyPublicMessage({ apiKey: AI_API_KEY, model: AI_MODEL, text: message.text });
   } catch (error) {
@@ -1008,6 +1020,8 @@ async function reviewPublicMessage(room, message) {
       console.warn('[ai-moderation] Provider unavailable; this message passed through and manual reports remain available.');
     }
     return;
+  } finally {
+    aiModerationActiveRequests = Math.max(0, aiModerationActiveRequests - 1);
   }
 
   const action = moderationAction(verdict);
@@ -1095,6 +1109,7 @@ async function sendChannelAICompanion(socket, room, prompt, ownerToken) {
   userRecent.push(now);
   AI_COMPANION_USER_REQUESTS.set(userKey, userRecent);
   AI_RATE_LIMIT.set(ipKey, ipRecent.concat(now));
+  aiPruneRateMap(AI_RATE_LIMIT);
   AI_GLOBAL_REQUESTS.splice(0, AI_GLOBAL_REQUESTS.length, ...globalRecent, now);
   if (AI_COMPANION_USER_REQUESTS.size > 2000) {
     for (const [key, hits] of AI_COMPANION_USER_REQUESTS) {
@@ -3614,6 +3629,7 @@ io.on('connection', (socket) => {
     message.edited = true;
     message.editedAt = now;
     emitPersonalizedRoomMessage(room, 'message:edited', message);
+    if (!isPrivateRoom && typeof message.text === 'string' && message.text.trim()) void reviewPublicMessage(room, message);
     socket.emit('sys', 'Message updated.');
   });
 
