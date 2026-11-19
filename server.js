@@ -1794,7 +1794,10 @@ setInterval(() => {
 }, 60 * 1000);
 setInterval(() => { for (const k in strikes) delete strikes[k]; }, 60 * 60 * 1000);
 setInterval(() => console.log('[stats] ' + statsLine()), 10 * 60 * 1000);
-
+const worldNewsInitialTimer = setTimeout(() => { void runWorldNewsPoll(); }, 15000);
+if (typeof worldNewsInitialTimer.unref === 'function') worldNewsInitialTimer.unref();
+const worldNewsPollTimer = setInterval(() => { void runWorldNewsPoll(); }, WORLD_NEWS_POLL_MS);
+if (typeof worldNewsPollTimer.unref === 'function') worldNewsPollTimer.unref();
 
 function addScreenViewer(socketId, screenRoom) {
   let viewingRooms = screenViewerRooms.get(socketId);
