@@ -4786,6 +4786,7 @@ function start() {
     const previousScroll = oldAdminBody?.querySelector('.admin-app-content')?.scrollTop || 0;
     const load = st.load || {};
     const ai = st.ai || { enabled: false, configured: false, conversations: 0, messages: 0, shares: 0, requests24h: 0, requestLimit24h: 300 };
+    const worldNews = st.worldNews || { enabled: false, active: false, published: 0, source: 'GDELT Project' };
     const center = st.serverCenter || { online: st.online || 0, activeChannels: 0, messages: st.messages || 0, uptimeSeconds: 0, channels: [], activity: [], warnings: [], load };
     const centerLevel = String((center.load && center.load.level) || load.level || 'unknown').toLowerCase();
     const centerHealthLabel = centerLevel === 'critical' ? 'CRITICAL · ACTION REQUIRED' : centerLevel === 'high' ? 'WARNING · RESOURCE USE HIGH' : centerLevel === 'normal' ? 'HEALTHY · ALL SYSTEMS NORMAL' : 'COLLECTING RESOURCE DATA';
@@ -4904,6 +4905,11 @@ function start() {
       '<div class="admin-stats"><span class="stat"><b data-admin-live-value="aiMessages">' + (ai.messages || 0) + '</b> AI messages</span><span class="stat"><b data-admin-live-value="aiRequests">' + (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300) + '</b> requests / 24h</span></div>' +
       '<p>AI Companion: use <b>/ask question</b> in a public channel to ask about the discussion. AI Moderator: ' + (ai.moderationActive ? '<b>ACTIVE</b>' : ai.moderationEnabled ? '<b>enabled, but not currently available</b>' : '<b>OFF</b>') + '. It checks public text; private encrypted messages and images are excluded. Use the control below to switch it independently.</p>' +
       B(ai.moderationEnabled ? '🛡 Disable AI Moderator' : '🛡 Enable AI Moderator', ai.moderationEnabled ? '/aimod off' : '/aimod on', ai.moderationEnabled ? 'red' : '', ai.moderationEnabled ? 'Disable automatic AI text moderation? Manual reports remain available.' : 'Enable automatic AI text moderation for public channels? Public text will be sent to Groq for review.') +
+      '<div class="sec">🌍 WORLD NEWS</div>' +
+      '<div class="load-status ' + (worldNews.active ? 'normal' : 'warn') + '"><b data-admin-world-news-status>' + (worldNews.active ? 'WORLD NEWS ACTIVE' : worldNews.enabled ? 'WORLD NEWS WAITING FOR AI' : 'WORLD NEWS PAUSED') + '</b><span>Source index: GDELT Project · ' + (worldNews.published || 0) + ' stories published since restart · photos link to publisher article previews</span></div>' +
+      '<p>Automatic read-only news posts with Dutch AI summaries, the original article link and its publisher preview image. Members can react with emoji; no one can post messages here. Requires the Groq AI provider.</p>' +
+      B(worldNews.enabled ? '⏸ Pause World News' : '🌍 Enable World News', worldNews.enabled ? '/worldnews off' : '/worldnews on', worldNews.enabled ? 'red' : '', worldNews.enabled ? 'Pause automatic news posts? Existing articles and reactions will remain.' : 'Enable automatic World News posts? Article headlines and short context snippets will be sent to Groq for Dutch summaries.') +
+      B('↻ Refresh World News status', '/worldnews status', 'plain') +
       '<p>Pause the text AI without deleting anyone’s private conversation. The provider API key stays on the server.</p>' +
       B('↻ Refresh AI status', '/aistatus', 'plain') +
       B(ai.enabled ? '⏸ Pause AI' : '✦ Enable AI', ai.enabled ? '/aioff' : '/aion', ai.enabled ? 'red' : '', ai.enabled ? 'Pause text AI for all users? Existing conversations will be preserved.' : 'Enable text AI for all users? The provider still needs to be configured.') +
@@ -4996,7 +5002,10 @@ function start() {
     const text = (selector, value) => { const node = body.querySelector(selector); if (node) node.textContent = String(value); };
     for (const key of ['online','rooms','messages','memory','timeouts']) text('[data-admin-live-value="' + key + '"]', st[key] ?? 0);
     const ai = st.ai || {};
+    const worldNews = st.worldNews || {};
     const center = st.serverCenter || {};
+    const newsStatus = body.querySelector('[data-admin-world-news-status]');
+    if (newsStatus) newsStatus.textContent = worldNews.active ? 'WORLD NEWS ACTIVE' : worldNews.enabled ? 'WORLD NEWS WAITING FOR AI' : 'WORLD NEWS PAUSED';
     text('[data-admin-live-value="aiMessages"]', ai.messages || 0);
     text('[data-admin-live-value="aiRequests"]', (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300));
     const load = st.load || {};
