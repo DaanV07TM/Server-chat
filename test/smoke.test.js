@@ -64,6 +64,7 @@ before(async () => {
       PORT: String(port),
       ADMIN_PASSWORD: 'server-chat-smoke-test-password-not-used-for-login',
       AI_ENABLED: '0',
+      WORLD_NEWS_ENABLED: '0',
       GROQ_API_KEY: '',
       TURNSTILE_SITE_KEY: '',
       TURNSTILE_SECRET_KEY: ''
@@ -142,6 +143,17 @@ test('AI status accurately reflects the disabled smoke-test configuration', asyn
   assert.equal(body.model, null);
   assert.equal(body.moderationEnabled, true);
   assert.equal(body.moderationActive, false);
+});
+
+test('World News status is private-cache safe and reports disabled test configuration', async () => {
+  const response = await fetch(baseUrl + '/api/world-news/status');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control') || '', /no-store/i);
+  const body = await response.json();
+  assert.equal(body.enabled, false);
+  assert.equal(body.active, false);
+  assert.equal(body.provider, 'GDELT Project');
+  assert.equal(typeof body.publishedSinceRestart, 'number');
 });
 
 test('private AI conversation creation requires an account session', async () => {
