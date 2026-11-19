@@ -376,4 +376,14 @@ jobs:
               raise SystemExit("AI rename/pin changes must use the account-authorized server API.")
           if "server-chat-shell-v7" not in sw:
               raise SystemExit("The UI shell cache must be bumped for the new interface.")
+          news = Path("lib/world-news.js").read_text(encoding="utf-8")
+          for marker in ("function safeHttpsUrl(", "function parseGdeltArticles(", "function extractContextSnippet(", "function parseNewsSummary("):
+              if marker not in news:
+                  raise SystemExit(f"Missing World News validation: {marker}")
+          for marker in ("if (room === 'world-news')", "room === 'world-news' && !m.news", "function runWorldNewsPoll()", "WORLD_NEWS_POLL_MS", "app.get('/api/world-news/status'"):
+              if marker not in server:
+                  raise SystemExit(f"Missing server-side World News rule: {marker}")
+          for marker in ('data-channel="world-news"', 'data-palette-room="world-news"', "function renderWorldNewsCard(news)", "if (messageNode.dataset.news === '1') return;", "document.body.classList.add('world-news-room')"):
+              if marker not in html:
+                  raise SystemExit(f"Missing World News interface element: {marker}")
           PY
