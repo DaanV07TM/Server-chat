@@ -1018,6 +1018,11 @@ async function generateWorldNewsSummary(candidate, contextSnippet) {
 
 async function runWorldNewsPoll() {
   if (!WORLD_NEWS_ENABLED || !AI_ENABLED || !AI_API_KEY || worldNewsInProgress) return;
+  const now = Date.now();
+  const newsRequests = WORLD_NEWS_AI_REQUESTS.filter(time => now - time < WORLD_NEWS_AI_WINDOW_MS);
+  const globalRequests = AI_GLOBAL_REQUESTS.filter(time => now - time < AI_GLOBAL_WINDOW_MS);
+  if (newsRequests.length >= WORLD_NEWS_AI_MAX_PER_DAY || globalRequests.length >= AI_GLOBAL_MAX) return;
+  WORLD_NEWS_AI_REQUESTS.splice(0, WORLD_NEWS_AI_REQUESTS.length, ...newsRequests);
   worldNewsInProgress = true;
   WORLD_NEWS_STATE.lastPollAt = Date.now();
   try {
@@ -1025,6 +1030,9 @@ async function runWorldNewsPoll() {
     let publishedThisPoll = 0;
     for (const candidate of candidates) {
       if (publishedThisPoll >= WORLD_NEWS_MAX_PER_POLL) break;
+      const currentNewsBudget = WORLD_NEWS_AI_REQUESTS.filter(time => Date.now() - time < WORLD_NEWS_AI_WINDOW_MS).length;
+      const currentGlobalBudget = AI_GLOBAL_REQUESTS.filter(time => Date.now() - time < AI_GLOBAL_WINDOW_MS).length;
+      if (currentNewsBudget >= WORLD_NEWS_AI_MAX_PER_DAY || currentGlobalBudget >= AI_GLOBAL_MAX) break;
       if (WORLD_NEWS_SEEN.has(candidate.id)) continue;
       if (!WORLD_NEWS_ENABLED || !AI_ENABLED) break;
 
@@ -4076,7 +4084,7 @@ io.on('connection', (socket) => {
     if (socket.data.admin) socket.emit('adm:state', adminState());
   });
 
-  socket.on('typing', (n) => { if (!blocked()) socket.to(room).emit('typing', safeName(n)); });
+  socket.on('typing', (n) => { if (room !== 'world-news' && !blocked()) socket.to(room).emit('typing', safeName(n)); });
 
   socket.on('disconnect', () => {
     removeVoiceParticipant(socket.id);
