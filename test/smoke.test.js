@@ -172,6 +172,7 @@ test('World News includes an ask-only composer and live browser search', () => {
   const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   assert.match(html, /Vraag iets over het nieuws/);
+  assert.ok(html.includes("payload.text = '/ask ' + t;"));
   assert.ok(server.includes('const newsQuestion = text.match'));
   assert.ok(server.includes("tools: [{ type: 'browser_search' }]"));
   assert.ok(server.includes('model: AI_WEB_MODEL'));
