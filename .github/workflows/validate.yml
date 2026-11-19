@@ -41,7 +41,10 @@ jobs:
             exit 0
           fi
           git commit -m "chore: add generated npm lockfile"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          git fetch origin "$BRANCH"
+          git rebase "origin/$BRANCH"
+          git push origin "HEAD:$BRANCH"
 
   syntax:
     needs: lockfile
