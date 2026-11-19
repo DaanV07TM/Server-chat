@@ -12,6 +12,7 @@ const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
 const { classifyPublicMessage, moderationAction } = require('./lib/ai-moderation');
+const { parseGdeltArticles, extractContextSnippet, parseNewsSummary } = require('./lib/world-news');
 
 const app = express();
 const server = http.createServer(app);
@@ -670,6 +671,11 @@ app.use(express.static('public'));
 
 const MAX_MSGS = 50, MAX_IMGS = 8, TTL = 60 * 60 * 1000, REPORT_LIMIT = 3;
 const MAX_ANNOUNCEMENT_HISTORY = 1000;
+const WORLD_NEWS_MAX_ITEMS = 60;
+const WORLD_NEWS_TTL_MS = 72 * 60 * 60 * 1000;
+const WORLD_NEWS_POLL_MS = Math.min(Math.max(Number(process.env.WORLD_NEWS_POLL_MS) || 30 * 60 * 1000, 5 * 60 * 1000), 6 * 60 * 60 * 1000);
+const WORLD_NEWS_MAX_PER_POLL = 2;
+const WORLD_NEWS_ENABLED_DEFAULT = String(process.env.WORLD_NEWS_ENABLED || '1').trim() !== '0';
 const ANNOUNCEMENT_TTL = 2 * 60 * 1000;
 const ADMIN_IMAGE_LIST_LIMIT = 6;
 const USER_BAN_MS = 24 * 60 * 60 * 1000;
@@ -734,9 +740,16 @@ const PUBLIC_STATUS_CHANNELS = [
   { key: 'announcements', label: '#announcements' },
   { key: 'help', label: '#help' },
   { key: 'voice', label: '#voice lounge' },
-  { key: 'music', label: '#music' }
+  { key: 'music', label: '#music' },
+  { key: 'world-news', label: '#world-news' }
 ];
 const ADMIN_CENTER_CHANNELS = [...PUBLIC_STATUS_CHANNELS, { key: 'ai', label: 'AI Studio' }];
+let WORLD_NEWS_ENABLED = WORLD_NEWS_ENABLED_DEFAULT;
+let worldNewsInProgress = false;
+let worldNewsLastGdeltRequestAt = 0;
+let worldNewsLastErrorLoggedAt = 0;
+const WORLD_NEWS_SEEN = new Map();
+const WORLD_NEWS_STATE = { lastPollAt: 0, lastSuccessAt: 0, lastPublishedAt: 0, published: 0, lastError: null };
 let lastLoadAlertAt = 0;
 function recordServerActivity(category, message) {
   const allowed = new Set(['system', 'connection', 'channel', 'chat', 'sticker', 'poll', 'event', 'announcement', 'warning']);
@@ -795,8 +808,8 @@ const SERVER_LOCATION = String(process.env.SERVER_LOCATION || '').trim();
 let offline = process.env.MAINTENANCE === '1';
 let silenced = false, slow = 0, links = false, images = 'on';   // images: off | private | on
 let banned = [], fails = [], maintTimers = [], midCount = 0;
-const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/party', '/partyoff', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aimod', '/aiclear', '/help', '/logout'];
-const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aimod on|off|status /aiclear /help /roll [sides] /coinflip /8ball question /poll question | option 1 | option 2 /quiz /restart /cancelrestart /logout";
+const ADMIN_CMDS = ['/status', '/offline', '/online', '/wipe', '/clear', '/announce', '/announcealarm', '/party', '/partyoff', '/maintenance', '/slow', '/restart', '/cancelrestart', '/silence', '/block', '/unblock', '/log', '/reports', '/delete', '/timeout', '/pardon', '/links', '/images', '/dismiss', '/clearreports', '/notifytest', '/aistatus', '/aion', '/aioff', '/aimod', '/worldnews', '/aiclear', '/help', '/logout'];
+const ADMIN_HELP = "Commands: /status /offline /online /wipe /clear /announce text /announcealarm text /party [message] /partyoff /maintenance minutes /slow seconds /silence /block word /unblock word /log /reports /delete id /timeout id minutes /pardon /links on|off /images off|private|on /dismiss id /clearreports /notifytest /aistatus /aion /aioff /aimod on|off|status /worldnews on|off|status /aiclear /help /roll [sides] /coinflip /8ball question /poll question | option 1 | option 2 /quiz /restart /cancelrestart /logout";
 
 // alerts: set any of these on Render (Environment). Outbound SMTP is blocked on free hosting, so e-mail goes through an HTTPS API.
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
@@ -869,7 +882,7 @@ function store(room, m) {
   if (!rooms[room]) console.log('[room] new room active');
   const list = (rooms[room] ||= []);
   list.push(m);
-  const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : MAX_MSGS;
+  const roomLimit = room === 'announcements' ? MAX_ANNOUNCEMENT_HISTORY : room === 'world-news' ? WORLD_NEWS_MAX_ITEMS : MAX_MSGS;
   if (list.length > roomLimit) list.shift();
   const withImg = list.filter(x => x.img);
   while (withImg.length > MAX_IMGS) { const o = withImg.shift(); delete o.img; delete o.imageApproved; o.text = o.text || '(image removed)'; }
@@ -879,6 +892,7 @@ function bot(room, text, ownerToken = '', extra = {}) {
   if (ownerToken) m.tok = ownerToken;
   store(room, m);
   io.to(room).emit('msg', pub(m));
+  return m;
 }
 const QUIZ_BANK = [
   { question: 'Which protocol resolves domain names to IP addresses?', options: ['DNS', 'DHCP', 'SSH', 'FTP'], answer: 0 },
@@ -1363,6 +1377,15 @@ const adminState = () => ({
     requests24h: AI_GLOBAL_REQUESTS.filter(time => Date.now() - time < AI_GLOBAL_WINDOW_MS).length,
     requestLimit24h: AI_GLOBAL_MAX
   },
+  worldNews: {
+    enabled: WORLD_NEWS_ENABLED,
+    active: Boolean(WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY),
+    source: 'GDELT Project',
+    lastPollAt: WORLD_NEWS_STATE.lastPollAt || null,
+    lastSuccessAt: WORLD_NEWS_STATE.lastSuccessAt || null,
+    lastPublishedAt: WORLD_NEWS_STATE.lastPublishedAt || null,
+    published: WORLD_NEWS_STATE.published
+  },
   restartInProgress, restartSubmitted,
   online: io.engine.clientsCount, rooms: Object.keys(rooms).length,
   messages: Object.values(rooms).reduce((n, l) => n + l.length, 0),
@@ -1406,6 +1429,17 @@ function adminCommand(socket, c, arg, room) {
     else if (arg === 'off') AI_MODERATION_ENABLED = false;
     else if (arg !== 'status' && arg !== '') return say('Usage: /aimod on|off|status');
     say('AI Moderator: ' + (AI_MODERATION_ENABLED ? 'enabled' : 'disabled') + (AI_ENABLED && AI_API_KEY && AI_MODERATION_ENABLED ? ' and active.' : AI_MODERATION_ENABLED ? ' but not active (check /aistatus and GROQ_API_KEY).' : '. Manual reports remain available.'));
+  }
+  else if (c === 'worldnews') {
+    if (arg === 'on') {
+      WORLD_NEWS_ENABLED = true;
+      say('World News automatic publishing enabled. A new poll has been scheduled.');
+      void runWorldNewsPoll();
+    } else if (arg === 'off') {
+      WORLD_NEWS_ENABLED = false;
+      say('World News automatic publishing paused. Existing posts and emoji reactions remain.');
+    } else if (arg !== 'status' && arg !== '') return say('Usage: /worldnews on|off|status');
+    else say('World News: ' + (WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY ? 'ACTIVE' : WORLD_NEWS_ENABLED ? 'enabled but not active (check /aistatus and GROQ_API_KEY)' : 'PAUSED') + ' | source: GDELT | published since restart: ' + WORLD_NEWS_STATE.published + ' | last update: ' + (WORLD_NEWS_STATE.lastPublishedAt ? new Date(WORLD_NEWS_STATE.lastPublishedAt).toLocaleString() : 'none yet'));
   }
   else if (c === 'aion') { AI_ENABLED = true; announce('✨ Server Chat AI is available again.'); say('Built-in AI enabled.'); }
   else if (c === 'aioff') { AI_ENABLED = false; announce('🛠️ Server Chat AI has been temporarily paused by an administrator.'); say('Built-in AI paused. Existing private conversations are preserved.'); }
@@ -1550,7 +1584,8 @@ setInterval(() => {
   for (const r in rooms) {
     // Moderator posts in #announcements are retained for the lifetime of this
     // process; regular room history still expires after one hour.
-    if (r !== 'announcements') rooms[r] = rooms[r].filter(m => now - m.t < TTL);
+    if (r === 'world-news') rooms[r] = rooms[r].filter(m => now - m.t < WORLD_NEWS_TTL_MS);
+    else if (r !== 'announcements') rooms[r] = rooms[r].filter(m => now - m.t < TTL);
     if (!rooms[r].length) delete rooms[r];
   }
   for (const k in timeouts) if (timeouts[k] < now) delete timeouts[k];
@@ -2984,7 +3019,7 @@ io.on('connection', (socket) => {
     if (blocked()) return socket.emit('closed', true);
     const now = Date.now();
     const history = (rooms[room] || [])
-      .filter(m => m.imageApproved !== false && (room === 'announcements' || now - m.t < TTL))
+      .filter(m => m.imageApproved !== false && (room === 'announcements' || now - m.t < (room === 'world-news' ? WORLD_NEWS_TTL_MS : TTL)))
       .map(m => {
         const safeMessage = { ...pub(m), own: !!m.tok && m.tok === key() };
         if (m.poll) safeMessage.poll = { ...m.poll, myVote: m.pollVotes && Object.prototype.hasOwnProperty.call(m.pollVotes, key()) ? m.pollVotes[key()] : null };
@@ -2994,6 +3029,12 @@ io.on('connection', (socket) => {
     // #announcements have their own history and do not expire with normal chat.
     if (room !== 'announcements' && latestAnnouncement && now - latestAnnouncement.t < ANNOUNCEMENT_TTL) {
       history.push(latestAnnouncement);
+    }
+    if (room === 'world-news') {
+      history.unshift({
+        name: 'World News AI', bot: true, pinned: true, t: now,
+        text: 'Welkom bij #world-news. Dit kanaal is alleen-lezen: de AI plaatst automatisch korte Nederlandstalige nieuwssamenvattingen met de oorspronkelijke artikellink en artikelafbeelding. Reageer met emoji. De bronlink en foto helpen je de oorspronkelijke publicatie te controleren, maar zijn op zichzelf geen onafhankelijke factcheck. Nieuwsdata wordt verzameld via het GDELT Project; AI-samenvattingen kunnen fouten bevatten.'
+      });
     }
     if (room === 'announcements') {
       history.push(...OFFICIAL_ANNOUNCEMENT_INFO.map((m, i) => ({
@@ -3504,6 +3545,9 @@ io.on('connection', (socket) => {
       return adminCommand(socket, cmd.slice(1), rest.join(' ').trim(), room);
     }
 
+    if (room === 'world-news') {
+      return socket.emit('sys', 'The #world-news channel is read-only. Follow the original articles and react with emojis instead.');
+    }
     if (room === 'announcements' && !socket.data.admin) {
       return socket.emit('sys', 'The #announcements channel is read-only. Only moderators can post there.');
     }
@@ -3719,7 +3763,7 @@ io.on('connection', (socket) => {
     if (blocked() || now - lastReact < 200 || !d || !EMOJIS.includes(d.e)) return;
     lastReact = now;
     const m = (rooms[room] || []).find(x => x.mid === d.mid);
-    if (!m) return;
+    if (!m || (room === 'world-news' && !m.news)) return;
     const who = (m.v[d.e] ||= []);
     // Reactions are tied to the account, not a single browser tab, so account deletion can remove them.
     const voterToken = key();
