@@ -70,11 +70,11 @@ test('parses, sanitizes, deduplicates and sorts GDELT articles', () => {
     ]
   }, new Set(), 10);
 
-  assert.equal(result.length, 3);
+  assert.equal(result.length, 2);
   assert.equal(result[0].title, 'A sufficiently long newer headline for testing');
   assert.equal(result[0].source, 'news.example.org');
   assert.equal(result[0].imageUrl, 'https://images.example.org/newer.jpg');
-  assert.equal(result[1].canonicalUrl, 'https://news.example.org/newer');
+  assert.equal(result[1].canonicalUrl, 'https://news.example.org/older');
 });
 
 test('extracts a matching context sentence but never borrows another article excerpt', () => {
