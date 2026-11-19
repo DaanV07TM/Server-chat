@@ -1003,7 +1003,7 @@ async function generateWorldNewsSummary(candidate, contextSnippet) {
         }
       ],
       response_format: { type: 'json_object' },
-      reasoning_format: 'hidden',
+      include_reasoning: false,
       max_completion_tokens: 180,
       temperature: 0.2
     }),
