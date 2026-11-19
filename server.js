@@ -313,6 +313,8 @@ app.get('/api/ai/status', (_req, res) => {
     enabled: AI_ENABLED,
     configured: Boolean(AI_API_KEY),
     model: AI_API_KEY ? AI_MODEL : null,
+    moderationEnabled: AI_MODERATION_ENABLED,
+    moderationActive: Boolean(AI_ENABLED && AI_MODERATION_ENABLED && AI_API_KEY)
   });
 });
 
