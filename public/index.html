@@ -3067,10 +3067,10 @@ function start() {
     title.textContent = String(news.title || 'News story');
     const source = document.createElement('div');
     source.className = 'world-news-source';
-    source.textContent = 'SOURCE · ' + String(news.source || 'Original publisher');
+    source.textContent = 'BRON · ' + String(news.source || 'Oorspronkelijke uitgever') + (news.sourceCountry ? ' · ' + String(news.sourceCountry) : '');
     if (news.seenAt) {
       const seen = new Date(news.seenAt);
-      if (Number.isFinite(seen.getTime())) source.textContent += ' · FOUND ' + seen.toLocaleString();
+      if (Number.isFinite(seen.getTime())) source.textContent += ' · GEZIEN ' + seen.toLocaleString();
     }
     const summary = document.createElement('p');
     summary.className = 'world-news-summary';
@@ -3098,12 +3098,12 @@ function start() {
       link.href = news.url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = 'Read original article ↗';
+      link.textContent = 'Lees het originele artikel ↗';
       article.append(link);
     }
     const note = document.createElement('p');
     note.className = 'world-news-note';
-    note.textContent = 'AI summary · publisher link and preview image are provided for source checking, not as an independent fact-check.';
+    note.textContent = 'AI-samenvatting · de link en previewfoto helpen de oorspronkelijke bron te controleren, maar zijn geen onafhankelijke factcheck.';
     article.append(note);
     return article;
   }
