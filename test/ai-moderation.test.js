@@ -72,7 +72,7 @@ test('sends bounded public message content and parses Groq JSON response', async
   assert.match(request.url, /api\.groq\.com/);
   assert.equal(request.options.headers.Authorization, 'Bearer test-key');
   assert.equal(JSON.parse(request.options.body).response_format.type, 'json_object');
-  assert.equal(JSON.parse(request.options.body).reasoning_format, 'hidden');
+  assert.equal(JSON.parse(request.options.body).include_reasoning, false);
 });
 
 test('reports provider failures instead of fabricating a safe verdict', async () => {
