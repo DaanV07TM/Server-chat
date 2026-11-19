@@ -1551,7 +1551,7 @@ function start() {
   let authMode = 'login';
   let authBusy = false;
   let newlyGeneratedPassword = '';
-  let securityConfig = { termsVersion: '2026-10-29-v1', turnstileEnabled: false, turnstileSiteKey: '' };
+  let securityConfig = { termsVersion: '2026-11-19-v2', turnstileEnabled: false, turnstileSiteKey: '' };
   let securityConfigLoaded = false;
   let turnstileWidgetId = null;
   let turnstileToken = '';
@@ -4803,7 +4803,7 @@ function start() {
       B('🛑 Stop Party Mode', '/partyoff', 'plain', 'End Party Mode in every open chat now?') +
       '<div>Maintenance in <select id="mSel" aria-label="Minutes"><option>5</option><option>10</option><option>30</option><option>60</option></select> min ' + B('Start countdown', '/maintenance ', '', '', '#mSel') + '</div>' +
       '<div class="sec">Reports (' + st.reports.length + ')</div>' +
-      (st.reports.length ? st.reports.map(r => '<div class="rep">' + (r.urgent ? '🚨 ' : '') + '<b>#' + r.mid + '</b> ' + h(r.name) + ' · ' + h(r.reasons.join(', ')) + ' (' + r.n + '×) <i>[' + h(r.status) + ']</i><br>“' + h(r.text) + '”<br>' +
+      (st.reports.length ? st.reports.map(r => '<div class="rep">' + (r.urgent ? '🚨 ' : '') + '<b>#' + r.mid + '</b> ' + h(r.name) + ' · ' + h(r.automated ? 'AI Moderator' : 'User report') + (r.room ? ' · #' + h(r.room) : '') + ' · ' + h(r.reasons.join(', ')) + ' (' + r.n + '×) <i>[' + h(r.status) + ']</i>' + (r.reason ? '<br>' + h(r.reason) : '') + (r.confidence !== null && r.confidence !== undefined ? '<br>AI score: ' + Math.round(r.confidence * 100) + '/100' : '') + '<br>“' + h(r.text) + '”<br>' +
         B('Delete', '/delete ' + r.mid, 'red') + B('Timeout 1 h', '/timeout ' + r.mid + ' 60') + B('Dismiss', '/dismiss ' + r.mid, 'plain') + '</div>').join('') : '<p>No open reports.</p>') +
       (st.reports.length ? B('Clear all reports', '/clearreports', 'red', 'Remove all reports from the list?') : '') +
       '<div class="sec">Blocked words</div>' + (st.banned.map(w => '<span class="stat">' + h(w) + ' ' + B('×', '/unblock ' + w, 'plain') + '</span>').join('') || '<p>None.</p>') +
@@ -4812,6 +4812,8 @@ function start() {
       '<div class="sec">✦ AI CONTROL CENTER</div>' +
       '<div class="load-status ' + (ai.enabled && ai.configured ? 'normal' : 'warn') + '" data-admin-ai-status><b>' + (ai.enabled ? (ai.configured ? 'AI ONLINE' : 'AI ENABLED · PROVIDER NOT CONFIGURED') : 'AI PAUSED BY ADMIN') + '</b><span>Model: ' + h(ai.model || 'not configured') + ' · ' + (ai.conversations || 0) + ' private conversations · ' + (ai.shares || 0) + ' active share links</span></div>' +
       '<div class="admin-stats"><span class="stat"><b data-admin-live-value="aiMessages">' + (ai.messages || 0) + '</b> AI messages</span><span class="stat"><b data-admin-live-value="aiRequests">' + (ai.requests24h || 0) + '/' + (ai.requestLimit24h || 300) + '</b> requests / 24h</span></div>' +
+      '<p>AI Companion: use <b>/ask question</b> in a public channel to ask about the discussion. AI Moderator: ' + (ai.moderationActive ? '<b>ACTIVE</b>' : ai.moderationEnabled ? '<b>enabled, but not currently available</b>' : '<b>OFF</b>') + '. It checks public text; private encrypted messages and images are excluded. Use the control below to switch it independently.</p>' +
+      B(ai.moderationEnabled ? '🛡 Disable AI Moderator' : '🛡 Enable AI Moderator', ai.moderationEnabled ? '/aimod off' : '/aimod on', ai.moderationEnabled ? 'red' : '', ai.moderationEnabled ? 'Disable automatic AI text moderation? Manual reports remain available.' : 'Enable automatic AI text moderation for public channels? Public text will be sent to Groq for review.') +
       '<p>Pause the text AI without deleting anyone’s private conversation. The provider API key stays on the server.</p>' +
       B('↻ Refresh AI status', '/aistatus', 'plain') +
       B(ai.enabled ? '⏸ Pause AI' : '✦ Enable AI', ai.enabled ? '/aioff' : '/aion', ai.enabled ? 'red' : '', ai.enabled ? 'Pause text AI for all users? Existing conversations will be preserved.' : 'Enable text AI for all users? The provider still needs to be configured.') +

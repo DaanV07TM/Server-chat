@@ -140,6 +140,8 @@ test('AI status accurately reflects the disabled smoke-test configuration', asyn
   assert.equal(body.configured, false);
   assert.equal(body.available, false);
   assert.equal(body.model, null);
+  assert.equal(body.moderationEnabled, true);
+  assert.equal(body.moderationActive, false);
 });
 
 test('private AI conversation creation requires an account session', async () => {
