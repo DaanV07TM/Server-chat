@@ -622,9 +622,11 @@ button:active:not(:disabled){transform:translateY(0)}
 
 </style>
 <style>
-.world-news-room #bar,
 .world-news-room #typing,
 .world-news-room #composeContext{display:none!important}
+.world-news-room #bar{display:flex!important;max-width:920px;width:100%;margin:0 auto;padding:12px 18px 16px;border-top:1px solid var(--line);background:var(--panel)}
+.world-news-room #text{border-radius:14px}
+.world-news-room #send{min-width:104px}
 .world-news-room #log{padding:18px clamp(14px,3vw,32px) 34px;gap:16px}
 .world-news-room .world-news-empty{max-width:720px;margin:28px auto;padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);line-height:1.6}
 .world-news-message{width:min(820px,100%);max-width:820px!important;margin:0 auto!important;padding:0!important;border:1px solid var(--line);border-radius:20px!important;background:var(--panel)!important;overflow:hidden;box-shadow:0 12px 34px rgba(0,0,0,.08)}
@@ -1350,7 +1352,12 @@ function start() {
   document.body.dataset.sharedAi = isSharedAIView ? 'true' : 'false';
   if (isWorldNewsRoom) {
     document.body.classList.add('world-news-room');
-    $('bar').hidden = true;
+    $('bar').hidden = false;
+    $('photo').hidden = true;
+    $('screenShareBtn').hidden = true;
+    $('stickerButton').hidden = true;
+    $('send').textContent = 'Ask AI';
+    $('text').placeholder = 'Vraag iets over het nieuws… gebruik /ask je vraag';
     $('typing').hidden = true;
     $('composeContext').hidden = true;
   }
@@ -3507,7 +3514,7 @@ function start() {
     updateMessageSearch();
   });
   socket.on('online', n => $('online').textContent = n + ' online');
-  socket.on('config', c => { $('photo').hidden = !c.images; });
+  socket.on('config', c => { $('photo').hidden = isWorldNewsRoom || !c.images; });
   socket.on('sys', t => { if ($('adm').style.display === 'flex') $('admmsg').textContent = t; else add({ bot: true, text: t }); });
   socket.on('closed', c => {
     if (c) {
