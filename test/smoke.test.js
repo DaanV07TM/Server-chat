@@ -172,15 +172,15 @@ test('World News includes an ask-only composer and live browser search', () => {
   const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   assert.match(html, /Vraag iets over het nieuws/);
-  assert.match(server, /const newsQuestion = text\\.match\\(\\/\\^\\\\\\/ask/);
-  assert.match(server, /tools: \\[\\{ type: 'browser_search' \\}\\]/);
-  assert.match(server, /model: AI_WEB_MODEL/);
+  assert.ok(server.includes('const newsQuestion = text.match'));
+  assert.ok(server.includes("tools: [{ type: 'browser_search' }]"));
+  assert.ok(server.includes('model: AI_WEB_MODEL'));
 });
 
 test('local controlled-drug sale detection is wired before provider availability checks', () => {
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   const moderation = fs.readFileSync(path.join(root, 'lib', 'ai-moderation.js'), 'utf8');
-  assert.match(server, /detectIllegalDrugSale\\(message\\.text\\)/);
+  assert.ok(server.includes('detectIllegalDrugSale(message.text)'));
   assert.match(moderation, /ketamine/);
   assert.match(moderation, /directOffer/);
 });
