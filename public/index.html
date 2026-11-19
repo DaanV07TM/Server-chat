@@ -4368,6 +4368,8 @@ function start() {
       if (t.startsWith('/')) {
         // Slash commands are control actions, not stored chat messages.
         payload.text = t;
+      } else if (isWorldNewsRoom) {
+        payload.text = '/ask ' + t;
       } else if (isPrivateRoom) {
         try {
           payload.encryptedText = await encryptChatText(t);
