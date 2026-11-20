@@ -9,6 +9,7 @@ const {
   parseGdeltArticles,
   extractContextSnippet,
   parseNewsSummary,
+  fallbackNewsSummary,
   parseRssFeed,
   WORLD_NEWS_FEEDS
 } = require('../lib/world-news');
@@ -217,4 +218,20 @@ test('RSS parser rejects links outside the selected publisher domain and dedupli
   const stories = parseRssFeed(xml, feed, new Set(), 10);
   assert.equal(stories.length, 1);
   assert.equal(stories[0].source, 'NPR');
+});
+
+
+test('keeps a news item publishable when an AI summary is unavailable', () => {
+  assert.equal(
+    fallbackNewsSummary({
+      title: 'Federale controleactie brengt een nieuwe maatregel aan het licht',
+      summary: 'De federale inspectiedienst meldt dat de controleactie vandaag nieuwe resultaten heeft opgeleverd.'
+    }),
+    'De federale inspectiedienst meldt dat de controleactie vandaag nieuwe resultaten heeft opgeleverd.'
+  );
+  assert.match(
+    fallbackNewsSummary({ title: 'Een nieuwsbericht zonder beschrijving' }),
+    /geen korte beschrijving meegestuurd/i
+  );
+  assert.equal(fallbackNewsSummary({}), '');
 });
