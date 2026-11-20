@@ -178,6 +178,22 @@ test('World News includes an ask-only composer and live browser search', () => {
   assert.ok(server.includes('model: AI_WEB_MODEL'));
 });
 
+test('World News AI replies are private and do not enter shared room history', () => {
+  const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const start = server.indexOf('async function sendChannelAICompanion');
+  const end = server.indexOf('\nfunction blockedRoomForAI', start);
+  assert.ok(start >= 0 && end > start);
+  const companion = server.slice(start, end);
+  assert.ok(companion.includes("socket.emit('ai:private-reply'"));
+  assert.ok(companion.includes("socket.emit('ai:private-error'"));
+  assert.ok(!companion.includes("bot(room, answer"));
+  assert.ok(html.includes("socket.on('ai:private-reply'"));
+  assert.ok(html.includes("socket.on('ai:private-error'"));
+  assert.ok(html.includes('ai-private-inbox'));
+  assert.ok(html.includes('createNewsImageFallback'));
+});
+
 test('local controlled-drug sale detection is wired before provider availability checks', () => {
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   const moderation = fs.readFileSync(path.join(root, 'lib', 'ai-moderation.js'), 'utf8');
