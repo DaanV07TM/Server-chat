@@ -152,8 +152,12 @@ test('World News status is private-cache safe and reports disabled test configur
   const body = await response.json();
   assert.equal(body.enabled, false);
   assert.equal(body.active, false);
+  assert.equal(body.aiSummariesEnabled, false);
   assert.equal(body.provider, 'News.belgium CC0 + Openverse CC-licensed images');
   assert.equal(typeof body.publishedSinceRestart, 'number');
+  assert.equal(body.lastCandidateCount, 0);
+  assert.equal(body.fallbackSummariesLastPoll, 0);
+  assert.equal(body.lastError, null);
 });
 
 test('private AI conversation creation requires an account session', async () => {
@@ -201,6 +205,8 @@ test('World News uses separately licensed Openverse images and links VRT directl
   const openverse = fs.readFileSync(path.join(root, 'lib', 'openverse-images.js'), 'utf8');
   assert.ok(server.includes("require('./lib/openverse-images')"));
   assert.ok(server.includes('searchOpenverseImage(candidate.title'));
+  assert.ok(server.includes('fallbackNewsSummary(candidate)'));
+  assert.ok(server.includes("active: Boolean(WORLD_NEWS_ENABLED)"));
   assert.ok(server.includes('imageAttribution: licensedImage'));
   assert.ok(!server.includes('imageUrl: candidate.imageUrl'));
   assert.ok(openverse.includes("license_type: 'commercial'"));
