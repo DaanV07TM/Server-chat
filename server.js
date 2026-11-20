@@ -1074,7 +1074,7 @@ async function runWorldNewsPoll() {
     WORLD_NEWS_STATE.lastSuccessAt = Date.now();
     WORLD_NEWS_STATE.lastError = null;
   } catch (error) {
-    const detail = String(error && error.message || 'News feed temporarily unavailable').replace(/[\\r\\n\\t]/g, ' ').trim();
+    const detail = String(error && error.message || 'News feed temporarily unavailable').split(String.fromCharCode(10)).join(' ').split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(9)).join(' ').trim();
     WORLD_NEWS_STATE.lastError = detail.slice(0, 180) || 'News feed temporarily unavailable';
     const now = Date.now();
     if (now - worldNewsLastErrorLoggedAt >= 5 * 60 * 1000) {
