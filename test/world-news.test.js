@@ -189,6 +189,24 @@ test('parses a Dutch News.belgium entry and retains its original government arti
   assert.equal(stories[0].sourceDomain, 'news.belgium.be');
 });
 
+test('skips News.belgium RSS items with an explicit non-CC0 rights notice', () => {
+  const feed = { publisher: 'News.belgium', allowedDomains: ['news.belgium.be'], contentLicense: 'CC0' };
+  const xml = '<rss><channel>' +
+    '<item><title>Public information that can be reused under CC0</title>' +
+    '<link>https://news.belgium.be/nl/cc0-release</link>' +
+    '<description>Text that is reusable.</description>' +
+    '</item>' +
+    '<item><title>Content with a separate rights notice must be skipped</title>' +
+    '<link>https://news.belgium.be/nl/restricted-release</link>' +
+    '<description>Text with separate terms.</description>' +
+    '<rights>All rights reserved</rights>' +
+    '</item></channel></rss>';
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 1);
+  assert.equal(stories[0].url, 'https://news.belgium.be/nl/cc0-release');
+  assert.equal(stories[0].imageUrl, null);
+});
+
 test('RSS parser rejects links outside the selected publisher domain and deduplicates URLs', () => {
   const feed = { publisher: 'NPR', allowedDomains: ['npr.org'] };
   const xml = `<rss><channel>
