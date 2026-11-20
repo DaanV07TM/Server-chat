@@ -186,7 +186,8 @@ test('World News AI replies are private and do not enter shared room history', (
   assert.ok(start >= 0 && end > start);
   const companion = server.slice(start, end);
   assert.ok(companion.includes("socket.emit('ai:private-reply'"));
-  assert.ok(companion.includes("socket.emit('ai:private-error'"));
+  assert.ok(companion.includes("sendPrivateError("));
+  assert.ok(!companion.includes("socket.emit('sys'"));
   assert.ok(!companion.includes("bot(room, answer"));
   assert.ok(html.includes("socket.on('ai:private-reply'"));
   assert.ok(html.includes("socket.on('ai:private-error'"));
