@@ -641,6 +641,35 @@ button:active:not(:disabled){transform:translateY(0)}
 .world-news-note{order:5;margin:0 18px!important;color:var(--mute);font-size:11px;line-height:1.5}
 .world-news-message .rx{margin:0 16px 15px}
 @media(max-width:640px){.world-news-room #log{padding:12px 10px 24px}.world-news-image-link,.world-news-image{max-height:245px}.world-news-title{font-size:20px}}
+.world-news-message{width:min(900px,100%);border-color:color-mix(in srgb,var(--accent) 18%,var(--line));box-shadow:0 16px 42px rgba(0,0,0,.12)}
+.world-news-card{gap:12px;padding-bottom:18px}
+.world-news-image-link{max-height:340px}
+.world-news-image{max-height:340px;object-fit:cover}
+.world-news-kicker{display:flex;align-items:center;gap:8px;margin:16px 22px 0;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.world-news-title{margin:0 22px!important;font-size:clamp(21px,2.8vw,29px);line-height:1.22;letter-spacing:-.03em}
+.world-news-source{display:flex;flex-wrap:wrap;gap:6px;margin:0 22px;color:var(--mute);font-size:12px;font-weight:650;letter-spacing:.01em}
+.world-news-summary{margin:0 22px!important;font-size:15px;line-height:1.75;color:var(--ink)}
+.world-news-original-link{margin:2px 22px 0;padding:10px 15px;border-radius:11px;font-size:13px;box-shadow:0 5px 14px rgba(0,0,0,.12)}
+.world-news-note{margin:0 22px!important;padding-top:3px;font-size:11px;line-height:1.55}
+.ai-answer-content{display:block!important;width:100%;max-width:100%;margin-top:7px;white-space:normal;line-height:1.65}
+.ai-answer{display:flex;flex-direction:column;gap:10px;min-width:0;overflow-wrap:anywhere}
+.ai-answer p{margin:0;line-height:1.7}
+.ai-answer h3,.ai-answer h4{margin:5px 0 0;color:var(--ink);line-height:1.3;font-weight:850;letter-spacing:-.015em}
+.ai-answer h3{font-size:17px}
+.ai-answer h4{font-size:15px}
+.ai-answer ul,.ai-answer ol{display:grid;gap:6px;margin:0;padding-left:23px}
+.ai-answer li{padding-left:2px;line-height:1.65}
+.ai-answer blockquote{margin:0;padding:10px 14px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:color-mix(in srgb,var(--accent) 7%,var(--panel));color:var(--mute)}
+.ai-answer hr{width:100%;border:0;border-top:1px solid var(--line);margin:2px 0}
+.ai-answer a{color:var(--accent);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;overflow-wrap:anywhere}
+.ai-answer code{padding:2px 5px;border-radius:5px;background:var(--surface);font-size:.9em}
+.ai-answer-table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.ai-answer-table{width:100%;min-width:480px;border-collapse:collapse;text-align:left;font-size:13px;line-height:1.5}
+.ai-answer-table th,.ai-answer-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.ai-answer-table th{background:color-mix(in srgb,var(--accent) 9%,var(--panel));font-weight:800;color:var(--ink)}
+.ai-answer-table tr:last-child td{border-bottom:0}
+.ai-answer-table td{color:var(--ink)}
+@media(max-width:640px){.world-news-title{margin:0 16px!important}.world-news-kicker,.world-news-source,.world-news-summary,.world-news-note{margin-left:16px!important;margin-right:16px!important}.world-news-original-link{margin-left:16px;margin-right:16px}.ai-answer-table{min-width:420px}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -3072,16 +3101,16 @@ function start() {
     };
     const kicker = document.createElement('div');
     kicker.className = 'world-news-kicker';
-    kicker.textContent = '🌍 WORLD NEWS AI · GDELT ARTICLE INDEX';
+    kicker.textContent = '🌍 WORLD NEWS · UITGEKOZEN NIEUWSBRON';
     const title = document.createElement('h2');
     title.className = 'world-news-title';
     title.textContent = String(news.title || 'News story');
     const source = document.createElement('div');
     source.className = 'world-news-source';
-    source.textContent = 'BRON · ' + String(news.source || 'Oorspronkelijke uitgever') + (news.sourceCountry ? ' · ' + String(news.sourceCountry) : '');
+    source.textContent = 'BRON · ' + String(news.source || 'Nieuwsuitgever');
     if (news.seenAt) {
       const seen = new Date(news.seenAt);
-      if (Number.isFinite(seen.getTime())) source.textContent += ' · GEZIEN ' + seen.toLocaleString();
+      if (Number.isFinite(seen.getTime())) source.textContent += ' · ' + seen.toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' });
     }
     const summary = document.createElement('p');
     summary.className = 'world-news-summary';
@@ -3095,7 +3124,7 @@ function start() {
       const image = document.createElement('img');
       image.className = 'world-news-image';
       image.src = news.imageUrl;
-      image.alt = 'Publisher article preview image';
+      image.alt = 'Beeld bij artikel van ' + String(news.source || 'de nieuwsuitgever');
       image.loading = 'lazy';
       image.referrerPolicy = 'no-referrer';
       image.onerror = () => { mediaLink.hidden = true; };
@@ -3114,7 +3143,7 @@ function start() {
     }
     const note = document.createElement('p');
     note.className = 'world-news-note';
-    note.textContent = 'AI-samenvatting · de link en previewfoto helpen de oorspronkelijke bron te controleren, maar zijn geen onafhankelijke factcheck.';
+    note.textContent = 'AI-samenvatting op basis van de RSS-publicatie. Controleer details altijd via het originele artikel.';
     article.append(note);
     return article;
   }
@@ -3217,42 +3246,186 @@ function start() {
     return card;
   }
 
-  function appendAIAnswerWithLinks(container, value) {
-    const source = String(value || '');
-    const pattern = /\[([^\]]{1,160})\]\((https:\/\/[^\s)]+)\)|(https:\/\/[^\s<>"']+)/gi;
-    let offset = 0;
-    let match;
-    while ((match = pattern.exec(source))) {
-      const start = match.index;
-      if (start > offset) container.append(document.createTextNode(source.slice(offset, start)));
-
-      const label = match[1] || '';
-      let rawUrl = match[2] || match[3] || '';
-      const trailing = rawUrl.match(/[.,;:!?]+$/);
-      const suffix = trailing ? trailing[0] : '';
-      if (suffix) rawUrl = rawUrl.slice(0, -suffix.length);
-      let parsed = null;
-      try { parsed = new URL(rawUrl); } catch (_) {}
-      const host = parsed ? parsed.hostname.toLowerCase().replace(/^www\./, '') : '';
-      const safe = parsed && parsed.protocol === 'https:' && !parsed.username && !parsed.password &&
+  function isSafeAIExternalUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      const host = url.hostname.toLowerCase().replace(/^www\./, '');
+      return url.protocol === 'https:' && !url.username && !url.password &&
         host && host !== 'localhost' && !host.endsWith('.localhost') && !host.endsWith('.local') &&
         !host.includes(':') && !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host);
-      if (safe) {
-        const link = document.createElement('a');
-        link.href = parsed.toString();
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = label || rawUrl;
-        link.style.color = 'var(--accent)';
-        link.style.textDecoration = 'underline';
-        container.append(link);
-      } else {
-        container.append(document.createTextNode(match[0]));
+    } catch (_) { return false; }
+  }
+
+  function cleanAIAnswerForDisplay(value) {
+    return String(value || '')
+      .replace(/(?:〖|\[)\s*\d+\s*†\s*L[\dL-]+\s*(?:〗|\])/g, '')
+      .replace(/【\s*\d+\s*†\s*[^】]{1,120}】/g, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  function appendAIInlineMarkdown(parent, value) {
+    const source = String(value || '');
+    const tokenPattern = /\[([^\]]{1,180})\]\((https:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\x60([^\x60]+)\x60|\*([^*\n]+)\*|_([^_\n]+)_|(https:\/\/[^\s<>"]+)/g;
+    let offset = 0;
+    let match;
+    while ((match = tokenPattern.exec(source))) {
+      if (match.index > offset) parent.append(document.createTextNode(source.slice(offset, match.index)));
+      if (match[1] && match[2]) {
+        const rawUrl = match[2].replace(/[.,;:!?]+$/, '');
+        const suffix = match[2].slice(rawUrl.length);
+        if (isSafeAIExternalUrl(rawUrl)) {
+          const link = document.createElement('a');
+          link.href = new URL(rawUrl).toString();
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = match[1];
+          parent.append(link);
+        } else {
+          parent.append(document.createTextNode(match[0]));
+        }
+        if (suffix) parent.append(document.createTextNode(suffix));
+      } else if (match[3] || match[4]) {
+        const strong = document.createElement('strong');
+        strong.textContent = match[3] || match[4];
+        parent.append(strong);
+      } else if (match[5]) {
+        const code = document.createElement('code');
+        code.textContent = match[5];
+        parent.append(code);
+      } else if (match[6] || match[7]) {
+        const emphasis = document.createElement('em');
+        emphasis.textContent = match[6] || match[7];
+        parent.append(emphasis);
+      } else if (match[8]) {
+        const rawUrl = match[8].replace(/[.,;:!?]+$/, '');
+        const suffix = match[8].slice(rawUrl.length);
+        if (isSafeAIExternalUrl(rawUrl)) {
+          const link = document.createElement('a');
+          link.href = new URL(rawUrl).toString();
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = rawUrl.replace(/^https:\/\//, '');
+          parent.append(link);
+        } else {
+          parent.append(document.createTextNode(match[8]));
+        }
+        if (suffix) parent.append(document.createTextNode(suffix));
       }
-      if (suffix) container.append(document.createTextNode(suffix));
-      offset = pattern.lastIndex;
+      offset = tokenPattern.lastIndex;
     }
-    if (offset < source.length) container.append(document.createTextNode(source.slice(offset)));
+    if (offset < source.length) parent.append(document.createTextNode(source.slice(offset)));
+  }
+
+  function splitAIMarkdownTableRow(line) {
+    return line.trim().replace(/^\|/, '').replace(/\|$/, '')
+      .split(/(?<!\\)\|/).map(cell => cell.replace(/\\\|/g, '|').trim());
+  }
+
+  function isAIMarkdownTableSeparator(line) {
+    const cells = splitAIMarkdownTableRow(line);
+    return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+  }
+
+  function renderAIAnswerTable(lines) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-answer-table-wrap';
+    wrap.setAttribute('role', 'region');
+    wrap.setAttribute('aria-label', 'AI answer table; scroll horizontally to view all columns');
+    const table = document.createElement('table');
+    table.className = 'ai-answer-table';
+    const head = document.createElement('thead');
+    const body = document.createElement('tbody');
+    splitAIMarkdownTableRow(lines[0]).forEach(value => {
+      const cell = document.createElement('th');
+      cell.scope = 'col';
+      appendAIInlineMarkdown(cell, value);
+      head.append(cell);
+    });
+    lines.slice(2).forEach(line => {
+      const values = splitAIMarkdownTableRow(line);
+      if (!values.some(Boolean)) return;
+      const row = document.createElement('tr');
+      values.forEach(value => {
+        const cell = document.createElement('td');
+        appendAIInlineMarkdown(cell, value);
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    table.append(head, body);
+    wrap.append(table);
+    return wrap;
+  }
+
+  function appendAIAnswerMarkdown(container, value) {
+    const source = cleanAIAnswerForDisplay(value);
+    const lines = source.split(/\r?\n/);
+    container.classList.add('ai-answer');
+    let index = 0;
+    while (index < lines.length) {
+      const line = lines[index].trim();
+      if (!line) { index++; continue; }
+      if (/^(?:---+|___+|\*\*\*+)$/.test(line)) {
+        container.append(document.createElement('hr'));
+        index++;
+        continue;
+      }
+      if (line.startsWith('|') && index + 1 < lines.length && isAIMarkdownTableSeparator(lines[index + 1])) {
+        const tableLines = [line];
+        index += 2;
+        while (index < lines.length && lines[index].trim().startsWith('|')) {
+          tableLines.push(lines[index].trim());
+          index++;
+        }
+        container.append(renderAIAnswerTable(tableLines));
+        continue;
+      }
+      const heading = line.match(/^(#{1,3})\s+(.+)$/);
+      if (heading) {
+        const element = document.createElement(heading[1].length === 1 ? 'h3' : 'h4');
+        appendAIInlineMarkdown(element, heading[2]);
+        container.append(element);
+        index++;
+        continue;
+      }
+      if (/^>\s?/.test(line)) {
+        const quote = document.createElement('blockquote');
+        appendAIInlineMarkdown(quote, line.replace(/^>\s?/, ''));
+        container.append(quote);
+        index++;
+        continue;
+      }
+      const listMatch = line.match(/^([-*•]|\d+[.)])\s+(.+)$/);
+      if (listMatch) {
+        const ordered = /^\d/.test(listMatch[1]);
+        const list = document.createElement(ordered ? 'ol' : 'ul');
+        while (index < lines.length) {
+          const itemMatch = lines[index].trim().match(/^([-*•]|\d+[.)])\s+(.+)$/);
+          if (!itemMatch || /^\d/.test(itemMatch[1]) !== ordered) break;
+          const item = document.createElement('li');
+          appendAIInlineMarkdown(item, itemMatch[2]);
+          list.append(item);
+          index++;
+        }
+        container.append(list);
+        continue;
+      }
+      const paragraphLines = [];
+      while (index < lines.length) {
+        const current = lines[index].trim();
+        if (!current || /^(?:---+|___+|\*\*\*+)$/.test(current) ||
+            /^#{1,3}\s+/.test(current) || /^>\s?/.test(current) ||
+            /^([-*•]|\d+[.)])\s+/.test(current) ||
+            (current.startsWith('|') && index + 1 < lines.length && isAIMarkdownTableSeparator(lines[index + 1]))) break;
+        paragraphLines.push(current);
+        index++;
+      }
+      const paragraph = document.createElement('p');
+      appendAIInlineMarkdown(paragraph, paragraphLines.join(' '));
+      container.append(paragraph);
+    }
   }
 
   function add(m) {
@@ -3365,9 +3538,9 @@ function start() {
     }
     if (isNewsMessage) d.append(renderWorldNewsCard(m.news));
     if (m.text) {
-      const content = document.createElement('span');
-      content.className = 'message-content';
-      if (m.companion === true) appendAIAnswerWithLinks(content, m.text);
+      const content = document.createElement(m.companion === true ? 'div' : 'span');
+      content.className = m.companion === true ? 'message-content ai-answer-content' : 'message-content';
+      if (m.companion === true) appendAIAnswerMarkdown(content, m.text);
       else content.textContent = m.text;
       d.append(content);
       if (m.edited) {
