@@ -6,7 +6,7 @@ const { cleanAIAnswerText } = require('../lib/ai-format');
 
 test('removes Groq browser-search line citation markers without removing the answer', () => {
   const answer = 'De situatie is gespannen 〖2†L6-L10〗.\nMeer details staan hier [1†L8-L-L13].';
-  assert.equal(cleanAIAnswerText(answer), 'De situatie is gespannen .\nMeer details staan hier .');
+  assert.equal(cleanAIAnswerText(answer), 'De situatie is gespannen.\nMeer details staan hier.');
 });
 
 test('removes source tokens and normalizes excessive whitespace', () => {
