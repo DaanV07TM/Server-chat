@@ -45,12 +45,22 @@
   </header>
   <main>
       <article class="patch-entry">
+        <div class="patch-date">20 NOV 2026</div>
+        <h3>World News · private AI replies and richer article previews</h3>
+        <ul>
+          <li>AI Companion answers now arrive in a private inbox for the person who asked. They are not broadcast to the channel and no longer use the shared news-message history.</li>
+          <li>Improved RSS and Atom image detection for publisher previews, including media tags, image enclosures and images embedded in feed descriptions.</li>
+          <li>When a publisher does not provide a usable preview image, the news card shows a clear publisher placeholder instead of an empty media area.</li>
+        </ul>
+      </article>
+
+      <article class="patch-entry">
         <div class="patch-date">19 NOV 2026</div>
         <h3>World News · read-only AI news channel</h3>
         <ul>
           <li>Added <code>#world-news</code>, an automatically refreshed news channel where members can react with emoji but cannot send chat messages.</li>
           <li>News items show the publisher headline, source domain, a Dutch AI summary, the original article link and the publisher's preview image when available.</li>
-          <li>The feed uses GDELT article metadata and matching context snippets. The AI summary is limited to those source details; the channel does not claim that a story has been independently fact-checked.</li>
+          <li>The feed uses selected English-language publisher RSS feeds. The AI summary is based on publisher headlines and RSS excerpts; the channel does not claim that a story has been independently fact-checked.</li>
           <li>Added server-side read-only enforcement, duplicate filtering, publisher URL checks, feed limits and controls in the admin AI panel.</li>
         </ul>
       </article>
@@ -70,13 +80,28 @@
     <p class="lead">A dated record of security improvements, interface fixes and features shipped to Server Chat. Newest changes appear first.</p>
 
     <section class="release-list" aria-label="Release notes">
+      <article class="release" id="2026-11-20-private-world-news-ai">
+        <div>
+          <div class="date">20 November 2026</div>
+          <span class="version">World News &amp; private AI</span>
+        </div>
+        <div>
+          <div class="status">Released</div>
+          <h2>Private AI replies and improved article previews</h2>
+          <ul>
+            <li>AI Companion answers now appear in a private inbox for the requesting user. They are not broadcast to other members or counted as shared channel messages, so the news feed keeps its articles.</li>
+            <li>Expanded publisher image detection to read common RSS and Atom preview-image formats. If a publisher does not provide a usable image, the card clearly labels that no photo was supplied.</li>
+            <li>Added checks to ensure AI answers stay private and publisher preview images are parsed safely.</li>
+          </ul>
+        </div>
+      </article>
       <article class="release" id="2026-11-19-world-news-ai">
         <div>
           <div class="date">19 November 2026</div>
           <span class="version">News &amp; AI safety</span>
         </div>
         <div>
-          <div class="status">Prepared</div>
+          <div class="status">Released</div>
           <h2>Curated English World News, live AI search and stricter moderation</h2>
           <ul>
             <li>Replaced the broad news index with parallel RSS feeds from selected established English-language publishers. Publisher links are checked against explicit HTTPS domain allowlists, and a failed feed does not stop the others from being read.</li>

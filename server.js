@@ -1271,13 +1271,16 @@ async function reviewPublicMessage(room, message) {
 }
 
 async function sendChannelAICompanion(socket, room, prompt, ownerToken) {
+  const sendPrivateError = message => socket.emit('ai:private-error', {
+    room, question: prompt, message, createdAt: Date.now()
+  });
   const publicRoom = PUBLIC_STATUS_CHANNELS.some(channel => channel.key === room && channel.key !== 'announcements');
   if (!publicRoom || room.startsWith('private-')) {
-    socket.emit('sys', 'De AI Companion is alleen beschikbaar in openbare kanalen.');
+    sendPrivateError('De AI Companion is alleen beschikbaar in openbare kanalen.');
     return;
   }
   if (!AI_ENABLED || !AI_API_KEY) {
-    socket.emit('sys', 'De AI Companion is momenteel niet beschikbaar. Vraag een moderator om de AI in te stellen of te activeren.');
+    sendPrivateError('De AI Companion is momenteel niet beschikbaar. Vraag een moderator om de AI in te stellen of te activeren.');
     return;
   }
 
@@ -1285,20 +1288,20 @@ async function sendChannelAICompanion(socket, room, prompt, ownerToken) {
   const userKey = ownerToken || socket.id;
   const userRecent = (AI_COMPANION_USER_REQUESTS.get(userKey) || []).filter(time => now - time < 10 * 60 * 1000);
   if (userRecent.length >= 6) {
-    socket.emit('sys', 'Je hebt het maximum van 6 AI Companion-vragen per 10 minuten bereikt.');
+    sendPrivateError('Je hebt het maximum van 6 AI Companion-vragen per 10 minuten bereikt.');
     return;
   }
 
   const ipKey = String(socket.data.clientIp || 'unknown');
   const ipRecent = (AI_RATE_LIMIT.get(ipKey) || []).filter(time => now - time < AI_RATE_WINDOW_MS);
   if (ipRecent.length >= AI_RATE_MAX) {
-    socket.emit('sys', 'De AI is vanaf dit netwerk tijdelijk te vaak gebruikt. Probeer het later opnieuw.');
+    sendPrivateError('De AI is vanaf dit netwerk tijdelijk te vaak gebruikt. Probeer het later opnieuw.');
     return;
   }
 
   const globalRecent = AI_GLOBAL_REQUESTS.filter(time => now - time < AI_GLOBAL_WINDOW_MS);
   if (globalRecent.length >= AI_GLOBAL_MAX) {
-    socket.emit('sys', 'De gedeelde dagelijkse AI-limiet is bereikt. Probeer het later opnieuw.');
+    sendPrivateError('De gedeelde dagelijkse AI-limiet is bereikt. Probeer het later opnieuw.');
     return;
   }
 
@@ -1356,11 +1359,18 @@ async function sendChannelAICompanion(socket, room, prompt, ownerToken) {
       ? payload.choices[0].message.content
       : '');
     if (!answer) throw new Error('Groq AI Companion returned an empty response.');
-    if (!socket.connected || !socket.rooms.has(room) || blockedRoomForAI(socket)) return;
-    bot(room, answer, ownerToken, { name: 'Server Chat AI', companion: true });
+    if (!socket.connected || blockedRoomForAI(socket)) return;
+    // This is a one-to-one Socket.IO event, not a room message. It must never be
+    // stored in rooms[room] or broadcast to other members.
+    socket.emit('ai:private-reply', {
+      room,
+      question: prompt,
+      text: answer,
+      createdAt: Date.now()
+    });
   } catch (error) {
     console.warn('[ai-companion] Provider request failed.');
-    if (socket.connected) socket.emit('sys', 'De AI Companion kon momenteel geen antwoord ophalen. Probeer het later opnieuw.');
+    if (socket.connected) sendPrivateError('De AI kon je vraag nu niet beantwoorden. Probeer het straks opnieuw.');
   }
 }
 

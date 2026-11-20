@@ -133,6 +133,43 @@ test('parses publisher RSS entries, keeps the publisher excerpt and optional pre
   assert.equal(stories[1].sourceDomain, 'bbc.co.uk');
 });
 
+test('extracts publisher images from media, Atom enclosure links and escaped description HTML', () => {
+  const feed = { publisher: 'BBC News', allowedDomains: ['bbc.com', 'bbc.co.uk'] };
+  const xml = '<rss><channel>' +
+    '<item><title>Media content image metadata is detected correctly</title>' +
+    '<link>https://www.bbc.com/news/articles/media-image</link>' +
+    '<media:content medium="image" type="image/jpeg" url="https://ichef.bbci.co.uk/images/media.jpg" />' +
+    '</item>' +
+    '<item><title>Atom image enclosure is detected correctly</title>' +
+    '<link rel="alternate" href="https://www.bbc.com/news/articles/atom-image" />' +
+    '<link rel="enclosure" type="image/webp" href="https://ichef.bbci.co.uk/images/atom.webp" />' +
+    '</item>' +
+    '<item><title>Escaped image markup inside a publisher description works</title>' +
+    '<link>https://www.bbc.com/news/articles/escaped-image</link>' +
+    '<description>&lt;img src=&quot;https://ichef.bbci.co.uk/images/escaped.jpg&quot; alt=&quot;Preview&quot;&gt;</description>' +
+    '</item>' +
+    '<item><title>iTunes image links are supported for publisher previews</title>' +
+    '<link>https://www.bbc.com/news/articles/itunes-image</link>' +
+    '<itunes:image href="https://ichef.bbci.co.uk/images/itunes.jpg" />' +
+    '</item>' +
+    '<item><title>Protocol relative publisher image URLs use HTTPS safely</title>' +
+    '<link>https://www.bbc.com/news/articles/protocol-relative</link>' +
+    '<media:thumbnail url="//ichef.bbci.co.uk/images/protocol.jpg" />' +
+    '</item>' +
+    '<item><title>Video enclosures are not used as article preview images</title>' +
+    '<link>https://www.bbc.com/news/articles/video-only</link>' +
+    '<enclosure type="video/mp4" url="https://cdn.bbci.co.uk/video/story.mp4" />' +
+    '</item></channel></rss>';
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 6);
+  assert.equal(stories.find(story => story.url.endsWith('/media-image')).imageUrl, 'https://ichef.bbci.co.uk/images/media.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/atom-image')).imageUrl, 'https://ichef.bbci.co.uk/images/atom.webp');
+  assert.equal(stories.find(story => story.url.endsWith('/escaped-image')).imageUrl, 'https://ichef.bbci.co.uk/images/escaped.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/itunes-image')).imageUrl, 'https://ichef.bbci.co.uk/images/itunes.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/protocol-relative')).imageUrl, 'https://ichef.bbci.co.uk/images/protocol.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/video-only')).imageUrl, null);
+});
+
 test('RSS parser rejects links outside the selected publisher domain and deduplicates URLs', () => {
   const feed = { publisher: 'NPR', allowedDomains: ['npr.org'] };
   const xml = `<rss><channel>

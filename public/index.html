@@ -670,6 +670,29 @@ button:active:not(:disabled){transform:translateY(0)}
 .ai-answer-table tr:last-child td{border-bottom:0}
 .ai-answer-table td{color:var(--ink)}
 @media(max-width:640px){.world-news-title{margin:0 16px!important}.world-news-kicker,.world-news-source,.world-news-summary,.world-news-note{margin-left:16px!important;margin-right:16px!important}.world-news-original-link{margin-left:16px;margin-right:16px}.ai-answer-table{min-width:420px}}
+.world-news-image-fallback{min-height:176px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 26px;background:radial-gradient(circle at 82% 26%,color-mix(in srgb,var(--accent) 26%,transparent),transparent 34%),linear-gradient(125deg,color-mix(in srgb,var(--accent) 18%,var(--panel)),var(--panel));border-bottom:1px solid var(--line);overflow:hidden}
+.world-news-image-fallback-mark{display:grid;place-items:center;width:96px;height:96px;flex:0 0 96px;border-radius:26px;background:color-mix(in srgb,var(--accent) 13%,var(--panel));border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));font-size:44px;box-shadow:0 12px 30px rgba(0,0,0,.08)}
+.world-news-image-fallback-copy{display:flex;flex-direction:column;gap:5px;margin-left:auto;text-align:right}
+.world-news-image-fallback-copy strong{font-size:15px;color:var(--ink)}
+.world-news-image-fallback-copy small{font-size:12px;color:var(--mute)}
+.ai-private-inbox-toggle{position:fixed;right:18px;bottom:88px;z-index:119;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:999px;padding:11px 16px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;font-weight:800;box-shadow:0 12px 36px rgba(0,0,0,.24);cursor:pointer}
+.ai-private-inbox-toggle[hidden],.ai-private-inbox[hidden]{display:none!important}
+.ai-private-inbox{position:fixed;right:18px;bottom:88px;z-index:120;display:flex;flex-direction:column;width:min(540px,calc(100vw - 24px));max-height:min(68vh,620px);overflow:hidden;border:1px solid color-mix(in srgb,var(--accent) 26%,var(--line));border-radius:19px;background:var(--panel);color:var(--ink);box-shadow:0 24px 74px rgba(0,0,0,.3)}
+.ai-private-inbox-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 15px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+.ai-private-inbox-identity{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ai-private-inbox-identity strong{font-size:14px;line-height:1.3}
+.ai-private-inbox-identity small{color:var(--mute);font-size:11px;line-height:1.4}
+.ai-private-inbox-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.ai-private-inbox-actions button{border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);padding:7px 10px;font:inherit;font-size:11px;font-weight:750}
+.ai-private-inbox-actions button:last-child{width:32px;height:32px;padding:0;font-size:20px}
+.ai-private-inbox-list{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding:13px}
+.ai-private-reply{padding:12px 13px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+.ai-private-reply.is-error{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.ai-private-reply-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:var(--mute);font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.ai-private-reply-question{margin:0 0 10px;padding:8px 10px;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;background:color-mix(in srgb,var(--accent) 7%,var(--panel));font-size:12px;line-height:1.5;color:var(--mute)}
+.ai-private-reply-answer{display:block!important;margin:0!important;width:100%;max-width:100%;font-size:13px;line-height:1.6}
+.ai-private-reply-error{margin:0;color:var(--bad);font-size:13px;line-height:1.55}
+@media(max-width:560px){.ai-private-inbox{right:12px;bottom:76px;width:calc(100vw - 24px);max-height:62vh}.ai-private-inbox-toggle{right:12px;bottom:78px}.world-news-image-fallback{min-height:140px;padding:16px}.world-news-image-fallback-mark{width:70px;height:70px;flex-basis:70px;border-radius:19px;font-size:34px}}
 </style>
 <link rel="stylesheet" href="/experience.css">
 <link rel="stylesheet" href="/ai.css">
@@ -3089,6 +3112,25 @@ function start() {
 
   const hue = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const down = () => { log.scrollTop = log.scrollHeight; };
+  function createNewsImageFallback(news) {
+    const fallback = document.createElement('div');
+    fallback.className = 'world-news-image-fallback';
+    fallback.setAttribute('role', 'img');
+    fallback.setAttribute('aria-label', 'Geen voorbeeldafbeelding beschikbaar voor dit artikel');
+    const mark = document.createElement('span');
+    mark.className = 'world-news-image-fallback-mark';
+    mark.textContent = '🌍';
+    const copy = document.createElement('span');
+    copy.className = 'world-news-image-fallback-copy';
+    const source = document.createElement('strong');
+    source.textContent = String(news.source || 'World News');
+    const note = document.createElement('small');
+    note.textContent = 'Geen foto meegeleverd door de uitgever';
+    copy.append(source, note);
+    fallback.append(mark, copy);
+    return fallback;
+  }
+
   function renderWorldNewsCard(news) {
     const article = document.createElement('article');
     article.className = 'world-news-card';
@@ -3127,9 +3169,14 @@ function start() {
       image.alt = 'Beeld bij artikel van ' + String(news.source || 'de nieuwsuitgever');
       image.loading = 'lazy';
       image.referrerPolicy = 'no-referrer';
-      image.onerror = () => { mediaLink.hidden = true; };
+      image.onerror = () => {
+        const fallback = createNewsImageFallback(news);
+        mediaLink.replaceWith(fallback);
+      };
       mediaLink.append(image);
       article.append(mediaLink);
+    } else {
+      article.append(createNewsImageFallback(news));
     }
     article.append(kicker, title, source, summary);
     if (validExternalLink(news.url)) {
@@ -3428,6 +3475,132 @@ function start() {
     }
   }
 
+
+  function createPrivateAIInbox() {
+    const panel = document.createElement('aside');
+    panel.className = 'ai-private-inbox';
+    panel.hidden = true;
+    panel.setAttribute('aria-label', 'Privéantwoorden van Server Chat AI');
+
+    const header = document.createElement('div');
+    header.className = 'ai-private-inbox-header';
+    const identity = document.createElement('div');
+    identity.className = 'ai-private-inbox-identity';
+    const title = document.createElement('strong');
+    title.textContent = '🔒 Privébericht van AI';
+    const subtitle = document.createElement('small');
+    subtitle.textContent = 'Alleen jij ziet het antwoord in de app · vraag en context gaan via Groq';
+    identity.append(title, subtitle);
+
+    const actions = document.createElement('div');
+    actions.className = 'ai-private-inbox-actions';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = 'Wissen';
+    clear.setAttribute('aria-label', 'Wis privéantwoorden');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Sluit privéantwoorden');
+    actions.append(clear, close);
+    header.append(identity, actions);
+
+    const list = document.createElement('div');
+    list.className = 'ai-private-inbox-list';
+    list.setAttribute('aria-live', 'polite');
+    list.setAttribute('aria-relevant', 'additions');
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'ai-private-inbox-toggle';
+    toggle.hidden = true;
+
+    let manuallyClosed = false;
+    let unread = 0;
+    const syncToggle = () => {
+      toggle.hidden = !panel.hidden || list.childElementCount === 0;
+      toggle.textContent = unread > 0
+        ? '🔒 Privé-AI · ' + unread + ' nieuw'
+        : '🔒 Privé-AI openen';
+    };
+    const closePanel = () => {
+      panel.hidden = true;
+      manuallyClosed = true;
+      syncToggle();
+    };
+    close.addEventListener('click', closePanel);
+    toggle.addEventListener('click', () => {
+      panel.hidden = false;
+      manuallyClosed = false;
+      unread = 0;
+      syncToggle();
+      list.scrollTop = list.scrollHeight;
+    });
+    clear.addEventListener('click', () => {
+      list.replaceChildren();
+      unread = 0;
+      panel.hidden = true;
+      manuallyClosed = true;
+      syncToggle();
+    });
+
+    panel.append(header, list);
+    document.body.append(toggle, panel);
+
+    function add(payload, isError) {
+      if (!payload || typeof payload !== 'object') return;
+      const card = document.createElement('article');
+      card.className = 'ai-private-reply' + (isError ? ' is-error' : '');
+
+      const meta = document.createElement('div');
+      meta.className = 'ai-private-reply-meta';
+      const roomLabel = document.createElement('span');
+      const validRoom = typeof payload.room === 'string' && /^[a-z0-9-]{1,30}$/.test(payload.room);
+      roomLabel.textContent = validRoom ? '#' + payload.room : 'Server Chat';
+      const when = document.createElement('time');
+      const date = new Date(Number(payload.createdAt) || Date.now());
+      when.dateTime = date.toISOString();
+      when.textContent = date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+      meta.append(roomLabel, when);
+      card.append(meta);
+
+      if (typeof payload.question === 'string' && payload.question.trim()) {
+        const question = document.createElement('p');
+        question.className = 'ai-private-reply-question';
+        question.textContent = 'Jouw vraag: ' + payload.question.slice(0, 600);
+        card.append(question);
+      }
+
+      if (isError) {
+        const message = document.createElement('p');
+        message.className = 'ai-private-reply-error';
+        message.textContent = String(payload.message || 'De AI kon je vraag niet beantwoorden.');
+        card.append(message);
+      } else {
+        const answer = document.createElement('div');
+        answer.className = 'ai-private-reply-answer ai-answer-content';
+        appendAIAnswerMarkdown(answer, payload.text);
+        card.append(answer);
+      }
+
+      list.append(card);
+      while (list.childElementCount > 6) list.firstElementChild.remove();
+      if (manuallyClosed) {
+        unread = Math.min(99, unread + 1);
+        panel.hidden = true;
+      } else {
+        panel.hidden = false;
+        unread = 0;
+      }
+      syncToggle();
+      if (!panel.hidden) list.scrollTop = list.scrollHeight;
+    }
+
+    return { add };
+  }
+
+  const privateAIInbox = createPrivateAIInbox();
+
   function add(m) {
     const isAnnouncement = !!m.announcement || (m.bot && m.name === '📢' && !m.persistentAnnouncement);
     const isPartyEvent = m.eventType === 'party';
@@ -3661,6 +3834,8 @@ function start() {
     }
     updateMessageSearch();
   });
+  socket.on('ai:private-reply', payload => privateAIInbox.add(payload, false));
+  socket.on('ai:private-error', payload => privateAIInbox.add(payload, true));
   socket.on('msg', m => {
     if (m && m.eventType === 'party') startPartyMode(m);
     if (m && m.eventType === 'party-end') stopPartyMode();
