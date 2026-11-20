@@ -907,7 +907,8 @@ async function findWorldNewsImage(candidate) {
   const cacheKey = String(candidate && candidate.id || '');
   if (!cacheKey) return null;
   const cached = WORLD_NEWS_IMAGE_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.at < WORLD_NEWS_IMAGE_CACHE_TTL_MS) return cached.image;
+  const cacheTtl = cached && cached.image ? WORLD_NEWS_IMAGE_CACHE_TTL_MS : 60 * 60 * 1000;
+  if (cached && Date.now() - cached.at < cacheTtl) return cached.image;
   let image = null;
   try {
     image = await searchOpenverseImage(candidate.title || '');
