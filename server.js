@@ -1356,11 +1356,23 @@ async function sendChannelAICompanion(socket, room, prompt, ownerToken) {
       ? payload.choices[0].message.content
       : '');
     if (!answer) throw new Error('Groq AI Companion returned an empty response.');
-    if (!socket.connected || !socket.rooms.has(room) || blockedRoomForAI(socket)) return;
-    bot(room, answer, ownerToken, { name: 'Server Chat AI', companion: true });
+    if (!socket.connected || blockedRoomForAI(socket)) return;
+    // This is a one-to-one Socket.IO event, not a room message. It must never be
+    // stored in rooms[room] or broadcast to other members.
+    socket.emit('ai:private-reply', {
+      room,
+      question: prompt,
+      text: answer,
+      createdAt: Date.now()
+    });
   } catch (error) {
     console.warn('[ai-companion] Provider request failed.');
-    if (socket.connected) socket.emit('sys', 'De AI Companion kon momenteel geen antwoord ophalen. Probeer het later opnieuw.');
+    if (socket.connected) socket.emit('ai:private-error', {
+      room,
+      question: prompt,
+      message: 'De AI kon je vraag nu niet beantwoorden. Probeer het straks opnieuw.',
+      createdAt: Date.now()
+    });
   }
 }
 
