@@ -70,6 +70,24 @@
     <p class="lead">A dated record of security improvements, interface fixes and features shipped to Server Chat. Newest changes appear first.</p>
 
     <section class="release-list" aria-label="Release notes">
+      <article class="release" id="2026-11-19-world-news-ai">
+        <div>
+          <div class="date">19 November 2026</div>
+          <span class="version">News &amp; AI safety</span>
+        </div>
+        <div>
+          <div class="status">Prepared</div>
+          <h2>Curated English World News, live AI search and stricter moderation</h2>
+          <ul>
+            <li>Replaced the broad news index with parallel RSS feeds from selected established English-language publishers. Publisher links are checked against explicit HTTPS domain allowlists, and a failed feed does not stop the others from being read.</li>
+            <li>Article summaries use the publisher headline and RSS excerpt. Publisher preview images are optional and appear when supplied by the feed; the original article link is always retained.</li>
+            <li>Added a news question composer in <code>#world-news</code>. Questions use the latest news cards as context and Groq's built-in Browser Search for current web research with inline citations.</li>
+            <li>Added a server-side safety rule that immediately removes clear public offers to sell controlled drugs, including ketamine, even when Groq is unavailable or its optional AI moderation is paused. Educational, medical, recovery and news discussion is not blocked merely for mentioning a drug.</li>
+            <li>Strengthened the AI Moderator instructions for drug advertising and distribution and expanded automated tests for both the RSS feeds and drug-sale detection.</li>
+          </ul>
+        </div>
+      </article>
+      <article class="release" id="2026-10-29">
       <article class="release" id="2026-10-29">
         <div>
           <div class="date">29 October 2026</div>

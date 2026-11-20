@@ -8,7 +8,9 @@ const {
   parseGdeltDate,
   parseGdeltArticles,
   extractContextSnippet,
-  parseNewsSummary
+  parseNewsSummary,
+  parseRssFeed,
+  WORLD_NEWS_FEEDS
 } = require('../lib/world-news');
 
 test('accepts only safe external HTTPS URLs', () => {
@@ -96,4 +98,49 @@ test('rejects malformed or unhelpful AI summaries', () => {
   assert.equal(parseNewsSummary(JSON.stringify({
     summary: 'De uitgever meldt dat het parlement vandaag een nieuw voorstel heeft goedgekeurd.'
   })), 'De uitgever meldt dat het parlement vandaag een nieuw voorstel heeft goedgekeurd.');
+});
+
+
+test('curated publisher feeds are English HTTPS feeds with explicit source allowlists', () => {
+  assert.ok(WORLD_NEWS_FEEDS.length >= 8);
+  for (const feed of WORLD_NEWS_FEEDS) {
+    assert.ok(feed.publisher);
+    assert.equal(new URL(feed.url).protocol, 'https:');
+    assert.ok(Array.isArray(feed.allowedDomains) && feed.allowedDomains.length > 0);
+  }
+});
+
+test('parses publisher RSS entries, keeps the publisher excerpt and optional preview image', () => {
+  const feed = { publisher: 'BBC News', allowedDomains: ['bbc.com', 'bbc.co.uk'] };
+  const xml = `<?xml version="1.0"?>
+    <rss><channel><item>
+      <title>Global leaders agree on a new international climate framework</title>
+      <link>https://www.bbc.com/news/articles/example-123</link>
+      <description><![CDATA[<p>Leaders reached an agreement after two days of talks.</p>]]></description>
+      <media:thumbnail url="https://ichef.bbci.co.uk/images/example.jpg" />
+      <pubDate>Wed, 19 Nov 2026 09:00:00 GMT</pubDate>
+    </item><item>
+      <title>A second trusted publisher story without a preview image</title>
+      <link>https://www.bbc.co.uk/news/articles/example-456</link>
+      <description>Publisher summary text for the second story.</description>
+    </item></channel></rss>`;
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 2);
+  assert.equal(stories[0].source, 'BBC News');
+  assert.match(stories[0].summary, /two days of talks/i);
+  assert.equal(stories[0].imageUrl, 'https://ichef.bbci.co.uk/images/example.jpg');
+  assert.equal(stories[1].imageUrl, null);
+  assert.equal(stories[1].sourceDomain, 'bbc.co.uk');
+});
+
+test('RSS parser rejects links outside the selected publisher domain and deduplicates URLs', () => {
+  const feed = { publisher: 'NPR', allowedDomains: ['npr.org'] };
+  const xml = `<rss><channel>
+    <item><title>A legitimate headline with enough descriptive text</title><link>https://www.npr.org/sections/world/123</link></item>
+    <item><title>A fake headline hosted by an unrelated source</title><link>https://not-npr.example/story</link></item>
+    <item><title>Duplicate link with another headline for testing</title><link>https://www.npr.org/sections/world/123?utm_source=rss</link></item>
+  </channel></rss>`;
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 1);
+  assert.equal(stories[0].source, 'NPR');
 });
