@@ -12,7 +12,7 @@ const { pipeline } = require('stream/promises');
 const v8 = require('v8');
 const { Server } = require('socket.io');
 const { classifyPublicMessage, moderationAction, detectIllegalDrugSale } = require('./lib/ai-moderation');
-const { parseRssFeed, parseNewsSummary, WORLD_NEWS_FEEDS } = require('./lib/world-news');
+const { parseRssFeed, parseNewsSummary, fallbackNewsSummary, WORLD_NEWS_FEEDS } = require('./lib/world-news');
 const { cleanAIAnswerText } = require('./lib/ai-format');
 const { searchOpenverseImage } = require('./lib/openverse-images');
 
@@ -752,7 +752,7 @@ let worldNewsInProgress = false;
 let worldNewsLastErrorLoggedAt = 0;
 const WORLD_NEWS_SEEN = new Map();
 const WORLD_NEWS_AI_REQUESTS = [];
-const WORLD_NEWS_STATE = { lastPollAt: 0, lastSuccessAt: 0, lastPublishedAt: 0, published: 0, lastError: null };
+const WORLD_NEWS_STATE = { lastPollAt: 0, lastSuccessAt: 0, lastPublishedAt: 0, published: 0, lastCandidateCount: 0, fallbackSummariesLastPoll: 0, lastError: null };
 let lastLoadAlertAt = 0;
 function recordServerActivity(category, message) {
   const allowed = new Set(['system', 'connection', 'channel', 'chat', 'sticker', 'poll', 'event', 'announcement', 'warning']);
@@ -1012,35 +1012,34 @@ async function generateWorldNewsSummary(candidate, publisherExcerpt) {
 }
 
 async function runWorldNewsPoll() {
-  if (!WORLD_NEWS_ENABLED || !AI_ENABLED || !AI_API_KEY || worldNewsInProgress) return;
-  const now = Date.now();
-  const newsRequests = WORLD_NEWS_AI_REQUESTS.filter(time => now - time < WORLD_NEWS_AI_WINDOW_MS);
-  const globalRequests = AI_GLOBAL_REQUESTS.filter(time => now - time < AI_GLOBAL_WINDOW_MS);
-  if (newsRequests.length >= WORLD_NEWS_AI_MAX_PER_DAY || globalRequests.length >= AI_GLOBAL_MAX) return;
-  WORLD_NEWS_AI_REQUESTS.splice(0, WORLD_NEWS_AI_REQUESTS.length, ...newsRequests);
+  // News publication must not depend on the AI provider being configured or available.
+  if (!WORLD_NEWS_ENABLED || worldNewsInProgress) return;
   worldNewsInProgress = true;
   WORLD_NEWS_STATE.lastPollAt = Date.now();
+  WORLD_NEWS_STATE.lastCandidateCount = 0;
+  WORLD_NEWS_STATE.fallbackSummariesLastPoll = 0;
   try {
     const candidates = await fetchWorldNewsHeadlines();
+    WORLD_NEWS_STATE.lastCandidateCount = candidates.length;
     let publishedThisPoll = 0;
     for (const candidate of candidates) {
       if (publishedThisPoll >= WORLD_NEWS_MAX_PER_POLL) break;
-      const currentNewsBudget = WORLD_NEWS_AI_REQUESTS.filter(time => Date.now() - time < WORLD_NEWS_AI_WINDOW_MS).length;
-      const currentGlobalBudget = AI_GLOBAL_REQUESTS.filter(time => Date.now() - time < AI_GLOBAL_WINDOW_MS).length;
-      if (currentNewsBudget >= WORLD_NEWS_AI_MAX_PER_DAY || currentGlobalBudget >= AI_GLOBAL_MAX) break;
       if (WORLD_NEWS_SEEN.has(candidate.id)) continue;
-      if (!WORLD_NEWS_ENABLED || !AI_ENABLED) break;
+      if (!WORLD_NEWS_ENABLED) break;
 
-      const [summary, licensedImage] = await Promise.all([
+      const [aiSummary, licensedImage] = await Promise.all([
         generateWorldNewsSummary(candidate, candidate.summary || '').catch(() => ''),
         findWorldNewsImage(candidate)
       ]);
+      const summary = aiSummary || fallbackNewsSummary(candidate);
       if (!summary) continue;
+      if (!aiSummary) WORLD_NEWS_STATE.fallbackSummariesLastPoll++;
 
       const news = {
         id: candidate.id,
         title: candidate.title,
         summary,
+        summaryMode: aiSummary ? 'ai' : (candidate.summary ? 'publisher-excerpt' : 'headline-only'),
         url: candidate.url,
         imageUrl: licensedImage ? licensedImage.imageUrl : null,
         imageAttribution: licensedImage ? {
@@ -1070,16 +1069,17 @@ async function runWorldNewsPoll() {
       WORLD_NEWS_STATE.lastPublishedAt = posted.t;
       WORLD_NEWS_STATE.published++;
       publishedThisPoll++;
-      recordServerActivity('system', 'An AI news digest was posted in #world-news');
+      recordServerActivity('system', 'A news digest was posted in #world-news');
     }
     WORLD_NEWS_STATE.lastSuccessAt = Date.now();
     WORLD_NEWS_STATE.lastError = null;
-  } catch (_) {
-    WORLD_NEWS_STATE.lastError = 'News feed temporarily unavailable';
+  } catch (error) {
+    const detail = String(error && error.message || 'News feed temporarily unavailable').split(String.fromCharCode(10)).join(' ').split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(9)).join(' ').trim();
+    WORLD_NEWS_STATE.lastError = detail.slice(0, 180) || 'News feed temporarily unavailable';
     const now = Date.now();
     if (now - worldNewsLastErrorLoggedAt >= 5 * 60 * 1000) {
       worldNewsLastErrorLoggedAt = now;
-      console.warn('[world-news] News feed refresh failed; existing channel posts remain available.');
+      console.warn('[world-news] Refresh failed: ' + WORLD_NEWS_STATE.lastError);
     }
   } finally {
     worldNewsInProgress = false;
@@ -1090,14 +1090,18 @@ app.get('/api/world-news/status', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
     enabled: WORLD_NEWS_ENABLED,
-    active: Boolean(WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY),
+    active: Boolean(WORLD_NEWS_ENABLED),
+    aiSummariesEnabled: Boolean(AI_ENABLED && AI_API_KEY),
     provider: 'News.belgium CC0 + Openverse CC-licensed images',
     photoProvider: 'Openverse · CC0 / CC BY / CC BY-SA commercial-use licenses',
     externalBelgianNews: 'https://www.vrt.be/vrtnws/nl/',
     lastPollAt: WORLD_NEWS_STATE.lastPollAt || null,
     lastSuccessAt: WORLD_NEWS_STATE.lastSuccessAt || null,
     lastPublishedAt: WORLD_NEWS_STATE.lastPublishedAt || null,
-    publishedSinceRestart: WORLD_NEWS_STATE.published
+    publishedSinceRestart: WORLD_NEWS_STATE.published,
+    lastCandidateCount: WORLD_NEWS_STATE.lastCandidateCount,
+    fallbackSummariesLastPoll: WORLD_NEWS_STATE.fallbackSummariesLastPoll,
+    lastError: WORLD_NEWS_STATE.lastError
   });
 });
 const QUIZ_BANK = [
@@ -3265,7 +3269,7 @@ io.on('connection', (socket) => {
     if (room === 'world-news') {
       history.unshift({
         name: 'World News AI', bot: true, pinned: true, t: now,
-        text: 'Welkom bij #world-news. Dit kanaal is alleen-lezen. Hier verschijnen Nederlandstalige federale nieuwsberichten van News.belgium (CC0) met een korte AI-samenvatting en originele bronlink. Bij elk bericht wordt waar mogelijk een afzonderlijke, herbruikbaar gelicentieerde illustratiefoto gezocht via Openverse; maker en licentie staan bij de foto. Ontbreekt een passende foto, dan tonen we dat eerlijk. Voor breder Vlaams nieuws kun je ook rechtstreeks naar VRT NWS via de link bovenaan. AI-samenvattingen en illustratiefoto’s zijn geen onafhankelijke factcheck.'
+        text: 'Welkom bij #world-news. Dit kanaal is alleen-lezen. Hier verschijnen Nederlandstalige federale nieuwsberichten van News.belgium (CC0) met een korte samenvatting (AI wanneer beschikbaar) en originele bronlink. Bij elk bericht wordt waar mogelijk een afzonderlijke, herbruikbaar gelicentieerde illustratiefoto gezocht via Openverse; maker en licentie staan bij de foto. Ontbreekt een passende foto, dan tonen we dat eerlijk. Voor breder Vlaams nieuws kun je ook rechtstreeks naar VRT NWS via de link bovenaan. AI-samenvattingen en illustratiefoto’s zijn geen onafhankelijke factcheck.'
       });
     }
     if (room === 'announcements') {
