@@ -148,15 +148,25 @@ test('extracts publisher images from media, Atom enclosure links and escaped des
     '<link>https://www.bbc.com/news/articles/escaped-image</link>' +
     '<description>&lt;img src=&quot;https://ichef.bbci.co.uk/images/escaped.jpg&quot; alt=&quot;Preview&quot;&gt;</description>' +
     '</item>' +
+    '<item><title>iTunes image links are supported for publisher previews</title>' +
+    '<link>https://www.bbc.com/news/articles/itunes-image</link>' +
+    '<itunes:image href="https://ichef.bbci.co.uk/images/itunes.jpg" />' +
+    '</item>' +
+    '<item><title>Protocol relative publisher image URLs use HTTPS safely</title>' +
+    '<link>https://www.bbc.com/news/articles/protocol-relative</link>' +
+    '<media:thumbnail url="//ichef.bbci.co.uk/images/protocol.jpg" />' +
+    '</item>' +
     '<item><title>Video enclosures are not used as article preview images</title>' +
     '<link>https://www.bbc.com/news/articles/video-only</link>' +
     '<enclosure type="video/mp4" url="https://cdn.bbci.co.uk/video/story.mp4" />' +
     '</item></channel></rss>';
   const stories = parseRssFeed(xml, feed, new Set(), 10);
-  assert.equal(stories.length, 4);
+  assert.equal(stories.length, 6);
   assert.equal(stories.find(story => story.url.endsWith('/media-image')).imageUrl, 'https://ichef.bbci.co.uk/images/media.jpg');
   assert.equal(stories.find(story => story.url.endsWith('/atom-image')).imageUrl, 'https://ichef.bbci.co.uk/images/atom.webp');
   assert.equal(stories.find(story => story.url.endsWith('/escaped-image')).imageUrl, 'https://ichef.bbci.co.uk/images/escaped.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/itunes-image')).imageUrl, 'https://ichef.bbci.co.uk/images/itunes.jpg');
+  assert.equal(stories.find(story => story.url.endsWith('/protocol-relative')).imageUrl, 'https://ichef.bbci.co.uk/images/protocol.jpg');
   assert.equal(stories.find(story => story.url.endsWith('/video-only')).imageUrl, null);
 });
 
