@@ -1608,7 +1608,7 @@ const adminState = () => ({
   worldNews: {
     enabled: WORLD_NEWS_ENABLED,
     active: Boolean(WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY),
-    source: 'Curated English-language publisher RSS feeds',
+    source: 'News.belgium CC0 + Openverse CC-licensed images',
     lastPollAt: WORLD_NEWS_STATE.lastPollAt || null,
     lastSuccessAt: WORLD_NEWS_STATE.lastSuccessAt || null,
     lastPublishedAt: WORLD_NEWS_STATE.lastPublishedAt || null,
