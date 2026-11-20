@@ -152,7 +152,7 @@ test('World News status is private-cache safe and reports disabled test configur
   const body = await response.json();
   assert.equal(body.enabled, false);
   assert.equal(body.active, false);
-  assert.equal(body.provider, 'Curated English-language publisher RSS feeds');
+  assert.equal(body.provider, 'News.belgium CC0 + Openverse CC-licensed images');
   assert.equal(typeof body.publishedSinceRestart, 'number');
 });
 
@@ -193,6 +193,22 @@ test('World News AI replies are private and do not enter shared room history', (
   assert.ok(html.includes("socket.on('ai:private-error'"));
   assert.ok(html.includes('ai-private-inbox'));
   assert.ok(html.includes('createNewsImageFallback'));
+});
+
+test('World News uses separately licensed Openverse images and links VRT directly', () => {
+  const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const openverse = fs.readFileSync(path.join(root, 'lib', 'openverse-images.js'), 'utf8');
+  assert.ok(server.includes("require('./lib/openverse-images')"));
+  assert.ok(server.includes('searchOpenverseImage(candidate.title'));
+  assert.ok(server.includes('imageAttribution: licensedImage'));
+  assert.ok(!server.includes('imageUrl: candidate.imageUrl'));
+  assert.ok(openverse.includes("license_type: 'commercial'"));
+  assert.ok(openverse.includes("new Set(['cc0', 'pdm', 'by', 'by-sa'])"));
+  assert.ok(html.includes('https://www.vrt.be/vrtnws/nl/'));
+  assert.ok(html.includes('world-news-photo-credit'));
+  assert.ok(html.includes('licenseLabel'));
+  assert.ok(html.includes('Illustratief beeld'));
 });
 
 test('local controlled-drug sale detection is wired before provider availability checks', () => {
