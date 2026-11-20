@@ -101,13 +101,15 @@ test('rejects malformed or unhelpful AI summaries', () => {
 });
 
 
-test('curated publisher feeds are English HTTPS feeds with explicit source allowlists', () => {
-  assert.ok(WORLD_NEWS_FEEDS.length >= 8);
-  for (const feed of WORLD_NEWS_FEEDS) {
-    assert.ok(feed.publisher);
-    assert.equal(new URL(feed.url).protocol, 'https:');
-    assert.ok(Array.isArray(feed.allowedDomains) && feed.allowedDomains.length > 0);
-  }
+test('World News uses the Dutch-language News.belgium CC0 feed', () => {
+  assert.equal(WORLD_NEWS_FEEDS.length, 1);
+  const feed = WORLD_NEWS_FEEDS[0];
+  assert.equal(feed.publisher, 'News.belgium');
+  assert.equal(feed.url, 'https://news.belgium.be/nl/feeds/all');
+  assert.equal(feed.language, 'nl');
+  assert.equal(feed.contentLicense, 'CC0');
+  assert.deepEqual(feed.allowedDomains, ['news.belgium.be']);
+  assert.equal(new URL(feed.url).protocol, 'https:');
 });
 
 test('parses publisher RSS entries, keeps the publisher excerpt and optional preview image', () => {
@@ -168,6 +170,41 @@ test('extracts publisher images from media, Atom enclosure links and escaped des
   assert.equal(stories.find(story => story.url.endsWith('/itunes-image')).imageUrl, 'https://ichef.bbci.co.uk/images/itunes.jpg');
   assert.equal(stories.find(story => story.url.endsWith('/protocol-relative')).imageUrl, 'https://ichef.bbci.co.uk/images/protocol.jpg');
   assert.equal(stories.find(story => story.url.endsWith('/video-only')).imageUrl, null);
+});
+
+test('parses a Dutch News.belgium entry and retains its original government article link', () => {
+  const feed = { publisher: 'News.belgium', allowedDomains: ['news.belgium.be'] };
+  const xml = '<rss><channel><item>' +
+    '<title>Europese controleactie brengt te hoge PFAS-waarden in bepaalde kinderkleding aan het licht</title>' +
+    '<link>https://news.belgium.be/nl/europese-controleactie-pfas-kinderkleding</link>' +
+    '<description><![CDATA[In België overschreden drie van de tien gecontroleerde kledingstukken en schoenen de toegestane limieten.]]></description>' +
+    '<pubDate>Fri, 20 Nov 2026 08:19:00 GMT</pubDate>' +
+    '</item></channel></rss>';
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 1);
+  assert.equal(stories[0].source, 'News.belgium');
+  assert.match(stories[0].title, /PFAS/);
+  assert.match(stories[0].summary, /drie van de tien/i);
+  assert.equal(stories[0].url, 'https://news.belgium.be/nl/europese-controleactie-pfas-kinderkleding');
+  assert.equal(stories[0].sourceDomain, 'news.belgium.be');
+});
+
+test('skips News.belgium RSS items with an explicit non-CC0 rights notice', () => {
+  const feed = { publisher: 'News.belgium', allowedDomains: ['news.belgium.be'], contentLicense: 'CC0' };
+  const xml = '<rss><channel>' +
+    '<item><title>Public information that can be reused under CC0</title>' +
+    '<link>https://news.belgium.be/nl/cc0-release</link>' +
+    '<description>Text that is reusable.</description>' +
+    '</item>' +
+    '<item><title>Content with a separate rights notice must be skipped</title>' +
+    '<link>https://news.belgium.be/nl/restricted-release</link>' +
+    '<description>Text with separate terms.</description>' +
+    '<rights>All rights reserved</rights>' +
+    '</item></channel></rss>';
+  const stories = parseRssFeed(xml, feed, new Set(), 10);
+  assert.equal(stories.length, 1);
+  assert.equal(stories[0].url, 'https://news.belgium.be/nl/cc0-release');
+  assert.equal(stories[0].imageUrl, null);
 });
 
 test('RSS parser rejects links outside the selected publisher domain and deduplicates URLs', () => {

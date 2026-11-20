@@ -14,6 +14,7 @@ const { Server } = require('socket.io');
 const { classifyPublicMessage, moderationAction, detectIllegalDrugSale } = require('./lib/ai-moderation');
 const { parseRssFeed, parseNewsSummary, WORLD_NEWS_FEEDS } = require('./lib/world-news');
 const { cleanAIAnswerText } = require('./lib/ai-format');
+const { searchOpenverseImage } = require('./lib/openverse-images');
 
 const app = express();
 const server = http.createServer(app);
@@ -899,6 +900,28 @@ function bot(room, text, ownerToken = '', extra = {}) {
 
 const WORLD_NEWS_AI_WINDOW_MS = 24 * 60 * 60 * 1000;
 const WORLD_NEWS_AI_MAX_PER_DAY = 100;
+const WORLD_NEWS_IMAGE_CACHE = new Map();
+const WORLD_NEWS_IMAGE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function findWorldNewsImage(candidate) {
+  const cacheKey = String(candidate && candidate.id || '');
+  if (!cacheKey) return null;
+  const cached = WORLD_NEWS_IMAGE_CACHE.get(cacheKey);
+  const cacheTtl = cached && cached.image ? WORLD_NEWS_IMAGE_CACHE_TTL_MS : 60 * 60 * 1000;
+  if (cached && Date.now() - cached.at < cacheTtl) return cached.image;
+  let image = null;
+  try {
+    image = await searchOpenverseImage(candidate.title || '');
+  } catch (_) {
+    image = null;
+  }
+  WORLD_NEWS_IMAGE_CACHE.set(cacheKey, { image, at: Date.now() });
+  if (WORLD_NEWS_IMAGE_CACHE.size > 1000) {
+    const oldest = WORLD_NEWS_IMAGE_CACHE.keys().next().value;
+    WORLD_NEWS_IMAGE_CACHE.delete(oldest);
+  }
+  return image;
+}
 
 async function fetchWorldNewsHeadlines() {
   const now = Date.now();
@@ -906,8 +929,8 @@ async function fetchWorldNewsHeadlines() {
     if (now - seenAt > WORLD_NEWS_TTL_MS) WORLD_NEWS_SEEN.delete(id);
   }
 
-  // Fetch all publisher RSS feeds in parallel. Each feed is English and article links
-  // are checked against that publisher's own domain allowlist by parseRssFeed().
+  // Fetch the Dutch-language News.belgium CC0 feed. VRT NWS is linked as an
+  // external destination only; its RSS content is not automatically collected or republished.
   const responses = await Promise.allSettled(WORLD_NEWS_FEEDS.map(async feed => {
     const response = await fetch(feed.url, {
       headers: {
@@ -1008,12 +1031,10 @@ async function runWorldNewsPoll() {
       if (WORLD_NEWS_SEEN.has(candidate.id)) continue;
       if (!WORLD_NEWS_ENABLED || !AI_ENABLED) break;
 
-      let summary = '';
-      try {
-        summary = await generateWorldNewsSummary(candidate, candidate.summary || '');
-      } catch (_) {
-        summary = '';
-      }
+      const [summary, licensedImage] = await Promise.all([
+        generateWorldNewsSummary(candidate, candidate.summary || '').catch(() => ''),
+        findWorldNewsImage(candidate)
+      ]);
       if (!summary) continue;
 
       const news = {
@@ -1021,11 +1042,20 @@ async function runWorldNewsPoll() {
         title: candidate.title,
         summary,
         url: candidate.url,
-        imageUrl: candidate.imageUrl,
+        imageUrl: licensedImage ? licensedImage.imageUrl : null,
+        imageAttribution: licensedImage ? {
+          title: licensedImage.title,
+          creator: licensedImage.creator,
+          creatorUrl: licensedImage.creatorUrl,
+          licenseLabel: licensedImage.licenseLabel,
+          licenseUrl: licensedImage.licenseUrl,
+          pageUrl: licensedImage.pageUrl,
+          provider: licensedImage.provider
+        } : null,
         source: candidate.source,
         sourceDomain: candidate.sourceDomain,
         seenAt: candidate.seenAt,
-        indexSource: 'Curated English-language publisher RSS feeds'
+        indexSource: 'News.belgium CC0 + Openverse CC-licensed images'
       };
       const posted = bot('world-news', '', '', {
         name: 'World News AI',
@@ -1061,7 +1091,9 @@ app.get('/api/world-news/status', (_req, res) => {
   res.json({
     enabled: WORLD_NEWS_ENABLED,
     active: Boolean(WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY),
-    provider: 'Curated English-language publisher RSS feeds',
+    provider: 'News.belgium CC0 + Openverse CC-licensed images',
+    photoProvider: 'Openverse · CC0 / CC BY / CC BY-SA commercial-use licenses',
+    externalBelgianNews: 'https://www.vrt.be/vrtnws/nl/',
     lastPollAt: WORLD_NEWS_STATE.lastPollAt || null,
     lastSuccessAt: WORLD_NEWS_STATE.lastSuccessAt || null,
     lastPublishedAt: WORLD_NEWS_STATE.lastPublishedAt || null,
@@ -1577,7 +1609,7 @@ const adminState = () => ({
   worldNews: {
     enabled: WORLD_NEWS_ENABLED,
     active: Boolean(WORLD_NEWS_ENABLED && AI_ENABLED && AI_API_KEY),
-    source: 'Curated English-language publisher RSS feeds',
+    source: 'News.belgium CC0 + Openverse CC-licensed images',
     lastPollAt: WORLD_NEWS_STATE.lastPollAt || null,
     lastSuccessAt: WORLD_NEWS_STATE.lastSuccessAt || null,
     lastPublishedAt: WORLD_NEWS_STATE.lastPublishedAt || null,
@@ -3233,7 +3265,7 @@ io.on('connection', (socket) => {
     if (room === 'world-news') {
       history.unshift({
         name: 'World News AI', bot: true, pinned: true, t: now,
-        text: 'Welkom bij #world-news. Dit kanaal is alleen-lezen: de AI plaatst automatisch korte Nederlandstalige nieuwssamenvattingen met de oorspronkelijke artikellink en artikelafbeelding. Reageer met emoji. De bronlink en foto helpen je de oorspronkelijke publicatie te controleren, maar zijn op zichzelf geen onafhankelijke factcheck. Nieuws komt uit Engelstalige RSS-feeds van geselecteerde uitgevers; AI-samenvattingen kunnen fouten bevatten.'
+        text: 'Welkom bij #world-news. Dit kanaal is alleen-lezen. Hier verschijnen Nederlandstalige federale nieuwsberichten van News.belgium (CC0) met een korte AI-samenvatting en originele bronlink. Bij elk bericht wordt waar mogelijk een afzonderlijke, herbruikbaar gelicentieerde illustratiefoto gezocht via Openverse; maker en licentie staan bij de foto. Ontbreekt een passende foto, dan tonen we dat eerlijk. Voor breder Vlaams nieuws kun je ook rechtstreeks naar VRT NWS via de link bovenaan. AI-samenvattingen en illustratiefoto’s zijn geen onafhankelijke factcheck.'
       });
     }
     if (room === 'announcements') {

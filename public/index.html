@@ -675,6 +675,14 @@ button:active:not(:disabled){transform:translateY(0)}
 .world-news-image-fallback-copy{display:flex;flex-direction:column;gap:5px;margin-left:auto;text-align:right}
 .world-news-image-fallback-copy strong{font-size:15px;color:var(--ink)}
 .world-news-image-fallback-copy small{font-size:12px;color:var(--mute)}
+.world-news-source-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;width:min(900px,100%);margin:0 auto 4px;padding:15px 18px;border:1px solid color-mix(in srgb,var(--accent) 20%,var(--line));border-radius:15px;background:linear-gradient(110deg,color-mix(in srgb,var(--accent) 8%,var(--panel)),var(--panel))}
+.world-news-source-banner-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.world-news-source-banner-copy strong{font-size:13px;color:var(--ink)}
+.world-news-source-banner-copy span{font-size:11px;line-height:1.5;color:var(--mute)}
+.world-news-vrt-link{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;padding:9px 12px;border-radius:10px;background:var(--accent);color:#fff!important;text-decoration:none!important;font-size:12px;font-weight:850;white-space:nowrap}
+.world-news-photo-credit{display:flex;flex-wrap:wrap;gap:4px;margin:-4px 22px 0;color:var(--mute);font-size:10px;line-height:1.5}
+.world-news-photo-credit a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+@media(max-width:560px){.world-news-source-banner{align-items:flex-start;flex-direction:column;margin-bottom:0;padding:13px}.world-news-vrt-link{width:100%}.world-news-photo-credit{margin-left:16px;margin-right:16px}}
 .ai-private-inbox-toggle{position:fixed;right:18px;bottom:88px;z-index:119;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:999px;padding:11px 16px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;font-weight:800;box-shadow:0 12px 36px rgba(0,0,0,.24);cursor:pointer}
 .ai-private-inbox-toggle[hidden],.ai-private-inbox[hidden]{display:none!important}
 .ai-private-inbox{position:fixed;right:18px;bottom:88px;z-index:120;display:flex;flex-direction:column;width:min(540px,calc(100vw - 24px));max-height:min(68vh,620px);overflow:hidden;border:1px solid color-mix(in srgb,var(--accent) 26%,var(--line));border-radius:19px;background:var(--panel);color:var(--ink);box-shadow:0 24px 74px rgba(0,0,0,.3)}
@@ -3125,10 +3133,31 @@ function start() {
     const source = document.createElement('strong');
     source.textContent = String(news.source || 'World News');
     const note = document.createElement('small');
-    note.textContent = 'Geen foto meegeleverd door de uitgever';
+    note.textContent = 'Geen herbruikbare illustratiefoto gevonden';
     copy.append(source, note);
     fallback.append(mark, copy);
     return fallback;
+  }
+
+  function createWorldNewsSourceBanner() {
+    const banner = document.createElement('div');
+    banner.className = 'world-news-source-banner';
+    const message = document.createElement('div');
+    message.className = 'world-news-source-banner-copy';
+    const heading = document.createElement('strong');
+    heading.textContent = 'Belgisch nieuws, met VRT NWS als rechtstreekse bron';
+    const description = document.createElement('span');
+    description.textContent = 'De feed gebruikt herbruikbare federale nieuwsberichten en afzonderlijk gelicentieerde illustratiefoto’s.';
+    message.append(heading, description);
+
+    const link = document.createElement('a');
+    link.href = 'https://www.vrt.be/vrtnws/nl/';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'world-news-vrt-link';
+    link.textContent = 'VRT NWS openen ↗';
+    banner.append(message, link);
+    return banner;
   }
 
   function renderWorldNewsCard(news) {
@@ -3143,7 +3172,7 @@ function start() {
     };
     const kicker = document.createElement('div');
     kicker.className = 'world-news-kicker';
-    kicker.textContent = '🌍 WORLD NEWS · UITGEKOZEN NIEUWSBRON';
+    kicker.textContent = '🇧🇪 BELGISCH NIEUWS · NEWS.BELGIUM';
     const title = document.createElement('h2');
     title.className = 'world-news-title';
     title.textContent = String(news.title || 'News story');
@@ -3157,6 +3186,9 @@ function start() {
     const summary = document.createElement('p');
     summary.className = 'world-news-summary';
     summary.textContent = String(news.summary || 'Open the original article for details.');
+    const credit = news.imageAttribution && typeof news.imageAttribution === 'object'
+      ? news.imageAttribution
+      : null;
     if (validExternalLink(news.url) && validExternalLink(news.imageUrl)) {
       const mediaLink = document.createElement('a');
       mediaLink.className = 'world-news-image-link';
@@ -3166,15 +3198,61 @@ function start() {
       const image = document.createElement('img');
       image.className = 'world-news-image';
       image.src = news.imageUrl;
-      image.alt = 'Beeld bij artikel van ' + String(news.source || 'de nieuwsuitgever');
+      image.alt = 'Illustratief beeld bij het nieuwsbericht van ' + String(news.source || 'News.belgium');
       image.loading = 'lazy';
       image.referrerPolicy = 'no-referrer';
       image.onerror = () => {
         const fallback = createNewsImageFallback(news);
         mediaLink.replaceWith(fallback);
+        const creditNode = article.querySelector('.world-news-photo-credit');
+        if (creditNode) creditNode.remove();
       };
       mediaLink.append(image);
       article.append(mediaLink);
+
+      if (credit) {
+        const creditLine = document.createElement('div');
+        creditLine.className = 'world-news-photo-credit';
+        const photoLabel = document.createElement('span');
+        photoLabel.textContent = 'Illustratief beeld · ';
+        creditLine.append(photoLabel);
+
+        if (validExternalLink(credit.pageUrl)) {
+          const sourceLink = document.createElement('a');
+          sourceLink.href = credit.pageUrl;
+          sourceLink.target = '_blank';
+          sourceLink.rel = 'noopener noreferrer';
+          sourceLink.textContent = String(credit.title || 'Openverse-foto').slice(0, 180);
+          creditLine.append(sourceLink);
+        } else {
+          creditLine.append(document.createTextNode(String(credit.title || 'Openverse-foto').slice(0, 180)));
+        }
+
+        creditLine.append(document.createTextNode(' · '));
+        if (validExternalLink(credit.creatorUrl)) {
+          const creatorLink = document.createElement('a');
+          creatorLink.href = credit.creatorUrl;
+          creatorLink.target = '_blank';
+          creatorLink.rel = 'noopener noreferrer';
+          creatorLink.textContent = String(credit.creator || 'Maker niet vermeld').slice(0, 160);
+          creditLine.append(creatorLink);
+        } else {
+          creditLine.append(document.createTextNode(String(credit.creator || 'Maker niet vermeld').slice(0, 160)));
+        }
+        creditLine.append(document.createTextNode(' · '));
+        if (validExternalLink(credit.licenseUrl)) {
+          const licenseLink = document.createElement('a');
+          licenseLink.href = credit.licenseUrl;
+          licenseLink.target = '_blank';
+          licenseLink.rel = 'noopener noreferrer';
+          licenseLink.textContent = String(credit.licenseLabel || 'Licentie').slice(0, 50);
+          creditLine.append(licenseLink);
+        } else {
+          creditLine.append(document.createTextNode(String(credit.licenseLabel || 'Licentie').slice(0, 50)));
+        }
+        creditLine.append(document.createTextNode(' · via Openverse'));
+        article.append(creditLine);
+      }
     } else {
       article.append(createNewsImageFallback(news));
     }
@@ -3190,7 +3268,7 @@ function start() {
     }
     const note = document.createElement('p');
     note.className = 'world-news-note';
-    note.textContent = 'AI-samenvatting op basis van de RSS-publicatie. Controleer details altijd via het originele artikel.';
+    note.textContent = 'AI-samenvatting van CC0-overheidsinformatie. Foto’s zijn afzonderlijke illustratiebeelden met de licentie en maker erbij; ze zijn niet noodzakelijk de originele persfoto.';
     article.append(note);
     return article;
   }
@@ -3822,6 +3900,7 @@ function start() {
     messageRenderGeneration++;
     messageRenderQueue = Promise.resolve();
     log.innerHTML = l.length ? '' : EMPTY;
+    if (room === 'world-news') log.append(createWorldNewsSourceBanner());
     l.forEach(queueServerMessage);
     messageRenderQueue.then(updateMessageSearch).catch(() => {});
   });
